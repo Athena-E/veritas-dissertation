@@ -1,0 +1,380 @@
+\appendix
+\chapter{Complete source-level typing rules}\label{app:source-rules}
+
+This appendix lists the complete set of typing rules for the Veritas source language. Rules marked with $\star$ are also presented in Chapter~\ref{ch:impl}; they are repeated here for completeness.
+
+\section*{Subsumption}
+
+$$\frac{\phi; \Delta; \Gamma \vdash e \Rightarrow (\phi'; \Delta'; \tau_e) \quad \phi' \vdash \tau_e <: \tau}{\phi; \Delta; \Gamma \vdash e \Leftarrow \tau : (\phi'; \Delta')} \quad (\textsc{T-Sub})^\star$$
+
+\section*{Subtyping}
+
+$$\frac{}{\phi \vdash \tau <: \tau} \quad (\textsc{Sub-Refl})$$
+
+$$\frac{}{\phi \vdash \textsf{int}(N) <: \textsf{int}} \quad (\textsc{Sub-Singleton-Int})$$
+
+$$\frac{}{\phi \vdash \{x: \textsf{int} \mid P\} <: \textsf{int}} \quad (\textsc{Sub-Refine-Int})$$
+
+$$\frac{\phi \vdash P[N/x]}{\phi \vdash \textsf{int}(N) <: \{x: \textsf{int} \mid P\}} \quad (\textsc{Sub-Singleton-Refine})^\star$$
+
+$$\frac{\phi \wedge P_1 \vdash P_2}{\phi \vdash \{x: \textsf{int} \mid P_1\} <: \{x: \textsf{int} \mid P_2\}} \quad (\textsc{Sub-Refine-Refine})^\star$$
+
+$$\frac{\phi \vdash \tau_1 <: \tau_2}{\phi \vdash [\tau_1; N] <: [\tau_2; N]} \quad (\textsc{Sub-Array})$$
+
+$$\frac{\phi \vdash \tau <: \sigma}{\phi \vdash \textsf{master}(\tau) <: \sigma} \quad (\textsc{Sub-Master})$$
+
+\section*{Literals and variables}
+
+$$\frac{}{\phi; \Delta; \Gamma \vdash n \Rightarrow (\phi; \Delta; \textsf{int}(n))} \quad (\textsc{T-Int})$$
+
+$$\frac{}{\phi; \Delta; \Gamma \vdash \textsf{true} \Rightarrow (\phi; \Delta; \textsf{bool})} \quad (\textsc{T-True})
+\qquad
+\frac{}{\phi; \Delta; \Gamma \vdash \textsf{false} \Rightarrow (\phi; \Delta; \textsf{bool})} \quad (\textsc{T-False})$$
+
+$$\frac{(x: \tau) \in \Gamma}{\phi; \Delta; \Gamma \vdash x \Rightarrow (\phi; \Delta; \tau)} \quad (\textsc{T-Var-Imm})
+\qquad
+\frac{(x: \tau_c) \in \Delta}{\phi; \Delta; \Gamma \vdash x \Rightarrow (\phi; \Delta; \tau_c)} \quad (\textsc{T-Var-Mut})$$
+
+\section*{Arithmetic}
+
+$$
+  \frac{
+    \begin{array}{c}
+      \phi_0; \Delta_0; \Gamma \vdash e_L \Rightarrow (\phi_1; \Delta_1; \tau_L) \quad \phi_1 \vdash \tau_L <: \textsf{int} \\
+      \phi_1; \Delta_1; \Gamma \vdash e_R \Rightarrow (\phi_2; \Delta_2; \tau_R) \quad \phi_2 \vdash \tau_R <: \textsf{int} \\
+      \tau_\textsf{res} = \textsf{join-op}(\textsf{aop}, \tau_L, \tau_R)
+    \end{array}
+  }{
+    \phi_0; \Delta_0; \Gamma \vdash e_L \textsf{ aop } e_R \Rightarrow (\phi_2; \Delta_2; \tau_\textsf{res})
+  } \quad (\textsc{T-Op})^\star
+$$
+
+\section*{Comparison and logical operators}
+
+$$
+  \frac{
+    \begin{array}{c}
+      \phi_0; \Delta_0; \Gamma \vdash e_L \Rightarrow (\phi_1; \Delta_1; \tau_L) \quad \phi_1 \vdash \tau_L <: \textsf{int} \\
+      \phi_1; \Delta_1; \Gamma \vdash e_R \Rightarrow (\phi_2; \Delta_2; \tau_R) \quad \phi_2 \vdash \tau_R <: \textsf{int}
+    \end{array}
+  }{
+    \phi_0; \Delta_0; \Gamma \vdash e_L \textsf{ cop } e_R \Rightarrow (\phi_2; \Delta_2; \textsf{bool})
+  } \quad (\textsc{T-Cmp})
+$$
+
+$$
+  \frac{
+    \begin{array}{c}
+      \phi_0; \Delta_0; \Gamma \vdash e_L \Rightarrow (\phi_1; \Delta_1; \tau_L) \quad \phi_1 \vdash \tau_L <: \textsf{bool} \\
+      \phi_1; \Delta_1; \Gamma \vdash e_R \Rightarrow (\phi_2; \Delta_2; \tau_R) \quad \phi_2 \vdash \tau_R <: \textsf{bool}
+    \end{array}
+  }{
+    \phi_0; \Delta_0; \Gamma \vdash e_L \textsf{ lop } e_R \Rightarrow (\phi_2; \Delta_2; \textsf{bool})
+  } \quad (\textsc{T-Lop})
+$$
+
+\section*{Array creation}
+
+$$
+  \frac{
+    \begin{array}{c}
+      \phi_0; \Delta_0; \Gamma \vdash e_\textsf{val} \Rightarrow (\phi_1; \Delta_1; \tau_\textsf{val})   \\
+      \phi_1; \Delta_1; \Gamma \vdash e_\textsf{size} \Rightarrow (\phi_2; \Delta_2; \tau_\textsf{size}) \\
+      \phi_2 \vdash \tau_\textsf{size} <: \textsf{int} \quad N = \textsf{val}(\tau_\textsf{size})
+    \end{array}
+  }{
+    \phi_0; \Delta_0; \Gamma \vdash [e_\textsf{val}; e_\textsf{size}] \Rightarrow (\phi_2; \Delta_2; [\tau_\textsf{val}; N])
+  } \quad (\textsc{T-Array-Create})
+$$
+
+\section*{Array indexing}
+
+$$
+  \frac{
+    \begin{array}{c}
+      (x: [\tau_\textsf{elem}; N]) \in (\Gamma \cup \Delta_0)                                                                              \\
+      \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i) \quad \phi_1 \vdash \tau_i <: \textsf{int} \\
+      \phi_1 \wedge \textsf{prop}(\tau_i) \vdash 0 \le \textsf{val}(\tau_i) < N \quad \text{(Bounds proof)}
+    \end{array}
+  }{
+    \phi_0; \Delta_0; \Gamma \vdash x[e_i] \Rightarrow (\phi_1; \Delta_1; \tau_\textsf{elem})
+  } \quad (\textsc{T-Array-Idx})^\star
+$$
+
+\section*{Conditional expressions}
+
+$$
+  \frac{
+    \begin{array}{c}
+      \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
+      \phi_1 \wedge \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B \Rightarrow (\phi_2; \Delta_2; \tau_2)                      \\
+      \phi_1 \wedge \neg \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B' \Rightarrow (\phi_3; \Delta_3; \tau_3)                \\
+      (\phi_\textsf{join}, \Delta_\textsf{join}, \tau_\textsf{join}) = \textsf{join}(\phi_2, \Delta_2, \tau_2, \phi_3, \Delta_3, \tau_3)
+    \end{array}
+  }{
+    \phi_0; \Delta_0; \Gamma \vdash (\textsf{if } e_\textsf{cond}\; B \textsf{ else } B') \Rightarrow (\phi_\textsf{join}; \Delta_\textsf{join}; \tau_\textsf{join})
+  } \quad (\textsc{T-If-Expr})^\star
+$$
+
+\section*{Function calls}
+
+$$
+  \frac{
+    \begin{array}{c}
+      \Sigma_F(f) = ( (x_i:\tau_i)_{i=1}^k \rightarrow \tau_\textsf{ret}\; \textsf{requires } P_\textsf{req} )                                  \\
+      \phi_0; \Delta_0; \Gamma \vdash \vec{e} \Rightarrow (\phi_k; \Delta_k; \vec{\sigma}) \\
+      \forall i \in 1..k,\; \phi_k \vdash \sigma_i <: \tau_i                                                \\
+      \phi_k \wedge \textsf{prop}(\vec{\sigma}) \vdash P_\textsf{req}[\textsf{val}(\vec{\sigma}) / \vec{x}] \quad \text{(Precondition proof)}
+    \end{array}
+  }{
+    \phi_0; \Delta_0; \Gamma \vdash f(\vec{e}) \Rightarrow (\phi_k; \Delta_k; \tau_\textsf{ret})
+  } \quad (\textsc{T-Call})^\star
+$$
+
+\section*{Blocks and bindings}
+
+$$
+  \frac{}{\phi; \Delta; \Gamma \vdash \cdot : (\phi; \Delta; \Gamma)} \quad (\textsc{T-Block-Empty})
+$$
+
+$$
+  \frac{
+    \phi_0; \Delta_0; \Gamma_0 \vdash S : (\phi_1; \Delta_1; \Gamma_1) \quad \phi_1; \Delta_1; \Gamma_1 \vdash B : (\phi_2; \Delta_2; \Gamma_2)
+  }{
+    \phi_0; \Delta_0; \Gamma_0 \vdash (S\; B) : (\phi_2; \Delta_2; \Gamma_2)
+  } \quad (\textsc{T-Block-Seq})
+$$
+
+$$\frac{\phi_0; \Delta_0; \Gamma \vdash e \Leftarrow \tau : (\phi_1; \Delta_1)}{\phi_0; \Delta_0; \Gamma \vdash (\textsf{let } x:\tau = e;) : (\phi_1; \Delta_1; \Gamma, x:\tau)} \quad (\textsc{T-Let})$$
+
+$$\frac{\phi_0; \Delta_0; \Gamma \vdash e \Leftarrow \tau : (\phi_1; \Delta_1)}{\phi_0; \Delta_0; \Gamma \vdash (\textsf{let mut } x:\tau = e;) : (\phi_1; (\Delta_1, x:\tau); \Gamma)} \quad (\textsc{T-Let-Mut})$$
+
+\section*{Array assignment}
+
+$$
+  \frac{
+    \begin{array}{c}
+      (x: [\tau_\textsf{elem}; N]) \in \Delta_0                                                                                            \\
+      \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i) \quad \phi_1 \vdash \tau_i <: \textsf{int} \\
+      \phi_1; \Delta_1; \Gamma \vdash e \Rightarrow (\phi_2; \Delta_2; \tau_v) \quad \phi_2 \vdash \tau_v <: \tau_\textsf{elem}            \\
+      \phi_2 \wedge \textsf{prop}(\tau_i) \vdash 0 \le \textsf{val}(\tau_i) < N \quad \text{(Bounds proof)}
+    \end{array}
+  }{
+    \phi_0; \Delta_0; \Gamma \vdash (x[e_i] = e;) : (\phi_2; \Delta_2; \Gamma)
+  } \quad (\textsc{T-Array-Assign})
+$$
+
+\section*{Assignment}
+
+$$
+  \frac{
+    \begin{array}{c}
+      (x: \tau_\textsf{master}) \in \Delta_0 \\
+      \phi_0; \Delta_0; \Gamma \vdash e \Rightarrow (\phi_1; \Delta_1; \tau_e)  \\
+      \phi_1 \vdash \tau_e <: \tau_\textsf{master}
+    \end{array}
+  }{
+    \phi_0; \Delta_0; \Gamma \vdash (x = e;) : (\phi_1; \Delta_1[x \mapsto \tau_e]; \Gamma)
+  } \quad (\textsc{T-Assign})^\star
+$$
+
+\section*{For loop}
+
+$$
+  \frac{
+  \begin{array}{c}
+    \phi_0 \wedge P_I[e_\textsf{start}/i] \quad \text{(Invariant holds on entry)} \\
+    \phi_0 \wedge P_I \wedge e_\textsf{start} \le i < e_\textsf{end};\; \Delta_0;\; (\Gamma, i: \textsf{int}) \vdash B : (\phi_1; \Delta_1; \Gamma) \\
+    \phi_1 \vdash P_I[(i+1)/i] \quad \text{(Invariant preserved by body)}
+  \end{array}
+  }{
+  \phi_0; \Delta_0; \Gamma \vdash (\textsf{for } i \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{B\}) : (\phi_0 \wedge P_I; \Delta_0; \Gamma)
+  } \quad (\textsc{T-For})^\star
+$$
+
+\noindent where $P_I$ is the invariant proposition (or $\top$ if no invariant is specified).
+
+\section*{Return}
+
+$$
+  \frac{
+    \begin{array}{c}
+      \phi_0; \Delta_0; \Gamma \vdash e \Rightarrow (\phi_1; \Delta_1; \tau_e) \quad \phi_1 \vdash \tau_e <: \tau_\textsf{ret} \\
+      \phi_1 \vdash P_\textsf{ens}[e/\mathtt{result}] \quad \text{(Postcondition proof)}
+    \end{array}
+  }{
+    \phi_0; \Delta_0; \Gamma \vdash (\textsf{return } e;) : (\phi_1; \Delta_1; \Gamma)
+  } \quad (\textsc{T-Return})^\star
+$$
+
+\section*{If-statement and while loop}
+
+$$
+  \frac{
+    \begin{array}{c}
+      \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
+      \phi_1 \wedge \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B : (\phi_2; \Delta_2; \Gamma)                      \\
+      \phi_1 \wedge \neg \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B' : (\phi_3; \Delta_3; \Gamma)                \\
+      (\phi_\textsf{join}, \Delta_\textsf{join}) = \textsf{join}(\phi_2, \Delta_2, \phi_3, \Delta_3)
+    \end{array}
+  }{
+    \phi_0; \Delta_0; \Gamma \vdash (\textsf{if } e_\textsf{cond}\; B \textsf{ else } B') : (\phi_\textsf{join}; \Delta_\textsf{join}; \Gamma)
+  } \quad (\textsc{T-If-Stmt})
+$$
+
+$$
+  \frac{
+  \begin{array}{c}
+    \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
+    \phi_0 \vdash \phi_I \quad \text{(Invariant holds on entry)} \\
+    \phi_I \wedge \textsf{prop}(\tau_c);\; \Delta_0;\; \Gamma \vdash B : (\phi_2; \Delta_2; \Gamma) \\
+    \phi_2; \Delta_2 \vdash \phi_I \quad \text{(Invariant preserved by body)}
+  \end{array}
+  }{
+  \phi_0; \Delta_0; \Gamma \vdash (\textsf{while } e_\textsf{cond}\;\{B\}) : (\phi_I \wedge \neg\textsf{prop}(\tau_c); \Delta_0; \Gamma)
+  } \quad (\textsc{T-While})
+$$
+
+\chapter{Complete DTAL typing rules}\label{app:dtal-rules}
+
+This appendix lists the complete set of typing rules implemented by the DTAL verifier. Each rule has the form $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, where $\Phi$ is the constraint context, $\Gamma$ maps registers to types, and $\Gamma'$ is the updated register map. We write $\textsf{idx}(\tau)$ for the index expression extracted from a type (e.g., $\textsf{idx}(\textsf{int}(e)) = e$). Rules marked with $\star$ are also presented in Chapter~\ref{ch:impl}.
+
+\section*{Data movement}
+
+$$
+\frac{}{\Phi; \Gamma \vdash \textsf{mov } r_d, n \Rightarrow \Gamma[r_d \mapsto \textsf{int}(n)]} \quad (\textsc{D-MovImm})^\star
+$$
+
+$$
+\frac{\Gamma(r_s) = \tau}{\Phi; \Gamma \vdash \textsf{mov } r_d, r_s \Rightarrow \Gamma[r_d \mapsto \tau]} \quad (\textsc{D-MovReg})
+$$
+
+$$
+\frac{
+\begin{array}{c}
+\Gamma(r_b) = [\tau; N] \quad \Phi \vdash 0 \le \textsf{idx}(\Gamma(r_i)) < N
+\end{array}
+}{\Phi; \Gamma \vdash \textsf{load } r_d, [r_b, r_i] \Rightarrow \Gamma[r_d \mapsto \tau]} \quad (\textsc{D-Load})^\star
+$$
+
+$$
+\frac{
+\begin{array}{c}
+\Gamma(r_b) = [\tau; N] \quad \Phi \vdash 0 \le \textsf{idx}(\Gamma(r_i)) < N \\
+v' = v + 1 \quad \text{(fresh array version)}
+\end{array}
+}{\Phi; \Gamma \vdash \textsf{store } [r_b, r_i], r_s \Rightarrow \Gamma} \quad (\textsc{D-Store})
+$$
+
+\noindent After a store, the verifier emits two axioms into $\Phi$: a \textit{write axiom} ($\textsf{select}(\mathit{arr}_{v'}, e_i) = e_s$) and a \textit{frame axiom} ($\forall k.\; k \ne e_i \Rightarrow \textsf{select}(\mathit{arr}_{v'}, k) = \textsf{select}(\mathit{arr}_v, k)$), where $v$ and $v'$ are the old and new array versions.
+
+\section*{Arithmetic}
+
+$$
+\frac{
+\Gamma(r_1) = \textsf{int}(e_1) \quad \Gamma(r_2) = \textsf{int}(e_2)
+}{\Phi; \Gamma \vdash \textsf{binop}_\oplus\; r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \textsf{int}(e_1 \oplus e_2)]} \quad (\textsc{D-BinOp-Singleton})^\star
+$$
+
+$$
+\frac{
+\Gamma(r_1) = \{a\!:\!\textsf{int} \mid \varphi_1\} \quad \Gamma(r_2) = \{b\!:\!\textsf{int} \mid \varphi_2\}
+}{\Phi; \Gamma \vdash \textsf{binop}_\oplus\; r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \exists c.\; \textsf{int}(c) \;\mathbf{where}\; \exists a,b.\; \varphi_1 \wedge \varphi_2 \wedge c = a \oplus b]} \quad (\textsc{D-BinOp-Refined})^\star
+$$
+
+$$
+\frac{
+\Gamma(r_s) = \textsf{int}(e)
+}{\Phi; \Gamma \vdash \textsf{addimm } r_d, r_s, n \Rightarrow \Gamma[r_d \mapsto \textsf{int}(e + n)]} \quad (\textsc{D-AddImm})
+$$
+
+$$
+\frac{
+\Gamma(r_s) = \tau \quad \tau <: \textsf{bool}
+}{\Phi; \Gamma \vdash \textsf{not } r_d, r_s \Rightarrow \Gamma[r_d \mapsto \textsf{bool}]} \quad (\textsc{D-Not})
+$$
+
+\section*{Comparison and branching}
+
+$$
+\frac{
+\Gamma(r_1) = \tau_1 \quad \Gamma(r_2) = \tau_2
+}{\Phi; \Gamma \vdash \textsf{cmp } r_1, r_2 \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), \textsf{idx}(\tau_2)\text{)}} \quad (\textsc{D-Cmp})
+$$
+
+$$
+\frac{
+\Gamma(r_1) = \tau_1
+}{\Phi; \Gamma \vdash \textsf{cmp } r_1, n \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), n\text{)}} \quad (\textsc{D-CmpImm})
+$$
+
+$$
+\frac{}{\Phi; \Gamma \vdash \textsf{setcc } r_d, \textit{cond} \Rightarrow \Gamma[r_d \mapsto \textsf{bool}]} \quad (\textsc{D-SetCC})
+$$
+
+$$
+\frac{
+\text{last cmp operands: } e_1, e_2
+}{\Phi; \Gamma \vdash \textsf{branch } \textit{cond}\; L \Rightarrow \Gamma \quad \text{with } \Phi' = \Phi \wedge \neg(e_1 \textit{ cond } e_2) \text{ (fall-through)}} \quad (\textsc{D-Branch})^\star
+$$
+
+\noindent The taken edge to $L$ carries $\Phi \wedge (e_1 \textit{ cond } e_2)$.
+
+\section*{Stack and allocation}
+
+$$
+\frac{\Gamma(r_s) = \tau}{\Phi; \Gamma \vdash \textsf{push } r_s \Rightarrow \Gamma \quad \text{(push } \tau \text{ onto typed stack)}} \quad (\textsc{D-Push})
+$$
+
+$$
+\frac{S = \tau :: S'}{\Phi; \Gamma \vdash \textsf{pop } r_d \Rightarrow \Gamma[r_d \mapsto \tau] \quad \text{(pop from typed stack)}} \quad (\textsc{D-Pop})
+$$
+
+$$
+\frac{}{\Phi; \Gamma \vdash \textsf{alloca } r_d, n \Rightarrow \Gamma[r_d \mapsto [\textsf{int}; n]]} \quad (\textsc{D-Alloca})
+$$
+
+\noindent After allocation, the verifier adds a zero-initialisation axiom: $\forall k \in [0, n).\; \textsf{select}(\mathit{arr}_0, k) = 0$.
+
+\section*{Annotations}
+
+$$
+\frac{
+\Gamma(r) = \tau_\textsf{derived} \quad \Phi \vdash \tau_\textsf{derived} <: \tau_\textsf{ann}
+}{\Phi; \Gamma \vdash \textsf{type } r: \tau_\textsf{ann}} \quad (\textsc{D-TypeAnn})
+$$
+
+\noindent The verifier derives the register's type independently and checks it is compatible with the compiler's annotation. If the annotation is more precise (e.g., a singleton vs.\ the derived existential), the verifier checks that the derived type implies the annotation under $\Phi$.
+
+$$
+\frac{
+\Phi \vdash C
+}{\Phi; \Gamma \vdash \textsf{assert } C \Rightarrow \Gamma \quad \text{(add } C \text{ to } \Phi\text{)}} \quad (\textsc{D-Assert})
+$$
+
+\noindent The verifier checks that the constraint $C$ is provable from the current $\Phi$ before adding it.
+
+\section*{Function calls}
+
+$$
+\frac{
+\begin{array}{c}
+\Sigma(f) = (\vec{x}:\vec{\tau}) \rightarrow \tau_\textsf{ret} \;\textsf{requires } P_\textsf{req} \;\textsf{ensures } P_\textsf{ens} \\
+\Phi \vdash P_\textsf{req}[\overline{r_i / x_i}]
+\end{array}
+}{\Phi; \Gamma \vdash \textsf{call } f \Rightarrow \Gamma[r_0 \mapsto \tau_\textsf{ret}] \quad \text{(add } P_\textsf{ens}[\overline{r_i / x_i}] \text{ to } \Phi\text{)}} \quad (\textsc{D-Call})
+$$
+
+\noindent The precondition is checked against $\Phi$ after substituting physical parameter registers for formal parameters. The postcondition (with \texttt{result} replaced by $r_0$) is assumed in $\Phi$ after the call.
+
+\section*{Physical instructions (post-regalloc)}
+
+The following instructions appear only after register allocation and are verified for basic consistency:
+
+\begin{itemize}
+    \item \textbf{D-Cqo}: Sign-extends \texttt{rax} into \texttt{rdx:rax}. The type of \texttt{rdx} is set to the type of \texttt{rax}.
+    \item \textbf{D-Idiv}: Divides \texttt{rdx:rax} by the source register. Both \texttt{rax} (quotient) and \texttt{rdx} (remainder) receive type $\textsf{int}$.
+    \item \textbf{D-SpillStore}: Records the type stored at a stack offset.
+    \item \textbf{D-SpillLoad}: Checks that the loaded type matches what was previously stored at that offset.
+    \item \textbf{D-Prologue / D-Epilogue}: Structural markers verified at the function level.
+\end{itemize}

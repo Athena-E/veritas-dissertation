@@ -1,0 +1,33 @@
+\chapter{Introduction}\label{ch:intro}
+
+In his seminal 1977 paper, Leslie Lamport defined `safety' as a property ensuring that ``something bad never happens'' \cite{Lamport1977Proving}. In modern systems programming, where performance-critical code often runs with administrative privileges, `safety' translates to a guarantee: no out-of-bounds reads, no null-pointer dereferences, and no undefined behaviour. Yet, safety-critical systems often rely on systems languages like C and C++ for performance and low-level control, accepting their inherent unsafety. Languages such as Rust enforce compile-time safety using language features such as ownership and borrow-checking to prevent undefined behaviour, but this requires trusting that the compiler implementation is correct.
+
+This dissertation presents \textbf{Veritas}: a toolchain that attempts to address the compromise between performance and safety by moving the root of trust from a complex compiler to a small, independent verifier. By employing type-preserving compilation, Veritas carries mathematical proofs of safety from the high-level source to a target low-level representation.
+
+\section{Motivation: The Location of Trust}
+
+The history of software is littered with fatal safety violations. The Heartbleed bug \cite{CVE-2014-0160} and the Therac-25 accidents \cite{Leveson1993AnIO} were not failures of logic, but failures of structural safety such as an unchecked index or a race condition.
+
+Current solutions exist at two extremes. At one end are verified compilers like CompCert \cite{compcert}, which provide foundational proofs of correctness but are difficult to extend. At the other are type-safe languages like Rust, which provide developer productivity but require trusting an enormous and evolving compiler. Veritas explores a third path: Proof-Carrying Code \cite{Necula1997PCC}. In the Veritas model, the compiler is untrusted. Safety is instead guaranteed by a standalone verifier that re-proves safety properties using only the type annotations in the assembly.
+
+\section{Technical Approach: Refinement Types and Satisfiability Modulo Theories (SMT)}
+
+Veritas verifies safety properties through refinement types \cite{Rondon2008Liquid}, which are types decorated with logical predicates. For example, the length of an array is not just an \texttt{int}, but a value $\{v : \mathtt{int} \mid v \ge 0\}$. The programmer provides specifications---type annotations, function contracts, loop invariants---and the compiler automatically discharges the resulting proof obligations using a Satisfiability Modulo Theories (SMT) solver. Veritas also introduces a refinement synthesis engine; when the compiler encounters arithmetic (e.g., \texttt{i + 1}), it automatically synthesises a symbolic equality refinement ($\{v : \mathtt{int} \mid v = i + 1\}$).
+
+These refinements are discharged by the Z3 SMT solver \cite{DeMoura2008Z3}, bridging the semantic gap between high-level contracts and low-level instructions. They can also be combined with known assumptions to derive further properties (see TODO). Crucially, Veritas prioritises structural safety over full semantic correctness; a program may produce an incorrect result, but it is guaranteed that its memory boundaries are never violated.
+
+\section{Aims and Contributions}
+
+The aim of this project is to deliver a type-preserving compilation pipeline that supports independent verification of systems code. The key contributions are:
+
+\begin{itemize}
+  \item \textbf{The Veritas Language:} A systems language featuring refinement types, loop invariants, and function contracts.
+  \item \textbf{Type-Preserving Backend:} A pipeline that lowers high-level types to a typed SSA (Static Single Assignment) intermediate representation, preserving all defined safety invariants.
+  \item \textbf{Dependently Typed Assembly (DTAL):} A target language based on Xi and Harper \cite{Xi2001DTAL} that embeds type states and constraints directly into the instruction stream.
+  \item \textbf{Independent Verifier:} A tool that re-verifies DTAL programs without access to the source code, reducing the trusted computing base to the verifier and the SMT solver.
+  \item \textbf{Formal Evaluation:} A suite of programs used to measure the overhead and expressiveness of the architecture.
+\end{itemize}
+
+\section{Dissertation Roadmap}
+
+Chapter~\ref{ch:prep} establishes the theoretical foundations, surveys related work, and describes the key design decisions. Chapter~\ref{ch:impl} describes the implementation of the compiler and verifier. Chapter~4 provides a quantitative evaluation of the toolchain’s performance and safety guarantees. Finally, Chapter~5 reflects on the project’s success and future directions.

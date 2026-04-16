@@ -1,0 +1,78 @@
+\documentclass{mimosis}
+
+\usepackage{ebgaramond}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{graphicx}
+
+\usepackage{enumitem}
+\setlist{itemsep=0pt,parsep=0pt}
+\linespread{0.95}  
+
+\usepackage{url}
+\usepackage{hyperref}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,
+    urlcolor=cyan,
+}
+
+\usepackage{float}
+
+\usepackage{tcolorbox}
+\usepackage{docmute}
+
+\usepackage{tikz}
+\usetikzlibrary{
+    shapes.multipart,
+    positioning,
+    arrows.meta,
+    fit
+}
+
+\title{A type-preserving compiler from a systems language to a dependently typed assembly language}
+\author{9615Q}
+\date{2025-2026}
+
+\begin{document}
+
+%TC:ignore
+\frontmatter
+
+\maketitle
+
+\include{sources/Declaration}
+
+\include{sources/Proforma}
+
+\tableofcontents
+%TC:endignore
+
+\mainmatter
+
+\include{sources/1-Introduction}
+
+\include{sources/2-Preparation}
+
+\include{sources/3-Implementation}
+
+\include{sources/4-Evaluation}
+
+\include{sources/5-Conclusion}
+
+%TC:ignore
+\include{sources/Appendix}
+
+\chapter{Project Proposal}
+\newcommand{\maindoc}{}
+\include{sources/proposal}
+
+\backmatter
+
+\bibliographystyle{unsrt}
+\bibliography{references}
+%TC:endignore
+
+\end{document}
