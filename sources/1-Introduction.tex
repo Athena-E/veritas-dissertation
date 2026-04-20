@@ -1,6 +1,26 @@
+% 1. Safety, talk about Lamport, Hartbleed, Therac-25, and guarantee.
+% 2. The two extremes, explain Rust and verified compilers. 
+% 3. The third way, explain proof-carrying code and the model of DTAL.
+% 4. Veritas, its model of untrusted compiler, and some the technical overview (Section 1.2).
+% Then proceed with Section 1.1: Aims and contributions.
+
+In his seminal 1977 paper, Leslie Lamport defined \emph{safety} as a property ensuring that ``something bad never happens'' \cite{Lamport1977Proving}. In modern systems programming, where performance-critical code often runs escalated, \emph{memory safety} translates to a guarantee: no out-of-bounds reads, no null-pointer dereferences, and no other memory-related undefined behaviour (UB). Yet, safety-critical systems often rely on languages like C and C++. History is littered with fatal safety violations caused by their limitations, including the Heartbleed bug \cite{CVE-2014-0160} and the Therac-25 accidents \cite{Leveson1993AnIO}.
+
+Current solutions exist at two extremes. At one end are verified compilers: i.e. a compiler that uses formal methods to verify the correctness of the compilation process. A famous example is CompCert \cite{compcert}, which provides foundational proofs of correctness for C but these proofs are often difficult to extend.
+
+At the other are languages like Rust with safety-oriented features such as the borrow checker to enforce compile-time memory safety, which provide developer productivity but require trusting an enormous and evolving compiler.
+
+% Proof-carrying code
+
+% Introduce Veritas
+Veritas explores a third path: Proof-Carrying Code (PCC) \cite{Necula1997PCC}. [code with embedded proofs represented through the type system via the Curry-Howard correspondence] In the Veritas model, the compiler is untrusted. Safety is instead guaranteed by a standalone verifier that re-proves safety properties using only the type annotations in the assembly.
+
+
 \chapter{Introduction}\label{ch:intro}
 
-In his seminal 1977 paper, Leslie Lamport defined `safety' as a property ensuring that ``something bad never happens'' \cite{Lamport1977Proving}. In modern systems programming, where performance-critical code often runs with administrative privileges, `safety' translates to a guarantee: no out-of-bounds reads, no null-pointer dereferences, and no undefined behaviour. Yet, safety-critical systems often rely on systems languages like C and C++ for performance and low-level control, accepting their inherent unsafety. Languages such as Rust enforce compile-time safety using language features such as ownership and borrow-checking to prevent undefined behaviour, but this requires trusting that the compiler implementation is correct.
+In his seminal 1977 paper, Leslie Lamport defined \emph{safety} as a property ensuring that ``something bad never happens'' \cite{Lamport1977Proving}. In modern systems programming, where performance-critical code often runs with administrative privileges, \emph{memory safety} translates to a guarantee: no out-of-bounds reads, no null-pointer dereferences, and no undefined behaviour. Yet, safety-critical systems often rely on systems languages like C and C++ for performance and low-level control, accepting their inherent unsafety. Languages such as Rust enforce compile-time safety using language features such as ownership and borrow-checking to prevent undefined behaviour, but this requires trusting that the compiler implementation is correct.
+
+% TODO: background on verified compilation, typed assembly languages and Xi and Harper's DTAL, PCC
 
 This dissertation presents \textbf{Veritas}: a toolchain that attempts to address the compromise between performance and safety by moving the root of trust from a complex compiler to a small, independent verifier. By employing type-preserving compilation, Veritas carries mathematical proofs of safety from the high-level source to a target low-level representation.
 
@@ -12,7 +32,7 @@ Current solutions exist at two extremes. At one end are verified compilers like 
 
 \section{Technical Approach: Refinement Types and Satisfiability Modulo Theories (SMT)}
 
-Veritas verifies safety properties through refinement types \cite{Rondon2008Liquid}, which are types decorated with logical predicates. For example, the length of an array is not just an \texttt{int}, but a value $\{v : \mathtt{int} \mid v \ge 0\}$. The programmer provides specifications---type annotations, function contracts, loop invariants---and the compiler automatically discharges the resulting proof obligations using a Satisfiability Modulo Theories (SMT) solver. Veritas also introduces a refinement synthesis engine; when the compiler encounters arithmetic (e.g., \texttt{i + 1}), it automatically synthesises a symbolic equality refinement ($\{v : \mathtt{int} \mid v = i + 1\}$).
+Veritas verifies safety properties through refinement types \cite{Rondon2008Liquid}, which are types decorated with logical predicates. For example, the length of an array is not just an \texttt{int}, but a value of type $\{v : \mathtt{int} \mid v \ge 0\}$. The programmer provides specifications---type annotations, function contracts, loop invariants---and the compiler automatically discharges the resulting proof obligations using a Satisfiability Modulo Theories (SMT) solver. Veritas also introduces a refinement synthesis engine; when the compiler encounters arithmetic (e.g., \texttt{i + 1}), it automatically synthesises a symbolic equality refinement ($\{v : \mathtt{int} \mid v = i + 1\}$).
 
 These refinements are discharged by the Z3 SMT solver \cite{DeMoura2008Z3}, bridging the semantic gap between high-level contracts and low-level instructions. They can also be combined with known assumptions to derive further properties (see TODO). Crucially, Veritas prioritises structural safety over full semantic correctness; a program may produce an incorrect result, but it is guaranteed that its memory boundaries are never violated.
 
@@ -20,9 +40,11 @@ These refinements are discharged by the Z3 SMT solver \cite{DeMoura2008Z3}, brid
 
 The aim of this project is to deliver a type-preserving compilation pipeline that supports independent verification of systems code. The key contributions are:
 
+% TODO: add runtime and unikernel?
 \begin{itemize}
   \item \textbf{The Veritas Language:} A systems language featuring refinement types, loop invariants, and function contracts.
   \item \textbf{Type-Preserving Backend:} A pipeline that lowers high-level types to a typed SSA (Static Single Assignment) intermediate representation, preserving all defined safety invariants.
+  \item \textbf{x86 runtime generation:} An assembler that maps DTAL instructions to x86 and generates an executable ELF.
   \item \textbf{Dependently Typed Assembly (DTAL):} A target language based on Xi and Harper \cite{Xi2001DTAL} that embeds type states and constraints directly into the instruction stream.
   \item \textbf{Independent Verifier:} A tool that re-verifies DTAL programs without access to the source code, reducing the trusted computing base to the verifier and the SMT solver.
   \item \textbf{Formal Evaluation:} A suite of programs used to measure the overhead and expressiveness of the architecture.

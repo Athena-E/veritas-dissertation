@@ -11,17 +11,21 @@ This chapter establishes the theoretical foundations of the project, surveys rel
 
 \subsection{Type systems and safety}
 
-A type system is a tractable syntactic method for proving the absence of certain program behaviours by classifying program phrases according to the kinds of values they compute~\cite{Pierce2002Types}. Type systems associate each expression with a type: a description of the set of values the expression may produce, and then enforce consistency rules that prevent ill-defined operations such as adding a boolean to an integer or dereferencing a null pointer.
+% A type system is a tractable syntactic method for proving the absence of certain program behaviours by classifying program phrases according to the kinds of values they compute~\cite{Pierce2002Types}. Type systems associate each expression with a type: a description of the set of values the expression may produce, and then enforce consistency rules that prevent ill-defined operations such as adding a boolean to an integer or dereferencing a null pointer.
 
-The fundamental theorem that connects type systems to safety is \emph{type soundness}: a well-typed program cannot `go wrong' at runtime~\cite{Milner1978Theory}. Wright and Felleisen formalised this via the \emph{progress} and \emph{preservation} lemmas~\cite{Wright1994Syntactic}: progress states that a well-typed expression is either a value or can take an evaluation step, and preservation states that evaluation preserves the type. Together, these guarantee that a well-typed program never reaches an undefined state during execution.
+The fundamental theorem that connects type systems to safety is \emph{type soundness}: a well-typed program cannot `go wrong' at runtime~\cite{Milner1978Theory}. Wright and Felleisen formalised this via the \emph{progress} and \emph{preservation} lemmas~\cite{Wright1994Syntactic}: 
 
-An important consequence of tractability is that type systems are \emph{sound} but not \emph{complete}: every accepted program is safe, but some safe programs will be rejected. This is a deliberate trade-off---soundness is essential for guarantees, while completeness is sacrificed for decidability. Refinement types push this boundary by encoding richer invariants, but the fundamental incompleteness remains.
+% TODO: progress and preservation lemmas
+
+% progress states that a well-typed expression is either a value or can take an evaluation step, and preservation states that evaluation preserves the type. Together, these guarantee that a well-typed program never reaches an undefined state during execution.
+
+% An important consequence of tractability is that type systems are \emph{sound} but not \emph{complete}: every accepted program is safe, but some safe programs will be rejected. This is a deliberate trade-off---soundness is essential for guarantees, while completeness is sacrificed for decidability. Refinement types push this boundary by encoding richer invariants, but the fundamental incompleteness remains.
 
 Type systems exist on a spectrum of expressiveness. At one end, simply typed languages (such as C's type system) distinguish broad categories like integers, floats, and pointers. This catches type mismatches---such as passing a pointer where an integer is expected---but cannot constrain the values that inhabit a type. Hindley--Milner type systems~\cite{Milner1978Theory}, used in ML and Haskell, add parametric polymorphism and principal type inference, enabling the type checker to infer the most general type for every expression without annotations. However, these systems cannot express properties that depend on values; for instance, that an array index is within bounds, or that a division's denominator is non-zero. These properties lend themselves to safety-critical software, and expressing them requires types that can refer to values: \emph{dependent types}.
 
-Veritas targets this gap: its type system extends a simple base type system (integers, booleans, arrays) with refinement types and singleton types that encode value-dependent invariants.
+Veritas targets this gap: its type system extends a simple base type system (integers, booleans, arrays) with refinement types, a decidable subset of dependent types, that encode value-dependent invariants.
 
-\subsection{Dependent types}\label{sec:dependent-types}
+\subsection{Refinement types}\label{sec:dependent-types}
 
 In a dependently typed language, types may depend on terms. The canonical example is the type of vectors indexed by their length, $\mathrm{Vec}(A, n)$, where $n$ is a natural number. A function that accesses the $i$-th element can require in its type that $0 \le i < n$, statically ruling out out-of-bounds accesses. Full dependent type systems, such as those in Coq and Agda, can express arbitrary propositions as types (via the Curry--Howard correspondence), but this generality comes at a cost: type checking may require the programmer to construct explicit proof terms, and type inference is generally undecidable.
 
@@ -33,18 +37,32 @@ Veritas additionally supports bounded quantifiers in specification positions. A 
 
 \subsection{Bidirectional type checking}
 
-Bidirectional type checking, introduced by Pierce and Turner~\cite{Pierce2000Local}, structures a type system into two mutually recursive judgements: type synthesis ($\Gamma \vdash e \Rightarrow \tau$), which infers the type of an expression bottom-up from its subexpressions, and type checking ($\Gamma \vdash e \Leftarrow \tau$), which verifies that an expression has a given type top-down. The two modes are connected by a subsumption rule; to check an expression against a type $\tau$, one may synthesise a type $\sigma$ and then verify $\sigma <: \tau$.
+Bidirectional type checking~\cite{Pierce2000Local}, structures a type system into two mutually recursive judgements: \textit{checking} and \textit{synthesis}:
 
-Alternative approaches have significant drawbacks. Full type inference in the style of Hindley--Milner requires unification, which does not extend naturally to subtyping or refinement types; the lattice structure of refinement types means there is no unique principal type for many expressions. At the other extreme, requiring complete type annotations on every expression is impractical. Bidirectional checking offers a middle ground where the programmer annotates introduction forms (function signatures, let-bindings) and the system infers the rest.
+\begin{itemize}
+  \item \emph{Type checking} takes a context $\Gamma$, program $e$ and type $\tau$ as input and produces a true/false output reflecting whether $e$ is well-typed: $\Gamma \vdash e \leftarrow \tau$
+  \item \emph{Type synthesis} takes a context $\Gamma$ and program $e$ as input and produces a types $\tau$ as output: $\Gamma \vdash e \Rightarrow \tau$
+\end{itemize}
 
-For refinement types, the bidirectional structure is particularly well-suited. Synthesis produces the most precise type available from the immediate structure of an expression---for integer literals, this is a singleton type; for arithmetic, it is a refinement capturing the exact relationship between the result and its operands. Checking then verifies subtyping against the expected type. The programmer only needs to annotate types at function boundaries and mutable variable declarations; the type checker infers intermediate refinement types automatically.
+The two modes are connected by a subsumption rule:
+$$
+  \frac{\Gamma \vdash e \Rightarrow \sigma \quad \sigma <: \tau}{\Gamma \vdash e \leftarrow \tau}
+$$
 
-In Veritas, the bidirectional structure also threads the typing context through the judgements. Both synthesis and checking accept a context and return an updated context, reflecting changes from mutable variable assignments and newly learned refinement propositions. This context-threading design is described formally in Section~\ref{sec:judgement-forms}.
+
+
+% type synthesis ($\Gamma \vdash e \Rightarrow \tau$), which infers the type of an expression bottom-up, and type checking ($\Gamma \vdash e \Leftarrow \tau$), which verifies that an expression has a given type top-down. The two modes are connected by a subsumption rule; to check an expression against a type $\tau$, one may synthesise a type $\sigma$ and then verify $\sigma <: \tau$.
+
+% Alternative approaches have significant drawbacks. Full type inference in the style of Hindley--Milner requires unification, which does not extend naturally to subtyping or refinement types; the lattice structure of refinement types means there is no unique principal type for many expressions. At the other extreme, requiring complete type annotations on every expression is impractical. Bidirectional checking offers a middle ground where the programmer annotates introduction forms (function signatures, let-bindings) and the system infers the rest.
+
+For refinement types, the bidirectional structure is particularly well-suited. Synthesis produces the most precise type available from the immediate structure of an expression---for integer literals, this is a singleton type; for arithmetic, it is a refinement capturing the exact relationship between the result and its operands. Checking then verifies subtyping against the expected type. The programmer only needs to annotate types at function boundaries and mutable variable declarations; the type checker infers intermediate refinement types automatically. Bidirectional type-checking offers a middle ground between Hindley-Milner full type inference and the need for complete type annotations on every expression. 
+
+In Veritas, the bidirectional structure also threads the typing context through the judgements. Both synthesis and checking accept a context and return an updated context, reflecting changes from mutable variable assignments and newly learned refinement propositions.
 
 \subsection{SMT-based verification}
 \label{sec:smt-based-ver}
 
-Satisfiability Modulo Theories are an extension of boolean satisfiability (SAT) to richer logics. An SMT solver decides the satisfiability of first-order formulae over a combination of background theories. The theories relevant to program verification include linear integer arithmetic (LIA), which supports addition, subtraction, and comparison of integers; the theory of arrays, which models arrays as functions from indices to values with \texttt{select} and \texttt{store} operations; and uninterpreted functions, which allow reasoning about function applications without knowing their implementation. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. It was chosen for its maturity and reliability, having won numerous SMT-COMP competitions \cite{Barrett2013SMTCOMP}. Z3 is also precedent in other similar verification systems that have influenced Veritas' design such as Liquid Haskell, Dafny, and F*. (see Section~\ref{sec:related-work} for related work and design influences) and as such has a well-understood design space with known strengths and limitations. Section~\ref{sec:software-eng-methodology} on software engineering methodology gives further justification for the choice of Z3.
+Satisfiability Modulo Theories are an extension of boolean satisfiability (SAT) to richer logics. An SMT solver decides the satisfiability of first-order formulae over a combination of background theories. The theories relevant to program verification include linear integer arithmetic (LIA), which supports addition, subtraction, and comparison of integers; the theory of arrays, which models arrays as functions from indices to values with \texttt{select} and \texttt{store} operations; and uninterpreted functions, which allow reasoning about function applications without knowing their implementation. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. It was chosen for its maturity and reliability, having won numerous SMT-COMP competitions \cite{Barrett2013SMTCOMP}. Z3 is also precedent in other similar verification systems that have influenced Veritas' design such as Liquid Haskell, Dafny, and F*. 
 
 The technique for using an SMT solver as a refinement type checker is \textit{proof by refutation}~\cite{Rondon2008Liquid}. To check whether a judgement $\phi \vdash P$ holds (i.e., whether the proposition $P$ follows from the set of known assumptions $\phi$), we assert all propositions in $\phi$, assert $\lnot P$, and check for unsatisfiability. If the solver returns \textsc{unsat}, then $\phi \wedge \lnot P$ has no model, meaning $P$ must hold under $\phi$. If the solver returns \textsc{sat}, a countermodel exists and the proof obligation fails---the type checker reports an error.
 
@@ -53,7 +71,7 @@ This approach means that the \textit{discharge} of proof obligations is fully au
 
 In Veritas, the SMT solver is invoked at several points: subtyping checks between refinement types (where the solver verifies that one predicate implies another), array bounds verification (where the solver must prove that an index lies within $[0, N)$), and function contract verification (where preconditions and postconditions are checked at call sites and return points respectively).
 
-For quantified specifications such as $\forall i \in [0, n).\; \mathit{arr}[i] \ge 0$, the translation uses Z3's built-in quantifier support: $\forall i.\; (0 \le i \wedge i < n) \Rightarrow \mathit{arr}[i] \ge 0$, where the array is represented as a Z3 array sort. Existential quantifiers are handled dually, asserting $\exists i.\; (a \le i \wedge i < b) \wedge P$. While quantified formulae move outside the decidable fragment of LIA, Z3's E-matching and model-based quantifier instantiation heuristics handle the bounded quantifiers that arise in practice effectively.
+% For quantified specifications such as $\forall i \in [0, n).\; \mathit{arr}[i] \ge 0$, the translation uses Z3's built-in quantifier support: $\forall i.\; (0 \le i \wedge i < n) \Rightarrow \mathit{arr}[i] \ge 0$, where the array is represented as a Z3 array sort. Existential quantifiers are handled dually, asserting $\exists i.\; (a \le i \wedge i < b) \wedge P$. While quantified formulae move outside the decidable fragment of LIA, Z3's E-matching and model-based quantifier instantiation heuristics handle the bounded quantifiers that arise in practice effectively.
 
 \subsection{Type-preserving compilation and DTAL}\label{sec:dtal-background}
 
@@ -238,7 +256,7 @@ The project was designed in phases that progressively reduced the trusted comput
 
 \subsection{Source language design}
 
-Veritas is an imperative language with C-like syntax, taking inspiration from Xi and Harper's Xanadu. It is designed to be minimal but expressive enough to demonstrate the verification techniques described in Sections~\ref{sec:dependent-types}--\ref{sec:smt-based-ver}. The language supports integers, booleans, fixed-size arrays, mutable and immutable variables, for-loops, while-loops, and functions. The type system extends simple types with singleton types, refinement types, function contracts (with bounded quantifiers), and loop invariants. The full syntax and typing rules are presented in Chapter~\ref{ch:impl}.
+Veritas is an imperative language with C-like syntax, taking inspiration from Xi and Harper's Xanadu. It is designed to be minimal but expressive. The language supports integers, booleans, fixed-size arrays, mutable and immutable variables, for-loops, while-loops, and functions. The type system extends simple types with singleton types, refinement types, function contracts (with bounded quantifiers), and loop invariants.
 
 \subsection{DTAL target language design}
 
@@ -657,7 +675,7 @@ To maintain a manageable scope and clear focus on structural safety, several amb
 
 \section{Evaluation plan}
 
-The evaluation aims to assess three dimensions: \textit{correctness} (does the system accept safe programs and reject unsafe ones?), \textit{overhead} (what is the cost of verification?), and \textit{expressiveness} (what can the type system express, and how large is the trusted computing base?).
+The evaluation aims to assess three dimensions: \textit{correctness}, \textit{overhead} (what is the cost of verification?), and \textit{expressiveness} (what can the type system express, and how large is the trusted computing base?).
 
 Correctness will be tested via suites of positive programs (expected to compile, verify, and execute correctly) and negative programs (expected to be rejected with specific errors). Verifier agreement---whether the independent DTAL verifier accepts every program the compiler produces---will serve as a cross-check of the trust architecture.
 
@@ -702,4 +720,4 @@ Another notable crate used to develop the Veritas compiler was the \texttt{im} c
 
 \section{Starting point}
 
-The starting point for this project is as stated in the project proposal. The Compiler Construction, Semantics of Programming Languages and Computer Architecture courses from Part IB and the Types and Optimising Compilers courses from Part II provided foundational knowledge for the project. I had introductory knowledge of dependent type theory (DTT) and proof assistant and verification languages, and was introduced to refinement types via Xi and Harper's DTAL. No external code was used for the compiler or verifier. To successfully complete the project, I had to gain proficiency in several new tools, algorithms and theories: the Rust programming language, typechecking and proof assertion via SMT, Z3 theories, x86-64 machine code encoding, and bidirectional type checking. Key resources included the papers from Xi et al. on DML, Xanadu, and DTAL as well as other existing systems and their theories.
+I had introductory knowledge of dependent type theory (DTT) and proof assistant and verification languages, and was introduced to refinement types via Xi and Harper's DTAL. No external code was used for the compiler or verifier. To successfully complete the project, I had to gain proficiency in several new tools, algorithms and theories: the Rust programming language, typechecking and proof assertion via SMT, Z3 theories, x86-64 machine code encoding, and bidirectional type checking. Key resources included the papers from Xi et al. on DML, Xanadu, and DTAL as well as other existing systems and their theories.
