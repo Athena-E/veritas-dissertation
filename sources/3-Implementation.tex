@@ -385,36 +385,6 @@ Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named repres
 \end{figure}
 %
 
-\section{Usage}\label{sec:usage}
-
-Veritas programs are written in \texttt{.veri} source files. The compiler is invoked from the command line:
-
-\begin{verbatim}
-  veritas <source.veri> [OPTIONS]
-\end{verbatim}
-
-By default, the compiler type-checks the source, lowers it through TIR and DTAL, and prints the DTAL output to stdout. The most common options are:
-
-\begin{itemize}
-  \item \texttt{-o <file>}: compile to a native ELF executable.
-  \item \texttt{--verify}: verify the DTAL output before code generation.
-  \item \texttt{--verify-only}: verify DTAL and exit without producing an executable.
-  \item \texttt{-O}: enable all optimisations (copy propagation and dead code elimination).
-  \item \texttt{-v}: verbose mode, showing each compilation stage.
-  \item \texttt{--tir}: print the TIR (SSA) intermediate representation.
-\end{itemize}
-
-For example, compiling and verifying a program end-to-end:
-
-\begin{verbatim}
-  veritas bubble_sort.veri --verify -O -o bubble_sort
-\end{verbatim}
-
-The resulting executable is a statically linked, freestanding ELF binary. The return value of \texttt{main} becomes the process exit code. The runtime provides five intrinsics overall: \texttt{print\_int(n)}, \texttt{print\_char(c)}, \texttt{read\_int()}, \texttt{port\_in(port)}, and \texttt{port\_out(port, val)}. On the bare-metal target, the type checker admits only the port-I/O intrinsics.
-
-A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source, demonstrating that the verifier operates independently of the compiler frontend. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU.
-
-
 \section{Frontend}\label{sec:frontend}
 
 % TODO: frontend architecture/pipline diagram
@@ -1063,3 +1033,33 @@ The source code is organised as a single Rust crate with the following top-level
   \item \texttt{im} (v15.1, MPL-2.0+): persistent (structurally shared) data structures, used for efficient context cloning during type checking.
   \item \texttt{ariadne} (v0.5, MIT): a diagnostic rendering library used for formatting error messages with source-location highlights. It handles the presentation layer only; all error detection and classification is original.
 \end{itemize}
+
+\subsection{Usage}\label{sec:usage}
+
+Veritas programs are written in \texttt{.veri} source files. The compiler is invoked from the command line:
+
+\begin{verbatim}
+  veritas <source.veri> [OPTIONS]
+\end{verbatim}
+
+By default, the compiler type-checks the source, lowers it through TIR and DTAL, and prints the DTAL output to stdout. The most common options are:
+
+\begin{itemize}
+  \item \texttt{-o <file>}: compile to a native ELF executable.
+  \item \texttt{--verify}: verify the DTAL output before code generation.
+  \item \texttt{--verify-only}: verify DTAL and exit without producing an executable.
+  \item \texttt{-O}: enable all optimisations (copy propagation and dead code elimination).
+  \item \texttt{-v}: verbose mode, showing each compilation stage.
+  \item \texttt{--tir}: print the TIR (SSA) intermediate representation.
+\end{itemize}
+
+For example, compiling and verifying a program end-to-end:
+
+\begin{verbatim}
+  veritas bubble_sort.veri --verify -O -o bubble_sort
+\end{verbatim}
+
+The resulting executable is a statically linked, freestanding ELF binary. The return value of \texttt{main} becomes the process exit code. The runtime provides five intrinsics overall: \texttt{print\_int(n)}, \texttt{print\_char(c)}, \texttt{read\_int()}, \texttt{port\_in(port)}, and \texttt{port\_out(port, val)}. On the bare-metal target, the type checker admits only the port-I/O intrinsics.
+
+A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source, demonstrating that the verifier operates independently of the compiler frontend. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU.
+
