@@ -402,9 +402,9 @@ When one or both operands are not singletons, the checker performs \textit{refin
 
 Mutable variables present a challenge for refinement types: an assignment \texttt{x = e} changes the value of \texttt{x}, potentially invalidating refinements that mention it. Veritas addresses this with \textit{master types}. When a mutable variable is declared as \texttt{let mut x: T = e}, the type $T$ is recorded as the variable's master type $T_m$. The variable's \textit{current type} $T_c$ may be narrowed through assignments and control flow (e.g., after \texttt{if x > 0}, the current type narrows to $\{v\!:\!\mathtt{int} \mid v > 0\}$), but every assignment must satisfy $\tau_e <: T_m$. At control-flow joins, current types from each branch are merged using the join operation, but the result must remain a subtype of the master type.
 
-\subsubsection{Context joining}
-
-At control-flow merge points, the typing contexts from each branch are reconciled using the $\textsf{join}$ operation defined in Section~\ref{sec:context-joining}. The implementation uses \texttt{im}'s persistent maps to efficiently compute the join without mutating either branch's context.
+% \subsubsection{Context joining}
+%
+% At control-flow merge points, the typing contexts from each branch are reconciled using the $\textsf{join}$ operation defined in Section~\ref{sec:context-joining}. The implementation uses \texttt{im}'s persistent maps to efficiently compute the join without mutating either branch's context.
 
 \subsubsection{SMT oracle}\label{sec:smt-oracle}
 
