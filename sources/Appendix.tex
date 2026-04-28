@@ -28,12 +28,12 @@ $$\frac{\phi \vdash \tau <: \sigma}{\phi \vdash \textsf{master}(\tau) <: \sigma}
 $$\frac{}{\phi; \Delta; \Gamma \vdash n \Rightarrow (\phi; \Delta; \textsf{int}(n))} \quad (\textsc{T-Int})$$
 
 $$\frac{}{\phi; \Delta; \Gamma \vdash \textsf{true} \Rightarrow (\phi; \Delta; \textsf{bool})} \quad (\textsc{T-True})
-\qquad
-\frac{}{\phi; \Delta; \Gamma \vdash \textsf{false} \Rightarrow (\phi; \Delta; \textsf{bool})} \quad (\textsc{T-False})$$
+  \qquad
+  \frac{}{\phi; \Delta; \Gamma \vdash \textsf{false} \Rightarrow (\phi; \Delta; \textsf{bool})} \quad (\textsc{T-False})$$
 
 $$\frac{(x: \tau) \in \Gamma}{\phi; \Delta; \Gamma \vdash x \Rightarrow (\phi; \Delta; \tau)} \quad (\textsc{T-Var-Imm})
-\qquad
-\frac{(x: \tau_c) \in \Delta}{\phi; \Delta; \Gamma \vdash x \Rightarrow (\phi; \Delta; \tau_c)} \quad (\textsc{T-Var-Mut})$$
+  \qquad
+  \frac{(x: \tau_c) \in \Delta}{\phi; \Delta; \Gamma \vdash x \Rightarrow (\phi; \Delta; \tau_c)} \quad (\textsc{T-Var-Mut})$$
 
 \section*{Arithmetic}
 
@@ -92,7 +92,7 @@ $$
 $$
   \frac{
     \begin{array}{c}
-      (x: [\tau_\textsf{elem}; N]) \in (\Gamma \cup \Delta_0)                                                                              \\
+      (x: [\tau_\textsf{elem}; N]) \in (\Gamma \cup \Delta_0)                                                               \\
       \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i) \quad \phi_1 \vdash \tau_i <: \textsf{int} \\
       \phi_1 \wedge \textsf{prop}(\tau_i) \vdash 0 \le \textsf{val}(\tau_i) < N \quad \text{(Bounds proof)}
     \end{array}
@@ -107,8 +107,8 @@ $$
   \frac{
     \begin{array}{c}
       \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
-      \phi_1 \wedge \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B \Rightarrow (\phi_2; \Delta_2; \tau_2)                      \\
-      \phi_1 \wedge \neg \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B' \Rightarrow (\phi_3; \Delta_3; \tau_3)                \\
+      \phi_1 \wedge \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B \Rightarrow (\phi_2; \Delta_2; \tau_2)                              \\
+      \phi_1 \wedge \neg \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B' \Rightarrow (\phi_3; \Delta_3; \tau_3)                        \\
       (\phi_\textsf{join}, \Delta_\textsf{join}, \tau_\textsf{join}) = \textsf{join}(\phi_2, \Delta_2, \tau_2, \phi_3, \Delta_3, \tau_3)
     \end{array}
   }{
@@ -121,9 +121,9 @@ $$
 $$
   \frac{
     \begin{array}{c}
-      \Sigma_F(f) = ( (x_i:\tau_i)_{i=1}^k \rightarrow \tau_\textsf{ret}\; \textsf{requires } P_\textsf{req} )                                  \\
-      \phi_0; \Delta_0; \Gamma \vdash \vec{e} \Rightarrow (\phi_k; \Delta_k; \vec{\sigma}) \\
-      \forall i \in 1..k,\; \phi_k \vdash \sigma_i <: \tau_i                                                \\
+      \Sigma_F(f) = ( (x_i:\tau_i)_{i=1}^k \rightarrow \tau_\textsf{ret}\; \textsf{requires } P_\textsf{req} ) \\
+      \phi_0; \Delta_0; \Gamma \vdash \vec{e} \Rightarrow (\phi_k; \Delta_k; \vec{\sigma})                     \\
+      \forall i \in 1..k,\; \phi_k \vdash \sigma_i <: \tau_i                                                   \\
       \phi_k \wedge \textsf{prop}(\vec{\sigma}) \vdash P_\textsf{req}[\textsf{val}(\vec{\sigma}) / \vec{x}] \quad \text{(Precondition proof)}
     \end{array}
   }{
@@ -154,9 +154,9 @@ $$\frac{\phi_0; \Delta_0; \Gamma \vdash e \Leftarrow \tau : (\phi_1; \Delta_1)}{
 $$
   \frac{
     \begin{array}{c}
-      (x: [\tau_\textsf{elem}; N]) \in \Delta_0                                                                                            \\
-      \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i) \quad \phi_1 \vdash \tau_i <: \textsf{int} \\
-      \phi_1; \Delta_1; \Gamma \vdash e \Rightarrow (\phi_2; \Delta_2; \tau_v) \quad \phi_2 \vdash \tau_v <: \tau_\textsf{elem}            \\
+      (x: [\tau_\textsf{elem}; N]) \in \Delta_0                                                                                 \\
+      \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i) \quad \phi_1 \vdash \tau_i <: \textsf{int}     \\
+      \phi_1; \Delta_1; \Gamma \vdash e \Rightarrow (\phi_2; \Delta_2; \tau_v) \quad \phi_2 \vdash \tau_v <: \tau_\textsf{elem} \\
       \phi_2 \wedge \textsf{prop}(\tau_i) \vdash 0 \le \textsf{val}(\tau_i) < N \quad \text{(Bounds proof)}
     \end{array}
   }{
@@ -169,8 +169,8 @@ $$
 $$
   \frac{
     \begin{array}{c}
-      (x: \tau_\textsf{master}) \in \Delta_0 \\
-      \phi_0; \Delta_0; \Gamma \vdash e \Rightarrow (\phi_1; \Delta_1; \tau_e)  \\
+      (x: \tau_\textsf{master}) \in \Delta_0                                   \\
+      \phi_0; \Delta_0; \Gamma \vdash e \Rightarrow (\phi_1; \Delta_1; \tau_e) \\
       \phi_1 \vdash \tau_e <: \tau_\textsf{master}
     \end{array}
   }{
@@ -182,13 +182,13 @@ $$
 
 $$
   \frac{
-  \begin{array}{c}
-    \phi_0 \wedge P_I[e_\textsf{start}/i] \quad \text{(Invariant holds on entry)} \\
-    \phi_0 \wedge P_I \wedge e_\textsf{start} \le i < e_\textsf{end};\; \Delta_0;\; (\Gamma, i: \textsf{int}) \vdash B : (\phi_1; \Delta_1; \Gamma) \\
-    \phi_1 \vdash P_I[(i+1)/i] \quad \text{(Invariant preserved by body)}
-  \end{array}
+    \begin{array}{c}
+      \phi_0 \wedge P_I[e_\textsf{start}/i] \quad \text{(Invariant holds on entry)}                                                                   \\
+      \phi_0 \wedge P_I \wedge e_\textsf{start} \le i < e_\textsf{end};\; \Delta_0;\; (\Gamma, i: \textsf{int}) \vdash B : (\phi_1; \Delta_1; \Gamma) \\
+      \phi_1 \vdash P_I[(i+1)/i] \quad \text{(Invariant preserved by body)}
+    \end{array}
   }{
-  \phi_0; \Delta_0; \Gamma \vdash (\textsf{for } i \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{B\}) : (\phi_0 \wedge P_I; \Delta_0; \Gamma)
+    \phi_0; \Delta_0; \Gamma \vdash (\textsf{for } i \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{B\}) : (\phi_0 \wedge P_I; \Delta_0; \Gamma)
   } \quad (\textsc{T-For})^\star
 $$
 
@@ -213,8 +213,8 @@ $$
   \frac{
     \begin{array}{c}
       \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
-      \phi_1 \wedge \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B : (\phi_2; \Delta_2; \Gamma)                      \\
-      \phi_1 \wedge \neg \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B' : (\phi_3; \Delta_3; \Gamma)                \\
+      \phi_1 \wedge \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B : (\phi_2; \Delta_2; \Gamma)                                        \\
+      \phi_1 \wedge \neg \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B' : (\phi_3; \Delta_3; \Gamma)                                  \\
       (\phi_\textsf{join}, \Delta_\textsf{join}) = \textsf{join}(\phi_2, \Delta_2, \phi_3, \Delta_3)
     \end{array}
   }{
@@ -224,14 +224,14 @@ $$
 
 $$
   \frac{
-  \begin{array}{c}
-    \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
-    \phi_0 \vdash \phi_I \quad \text{(Invariant holds on entry)} \\
-    \phi_I \wedge \textsf{prop}(\tau_c);\; \Delta_0;\; \Gamma \vdash B : (\phi_2; \Delta_2; \Gamma) \\
-    \phi_2; \Delta_2 \vdash \phi_I \quad \text{(Invariant preserved by body)}
-  \end{array}
+    \begin{array}{c}
+      \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
+      \phi_0 \vdash \phi_I \quad \text{(Invariant holds on entry)}                                                                       \\
+      \phi_I \wedge \textsf{prop}(\tau_c);\; \Delta_0;\; \Gamma \vdash B : (\phi_2; \Delta_2; \Gamma)                                    \\
+      \phi_2; \Delta_2 \vdash \phi_I \quad \text{(Invariant preserved by body)}
+    \end{array}
   }{
-  \phi_0; \Delta_0; \Gamma \vdash (\textsf{while } e_\textsf{cond}\;\{B\}) : (\phi_I \wedge \neg\textsf{prop}(\tau_c); \Delta_0; \Gamma)
+    \phi_0; \Delta_0; \Gamma \vdash (\textsf{while } e_\textsf{cond}\;\{B\}) : (\phi_I \wedge \neg\textsf{prop}(\tau_c); \Delta_0; \Gamma)
   } \quad (\textsc{T-While})
 $$
 
@@ -242,28 +242,28 @@ This appendix lists the complete set of typing rules implemented by the DTAL ver
 \section*{Data movement}
 
 $$
-\frac{}{\Phi; \Gamma \vdash \textsf{mov } r_d, n \Rightarrow \Gamma[r_d \mapsto \textsf{int}(n)]} \quad (\textsc{D-MovImm})^\star
+  \frac{}{\Phi; \Gamma \vdash \textsf{mov } r_d, n \Rightarrow \Gamma[r_d \mapsto \textsf{int}(n)]} \quad (\textsc{D-MovImm})^\star
 $$
 
 $$
-\frac{\Gamma(r_s) = \tau}{\Phi; \Gamma \vdash \textsf{mov } r_d, r_s \Rightarrow \Gamma[r_d \mapsto \tau]} \quad (\textsc{D-MovReg})
+  \frac{\Gamma(r_s) = \tau}{\Phi; \Gamma \vdash \textsf{mov } r_d, r_s \Rightarrow \Gamma[r_d \mapsto \tau]} \quad (\textsc{D-MovReg})
 $$
 
 $$
-\frac{
-\begin{array}{c}
-\Gamma(r_b) = [\tau; N] \quad \Phi \vdash 0 \le \textsf{idx}(\Gamma(r_i)) < N
-\end{array}
-}{\Phi; \Gamma \vdash \textsf{load } r_d, [r_b, r_i] \Rightarrow \Gamma[r_d \mapsto \tau]} \quad (\textsc{D-Load})^\star
+  \frac{
+    \begin{array}{c}
+      \Gamma(r_b) = [\tau; N] \quad \Phi \vdash 0 \le \textsf{idx}(\Gamma(r_i)) < N
+    \end{array}
+  }{\Phi; \Gamma \vdash \textsf{load } r_d, [r_b, r_i] \Rightarrow \Gamma[r_d \mapsto \tau]} \quad (\textsc{D-Load})^\star
 $$
 
 $$
-\frac{
-\begin{array}{c}
-\Gamma(r_b) = [\tau; N] \quad \Phi \vdash 0 \le \textsf{idx}(\Gamma(r_i)) < N \\
-v' = v + 1 \quad \text{(fresh array version)}
-\end{array}
-}{\Phi; \Gamma \vdash \textsf{store } [r_b, r_i], r_s \Rightarrow \Gamma} \quad (\textsc{D-Store})
+  \frac{
+    \begin{array}{c}
+      \Gamma(r_b) = [\tau; N] \quad \Phi \vdash 0 \le \textsf{idx}(\Gamma(r_i)) < N \\
+      v' = v + 1 \quad \text{(fresh array version)}
+    \end{array}
+  }{\Phi; \Gamma \vdash \textsf{store } [r_b, r_i], r_s \Rightarrow \Gamma} \quad (\textsc{D-Store})
 $$
 
 \noindent After a store, the verifier emits two axioms into $\Phi$: a \textit{write axiom} ($\textsf{select}(\mathit{arr}_{v'}, e_i) = e_s$) and a \textit{frame axiom} ($\forall k.\; k \ne e_i \Rightarrow \textsf{select}(\mathit{arr}_{v'}, k) = \textsf{select}(\mathit{arr}_v, k)$), where $v$ and $v'$ are the old and new array versions.
@@ -271,51 +271,51 @@ $$
 \section*{Arithmetic}
 
 $$
-\frac{
-\Gamma(r_1) = \textsf{int}(e_1) \quad \Gamma(r_2) = \textsf{int}(e_2)
-}{\Phi; \Gamma \vdash \textsf{binop}_\oplus\; r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \textsf{int}(e_1 \oplus e_2)]} \quad (\textsc{D-BinOp-Singleton})^\star
+  \frac{
+    \Gamma(r_1) = \textsf{int}(e_1) \quad \Gamma(r_2) = \textsf{int}(e_2)
+  }{\Phi; \Gamma \vdash \textsf{binop}_\oplus\; r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \textsf{int}(e_1 \oplus e_2)]} \quad (\textsc{D-BinOp-Singleton})^\star
 $$
 
 $$
-\frac{
-\Gamma(r_1) = \{a\!:\!\textsf{int} \mid \varphi_1\} \quad \Gamma(r_2) = \{b\!:\!\textsf{int} \mid \varphi_2\}
-}{\Phi; \Gamma \vdash \textsf{binop}_\oplus\; r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \exists c.\; \textsf{int}(c) \;\mathbf{where}\; \exists a,b.\; \varphi_1 \wedge \varphi_2 \wedge c = a \oplus b]} \quad (\textsc{D-BinOp-Refined})^\star
+  \frac{
+    \Gamma(r_1) = \{a\!:\!\textsf{int} \mid \varphi_1\} \quad \Gamma(r_2) = \{b\!:\!\textsf{int} \mid \varphi_2\}
+  }{\Phi; \Gamma \vdash \textsf{binop}_\oplus\; r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \exists c.\; \textsf{int}(c) \;\mathbf{where}\; \exists a,b.\; \varphi_1 \wedge \varphi_2 \wedge c = a \oplus b]} \quad (\textsc{D-BinOp-Refined})^\star
 $$
 
 $$
-\frac{
-\Gamma(r_s) = \textsf{int}(e)
-}{\Phi; \Gamma \vdash \textsf{addimm } r_d, r_s, n \Rightarrow \Gamma[r_d \mapsto \textsf{int}(e + n)]} \quad (\textsc{D-AddImm})
+  \frac{
+    \Gamma(r_s) = \textsf{int}(e)
+  }{\Phi; \Gamma \vdash \textsf{addimm } r_d, r_s, n \Rightarrow \Gamma[r_d \mapsto \textsf{int}(e + n)]} \quad (\textsc{D-AddImm})
 $$
 
 $$
-\frac{
-\Gamma(r_s) = \tau \quad \tau <: \textsf{bool}
-}{\Phi; \Gamma \vdash \textsf{not } r_d, r_s \Rightarrow \Gamma[r_d \mapsto \textsf{bool}]} \quad (\textsc{D-Not})
+  \frac{
+    \Gamma(r_s) = \tau \quad \tau <: \textsf{bool}
+  }{\Phi; \Gamma \vdash \textsf{not } r_d, r_s \Rightarrow \Gamma[r_d \mapsto \textsf{bool}]} \quad (\textsc{D-Not})
 $$
 
 \section*{Comparison and branching}
 
 $$
-\frac{
-\Gamma(r_1) = \tau_1 \quad \Gamma(r_2) = \tau_2
-}{\Phi; \Gamma \vdash \textsf{cmp } r_1, r_2 \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), \textsf{idx}(\tau_2)\text{)}} \quad (\textsc{D-Cmp})
+  \frac{
+    \Gamma(r_1) = \tau_1 \quad \Gamma(r_2) = \tau_2
+  }{\Phi; \Gamma \vdash \textsf{cmp } r_1, r_2 \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), \textsf{idx}(\tau_2)\text{)}} \quad (\textsc{D-Cmp})
 $$
 
 $$
-\frac{
-\Gamma(r_1) = \tau_1
-}{\Phi; \Gamma \vdash \textsf{cmp } r_1, n \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), n\text{)}} \quad (\textsc{D-CmpImm})
+  \frac{
+    \Gamma(r_1) = \tau_1
+  }{\Phi; \Gamma \vdash \textsf{cmp } r_1, n \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), n\text{)}} \quad (\textsc{D-CmpImm})
 $$
 
 $$
-\frac{}{\Phi; \Gamma \vdash \textsf{setcc } r_d, \textit{cond} \Rightarrow \Gamma[r_d \mapsto \textsf{bool}]} \quad (\textsc{D-SetCC})
+  \frac{}{\Phi; \Gamma \vdash \textsf{setcc } r_d, \textit{cond} \Rightarrow \Gamma[r_d \mapsto \textsf{bool}]} \quad (\textsc{D-SetCC})
 $$
 
 $$
-\frac{
-\text{last cmp operands: } e_1, e_2
-}{\Phi; \Gamma \vdash \textsf{branch } \textit{cond}\; L \Rightarrow \Gamma \quad \text{with } \Phi' = \Phi \wedge \neg(e_1 \textit{ cond } e_2) \text{ (fall-through)}} \quad (\textsc{D-Branch})^\star
+  \frac{
+    \text{last cmp operands: } e_1, e_2
+  }{\Phi; \Gamma \vdash \textsf{branch } \textit{cond}\; L \Rightarrow \Gamma \quad \text{with } \Phi' = \Phi \wedge \neg(e_1 \textit{ cond } e_2) \text{ (fall-through)}} \quad (\textsc{D-Branch})^\star
 $$
 
 \noindent The taken edge to $L$ carries $\Phi \wedge (e_1 \textit{ cond } e_2)$.
@@ -323,15 +323,15 @@ $$
 \section*{Stack and allocation}
 
 $$
-\frac{\Gamma(r_s) = \tau}{\Phi; \Gamma \vdash \textsf{push } r_s \Rightarrow \Gamma \quad \text{(push } \tau \text{ onto typed stack)}} \quad (\textsc{D-Push})
+  \frac{\Gamma(r_s) = \tau}{\Phi; \Gamma \vdash \textsf{push } r_s \Rightarrow \Gamma \quad \text{(push } \tau \text{ onto typed stack)}} \quad (\textsc{D-Push})
 $$
 
 $$
-\frac{S = \tau :: S'}{\Phi; \Gamma \vdash \textsf{pop } r_d \Rightarrow \Gamma[r_d \mapsto \tau] \quad \text{(pop from typed stack)}} \quad (\textsc{D-Pop})
+  \frac{S = \tau :: S'}{\Phi; \Gamma \vdash \textsf{pop } r_d \Rightarrow \Gamma[r_d \mapsto \tau] \quad \text{(pop from typed stack)}} \quad (\textsc{D-Pop})
 $$
 
 $$
-\frac{}{\Phi; \Gamma \vdash \textsf{alloca } r_d, n \Rightarrow \Gamma[r_d \mapsto [\textsf{int}; n]]} \quad (\textsc{D-Alloca})
+  \frac{}{\Phi; \Gamma \vdash \textsf{alloca } r_d, n \Rightarrow \Gamma[r_d \mapsto [\textsf{int}; n]]} \quad (\textsc{D-Alloca})
 $$
 
 \noindent After allocation, the verifier adds a zero-initialisation axiom: $\forall k \in [0, n).\; \textsf{select}(\mathit{arr}_0, k) = 0$.
@@ -339,17 +339,17 @@ $$
 \section*{Annotations}
 
 $$
-\frac{
-\Gamma(r) = \tau_\textsf{derived} \quad \Phi \vdash \tau_\textsf{derived} <: \tau_\textsf{ann}
-}{\Phi; \Gamma \vdash \textsf{type } r: \tau_\textsf{ann}} \quad (\textsc{D-TypeAnn})
+  \frac{
+    \Gamma(r) = \tau_\textsf{derived} \quad \Phi \vdash \tau_\textsf{derived} <: \tau_\textsf{ann}
+  }{\Phi; \Gamma \vdash \textsf{type } r: \tau_\textsf{ann}} \quad (\textsc{D-TypeAnn})
 $$
 
 \noindent The verifier derives the register's type independently and checks it is compatible with the compiler's annotation. If the annotation is more precise (e.g., a singleton vs.\ the derived existential), the verifier checks that the derived type implies the annotation under $\Phi$.
 
 $$
-\frac{
-\Phi \vdash C
-}{\Phi; \Gamma \vdash \textsf{assert } C \Rightarrow \Gamma \quad \text{(add } C \text{ to } \Phi\text{)}} \quad (\textsc{D-Assert})
+  \frac{
+    \Phi \vdash C
+  }{\Phi; \Gamma \vdash \textsf{assert } C \Rightarrow \Gamma \quad \text{(add } C \text{ to } \Phi\text{)}} \quad (\textsc{D-Assert})
 $$
 
 \noindent The verifier checks that the constraint $C$ is provable from the current $\Phi$ before adding it.
@@ -357,12 +357,12 @@ $$
 \section*{Function calls}
 
 $$
-\frac{
-\begin{array}{c}
-\Sigma(f) = (\vec{x}:\vec{\tau}) \rightarrow \tau_\textsf{ret} \;\textsf{requires } P_\textsf{req} \;\textsf{ensures } P_\textsf{ens} \\
-\Phi \vdash P_\textsf{req}[\overline{r_i / x_i}]
-\end{array}
-}{\Phi; \Gamma \vdash \textsf{call } f \Rightarrow \Gamma[r_0 \mapsto \tau_\textsf{ret}] \quad \text{(add } P_\textsf{ens}[\overline{r_i / x_i}] \text{ to } \Phi\text{)}} \quad (\textsc{D-Call})
+  \frac{
+    \begin{array}{c}
+      \Sigma(f) = (\vec{x}:\vec{\tau}) \rightarrow \tau_\textsf{ret} \;\textsf{requires } P_\textsf{req} \;\textsf{ensures } P_\textsf{ens} \\
+      \Phi \vdash P_\textsf{req}[\overline{r_i / x_i}]
+    \end{array}
+  }{\Phi; \Gamma \vdash \textsf{call } f \Rightarrow \Gamma[r_0 \mapsto \tau_\textsf{ret}] \quad \text{(add } P_\textsf{ens}[\overline{r_i / x_i}] \text{ to } \Phi\text{)}} \quad (\textsc{D-Call})
 $$
 
 \noindent The precondition is checked against $\Phi$ after substituting physical parameter registers for formal parameters. The postcondition (with \texttt{result} replaced by $r_0$) is assumed in $\Phi$ after the call.
@@ -372,9 +372,9 @@ $$
 The following instructions appear only after register allocation and are verified for basic consistency:
 
 \begin{itemize}
-    \item \textbf{D-Cqo}: Sign-extends \texttt{rax} into \texttt{rdx:rax}. The type of \texttt{rdx} is set to the type of \texttt{rax}.
-    \item \textbf{D-Idiv}: Divides \texttt{rdx:rax} by the source register. Both \texttt{rax} (quotient) and \texttt{rdx} (remainder) receive type $\textsf{int}$.
-    \item \textbf{D-SpillStore}: Records the type stored at a stack offset.
-    \item \textbf{D-SpillLoad}: Checks that the loaded type matches what was previously stored at that offset.
-    \item \textbf{D-Prologue / D-Epilogue}: Structural markers verified at the function level.
+  \item \textbf{D-Cqo}: Sign-extends \texttt{rax} into \texttt{rdx:rax}. The type of \texttt{rdx} is set to the type of \texttt{rax}.
+  \item \textbf{D-Idiv}: Divides \texttt{rdx:rax} by the source register. Both \texttt{rax} (quotient) and \texttt{rdx} (remainder) receive type $\textsf{int}$.
+  \item \textbf{D-SpillStore}: Records the type stored at a stack offset.
+  \item \textbf{D-SpillLoad}: Checks that the loaded type matches what was previously stored at that offset.
+  \item \textbf{D-Prologue / D-Epilogue}: Structural markers verified at the function level.
 \end{itemize}
