@@ -340,13 +340,27 @@ $$
 \noindent where $e_i$ is the index expression extracted from the type of $r_i$. Stores are handled symmetrically, with an additional mechanism: the verifier maintains \textit{array versions} so that each store creates a fresh logical name for the array. This enables the SMT solver to reason about array contents using store/select axioms without conflating values written at different program points.
 
 \paragraph{Conditional Branching}
-A comparison instruction (\texttt{cmp $r_1$, $r_2$}) records the operands; a subsequent conditional branch (\texttt{branch \textit{cond} $L$}) refines the constraint context on both paths. If the operands have index expressions $e_1$ and $e_2$:
-\begin{itemize}
-    \item Taken branch (to $L$): $\Phi' = \Phi \wedge (e_1 \textsf{ cond } e_2)$
-    \item Fall-through: $\Phi' = \Phi \wedge \neg(e_1 \textsf{ cond } e_2)$
-\end{itemize}
+A comparison instruction records the operands whose relationship will later be tested by a branch:
+$$
+\frac{
+  \Gamma(r_1) = \tau_1 \quad \Gamma(r_2) = \tau_2
+}{\Phi; \Gamma \vdash \textsf{cmp } r_1, r_2 \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), \textsf{idx}(\tau_2)\text{)}} \quad (\textsc{D-Cmp})
+$$
 
-\noindent This is used to verify bounds checks: a comparison followed by a branch-if-greater-or-equal exits the loop, and the fall-through path continues with the assumption that the index is within bounds.
+$$
+\frac{
+  \Gamma(r_1) = \tau_1
+}{\Phi; \Gamma \vdash \textsf{cmp } r_1, n \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), n\text{)}} \quad (\textsc{D-CmpImm})
+$$
+
+A subsequent conditional branch refines the constraint context on each outgoing edge. The fall-through path is captured by the verifier's local derivation rule:
+$$
+\frac{
+  \text{last cmp operands: } e_1, e_2
+}{\Phi; \Gamma \vdash \textsf{branch } \textit{cond}\; L \Rightarrow \Gamma \quad \text{with } \Phi' = \Phi \wedge \neg(e_1 \textit{ cond } e_2) \text{ (fall-through)}} \quad (\textsc{D-Branch})
+$$
+
+\noindent The taken edge to $L$ carries the refined constraint context $\Phi \wedge (e_1 \textit{ cond } e_2)$. This is used to verify bounds checks: a comparison followed by a branch-if-greater-or-equal exits the loop, and the fall-through path continues with the assumption that the index is within bounds.
 
 These rules are representative; the verifier handles all instruction variants listed in Section~\ref{sec:dtal-instr-set}. The complete set of DTAL typing rules is given in Appendix~\ref{app:dtal-rules}.
 
