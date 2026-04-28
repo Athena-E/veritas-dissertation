@@ -5,7 +5,7 @@
 
 \chapter{Preparation}\label{ch:prep}
 
-This chapter establishes the theoretical foundations of the project, surveys related work, and describes the design decisions that were made before implementation began.
+This chapter establishes the conceptual and technical background for Veritas. It first introduces the type-theoretic foundations that motivate the project: type soundness, dependent and refinement types, bidirectional type checking, SMT-based proof discharge, and type-preserving compilation. It then places Veritas in the context of related work, particularly systems that trade off expressiveness, automation, and trust in different ways. The goal of the chapter is to give insight to existing ideas as well as make precise which of them Veritas does (or does not) adopt, and why those choices are appropriate for a project centred on independently verifiable systems code.
 
 \section{Background}
 
@@ -13,21 +13,24 @@ This chapter establishes the theoretical foundations of the project, surveys rel
 
 % A type system is a tractable syntactic method for proving the absence of certain program behaviours by classifying program phrases according to the kinds of values they compute~\cite{Pierce2002Types}. Type systems associate each expression with a type: a description of the set of values the expression may produce, and then enforce consistency rules that prevent ill-defined operations such as adding a boolean to an integer or dereferencing a null pointer.
 
-The fundamental theorem that connects type systems to safety is \emph{type soundness}: a well-typed program cannot `go wrong' at runtime~\cite{Milner1978Theory}. Wright and Felleisen formalised this via the \emph{progress} and \emph{preservation} lemmas~\cite{Wright1994Syntactic}: 
+The fundamental theorem that connects type systems to safety is \emph{type soundness}: a well-typed program cannot `go wrong' at runtime~\cite{Milner1978Theory}. Wright and Felleisen formalised this via the \emph{progress} and \emph{preservation} lemmas~\cite{Wright1994Syntactic}:
 
-% TODO: progress and preservation lemmas
+\textbf{Progress.} If $\emptyset \vdash e : \tau$, then either $e$ is already a value, or there exists some expression $e'$ such that $e \to e'$.
 
-% progress states that a well-typed expression is either a value or can take an evaluation step, and preservation states that evaluation preserves the type. Together, these guarantee that a well-typed program never reaches an undefined state during execution.
+\textbf{Preservation.} If $\emptyset \vdash e : \tau$ and $e \to e'$, then $\emptyset \vdash e' : \tau$.
+
+% \noindent Progress states that a closed well-typed program never becomes stuck before it has produced a value: whenever evaluation has not yet finished, there is always a valid next reduction step. Preservation states that evaluation does not invalidate typing: every execution step preserves the type established statically. 
+\noindent Together, these yield type soundness. Starting from a well-typed program, repeated evaluation can neither get stuck in an ill-defined intermediate state nor escape the guarantees expressed by its type. In practice, this is the formal basis for claims such as ``a well-typed array access cannot go out of bounds'' or ``a well-typed arithmetic expression is not applied to a boolean''.
 
 % An important consequence of tractability is that type systems are \emph{sound} but not \emph{complete}: every accepted program is safe, but some safe programs will be rejected. This is a deliberate trade-off---soundness is essential for guarantees, while completeness is sacrificed for decidability. Refinement types push this boundary by encoding richer invariants, but the fundamental incompleteness remains.
 
-Type systems exist on a spectrum of expressiveness. At one end, simply typed languages (such as C's type system) distinguish broad categories like integers, floats, and pointers. This catches type mismatches---such as passing a pointer where an integer is expected---but cannot constrain the values that inhabit a type. Hindley--Milner type systems~\cite{Milner1978Theory}, used in ML and Haskell, add parametric polymorphism and principal type inference, enabling the type checker to infer the most general type for every expression without annotations. However, these systems cannot express properties that depend on values; for instance, that an array index is within bounds, or that a division's denominator is non-zero. These properties lend themselves to safety-critical software, and expressing them requires types that can refer to values: \emph{dependent types}.
+Type systems exist on a spectrum of expressiveness. At one end, simply typed languages (such as C's type system) distinguish broad categories like integers, floats, and pointers. This catches type mismatches---such as passing a pointer where an integer is expected---but cannot constrain the values that inhabit a type. Hindley--Milner type systems~\cite{Milner1978Theory}, used in ML and Haskell, add parametric polymorphism and principal type inference, enabling the type checker to infer the most general type for every expression without annotations. However, these systems cannot express properties that depend on values; for instance, that an array index is within bounds, or that a division's denominator is non-zero. These properties lend themselves to safety-critical software, and expressing them requires types that can refer to values: \emph{dependent types} \cite{MARTINLOF1982153}.
 
 Veritas targets this gap: its type system extends a simple base type system (integers, booleans, arrays) with refinement types, a decidable subset of dependent types, that encode value-dependent invariants.
 
 \subsection{Refinement types}\label{sec:dependent-types}
 
-In a dependently typed language, types may depend on terms. The canonical example is the type of vectors indexed by their length, $\mathrm{Vec}(A, n)$, where $n$ is a natural number. A function that accesses the $i$-th element can require in its type that $0 \le i < n$, statically ruling out out-of-bounds accesses. Full dependent type systems, such as those in Coq and Agda, can express arbitrary propositions as types (via the Curry--Howard correspondence), but this generality comes at a cost: type checking may require the programmer to construct explicit proof terms, and type inference is generally undecidable.
+In a dependently typed language, types may depend on terms. The canonical example is the type of vectors indexed by their length, $\mathrm{Vec}(A, n)$, where $n$ is a natural number. A function that accesses the $i$-th element can require in its type that $0 \le i < n$, statically ruling out out-of-bounds accesses. Full dependent type systems, such as those in Coq and Agda~\cite{Bove2009Agda}, can express arbitrary propositions as types (via the Curry--Howard correspondence), but this generality comes at a cost: type checking may require the programmer to construct explicit proof terms, and type inference is generally undecidable.
 
 Refinement types~\cite{Rondon2008Liquid} are a practical restriction of full dependent types in which a base type is decorated with a logical predicate drawn from a decidable logic. For example, the type $\{v\!:\!\mathtt{int} \mid v > 0\}$ classifies integers that are strictly positive. Notably, subtyping between refinement types reduces to logical implication: $\{v\!:\!\mathtt{int} \mid P(v)\} <: \{v\!:\!\mathtt{int} \mid Q(v)\}$ holds when $P(v) \Rightarrow Q(v)$ is valid. Because the predicates are drawn from a decidable theory (typically quantifier-free linear arithmetic), this implication check can be delegated to an SMT solver.
 
@@ -44,29 +47,28 @@ Bidirectional type checking~\cite{Pierce2000Local}, structures a type system int
   \item \emph{Type synthesis} takes a context $\Gamma$ and program $e$ as input and produces a types $\tau$ as output: $\Gamma \vdash e \Rightarrow \tau$
 \end{itemize}
 
-The two modes are connected by a subsumption rule:
+\noindent The two modes are connected by a subsumption rule:
 $$
   \frac{\Gamma \vdash e \Rightarrow \sigma \quad \sigma <: \tau}{\Gamma \vdash e \leftarrow \tau}
 $$
-
-
+% \noindent To check an expression against a type $\tau$, one may synthesise a type $\sigma$ and then verify $\sigma$ is a subtype of $\tau$.
 
 % type synthesis ($\Gamma \vdash e \Rightarrow \tau$), which infers the type of an expression bottom-up, and type checking ($\Gamma \vdash e \Leftarrow \tau$), which verifies that an expression has a given type top-down. The two modes are connected by a subsumption rule; to check an expression against a type $\tau$, one may synthesise a type $\sigma$ and then verify $\sigma <: \tau$.
 
 % Alternative approaches have significant drawbacks. Full type inference in the style of Hindley--Milner requires unification, which does not extend naturally to subtyping or refinement types; the lattice structure of refinement types means there is no unique principal type for many expressions. At the other extreme, requiring complete type annotations on every expression is impractical. Bidirectional checking offers a middle ground where the programmer annotates introduction forms (function signatures, let-bindings) and the system infers the rest.
 
-For refinement types, the bidirectional structure is particularly well-suited. Synthesis produces the most precise type available from the immediate structure of an expression---for integer literals, this is a singleton type; for arithmetic, it is a refinement capturing the exact relationship between the result and its operands. Checking then verifies subtyping against the expected type. The programmer only needs to annotate types at function boundaries and mutable variable declarations; the type checker infers intermediate refinement types automatically. Bidirectional type-checking offers a middle ground between Hindley-Milner full type inference and the need for complete type annotations on every expression. 
+For refinement types, the bidirectional structure is particularly well-suited. Synthesis produces the most precise type available from the immediate structure of an expression---for integer literals, this is a singleton type; for arithmetic, it is a refinement capturing the exact relationship between the result and its operands. Checking then verifies subtyping against the expected type. The programmer only needs to annotate types at function boundaries and mutable variable declarations; the type checker infers intermediate refinement types automatically. Bidirectional type-checking offers a middle ground between Hindley-Milner full type inference and the need for complete type annotations on every expression.
 
 In Veritas, the bidirectional structure also threads the typing context through the judgements. Both synthesis and checking accept a context and return an updated context, reflecting changes from mutable variable assignments and newly learned refinement propositions.
 
 \subsection{SMT-based verification}
 \label{sec:smt-based-ver}
 
-Satisfiability Modulo Theories are an extension of boolean satisfiability (SAT) to richer logics. An SMT solver decides the satisfiability of first-order formulae over a combination of background theories. The theories relevant to program verification include linear integer arithmetic (LIA), which supports addition, subtraction, and comparison of integers; the theory of arrays, which models arrays as functions from indices to values with \texttt{select} and \texttt{store} operations; and uninterpreted functions, which allow reasoning about function applications without knowing their implementation. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. It was chosen for its maturity and reliability, having won numerous SMT-COMP competitions \cite{Barrett2013SMTCOMP}. Z3 is also precedent in other similar verification systems that have influenced Veritas' design such as Liquid Haskell, Dafny, and F*. 
+Satisfiability Modulo Theories are an extension of boolean satisfiability (SAT) to richer logics. An SMT solver decides the satisfiability of first-order formulae over a combination of background theories. The theories relevant to program verification include linear integer arithmetic (LIA), which supports addition, subtraction, and comparison of integers; the theory of arrays, which models arrays as functions from indices to values with \texttt{select} and \texttt{store} operations; and uninterpreted functions, which allow reasoning about function applications without knowing their implementation. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. It was chosen for its maturity and reliability, having won numerous SMT-COMP competitions \cite{Barrett2013SMTCOMP}. Z3 is also precedent in other similar verification systems that have influenced Veritas' design such as Liquid Haskell, Dafny, and F*.
 
 The technique for using an SMT solver as a refinement type checker is \textit{proof by refutation}~\cite{Rondon2008Liquid}. To check whether a judgement $\phi \vdash P$ holds (i.e., whether the proposition $P$ follows from the set of known assumptions $\phi$), we assert all propositions in $\phi$, assert $\lnot P$, and check for unsatisfiability. If the solver returns \textsc{unsat}, then $\phi \wedge \lnot P$ has no model, meaning $P$ must hold under $\phi$. If the solver returns \textsc{sat}, a countermodel exists and the proof obligation fails---the type checker reports an error.
 
-This approach means that the \textit{discharge} of proof obligations is fully automatic: the programmer never constructs proof terms. However, the programmer must still supply the specifications from which these obligations arise---type annotations, function contracts, and loop invariants. The automation lies in checking, not in specification. 
+This approach means that the \textit{discharge} of proof obligations is fully automatic: the programmer never constructs proof terms. However, the programmer must still supply the specifications from which these obligations arise---type annotations, function contracts, and loop invariants. The automation lies in checking, not in specification.
 % TODO: state that annotations are not a burden, but guidance, minimise programmer error, clarifies logic/control flow?
 
 In Veritas, the SMT solver is invoked at several points: subtyping checks between refinement types (where the solver verifies that one predicate implies another), array bounds verification (where the solver must prove that an index lies within $[0, N)$), and function contract verification (where preconditions and postconditions are checked at call sites and return points respectively).
@@ -82,8 +84,8 @@ The idea of shipping machine code together with a checkable proof of its safety 
 
 Xi and Harper introduced DTAL as a target for type-preserving compilation from DML (Dependent ML)~\cite{Xi1999DML} and Xanadu~\cite{Xi2000Xanadu}, a dependently typed imperative programming language with C-like syntax. DTAL augments a conventional assembly language with two key forms of type annotation:
 \begin{itemize}
-    \item \textbf{Label signatures}: each basic block entry point is annotated with existentially quantified index variables and the types expected for each register on entry, enabling modular, block-by-block verification.
-    \item \textbf{Register types}: types may depend on index variables, so that a register's type tracks its exact value (e.g., $\mathtt{int}(i)$) or the size of an array it points to (e.g., $\mathtt{int\;array}(n)$).
+  \item \textbf{Label signatures}: each basic block entry point is annotated with existentially quantified index variables and the types expected for each register on entry, enabling modular, block-by-block verification.
+  \item \textbf{Register types}: types may depend on index variables, so that a register's type tracks its exact value (e.g., $\mathtt{int}(i)$) or the size of an array it points to (e.g., $\mathtt{int\;array}(n)$).
 \end{itemize}
 
 \noindent The following excerpt from Xi and Harper~\cite{Xi2001DTAL} shows the loop header of a DTAL copy function. The label signature binds index variables $m$, $n$, $i$ and declares register types in terms of them:
@@ -116,17 +118,17 @@ The use of an SMT solver to discharge type-level proof obligations is heavily in
 At the more expressive end of the spectrum are systems based on full dependent types or separation logic. F*~\cite{Swamy2016Dependent} supports dependent types and can extract code to C or WebAssembly. RefinedC~\cite{Sammler2021RefinedC} applies refinement and ownership types to existing C code, producing foundational, machine-checked proofs in Coq. While these systems offer stronger theoretical guarantees (foundational proofs rather than SMT-based trust), they generally require the programmer to construct explicit proof terms or interact with a proof assistant. Veritas restricts its logic to the decidable fragments supported by Z3, so that proof obligations are discharged automatically once specifications are provided.
 
 \subsection{Verifiable Systems Languages}
-The most direct predecessor to Veritas's goals is ATS (Applied Type System)~\cite{Xi2003Applied}, which also targets systems programming using dependent types with zero runtime overhead. The difference lies in the compilation architecture. ATS performs all theorem proving at compile time and then compiles to standard C, meaning the C compiler and the ATS compiler are both in the trusted computing base. In contrast, Veritas uses the architecture of DTAL. By preserving types through to the backend, Veritas ensures that the target code can be audited independently. 
+The most direct predecessor to Veritas's goals is ATS (Applied Type System)~\cite{Xi2003Applied}, which also targets systems programming using dependent types with zero runtime overhead. The difference lies in the compilation architecture. ATS performs all theorem proving at compile time and then compiles to standard C, meaning the C compiler and the ATS compiler are both in the trusted computing base. In contrast, Veritas uses the architecture of DTAL. By preserving types through to the backend, Veritas ensures that the target code can be audited independently.
 
 Figure~\ref{fig:verification-landscape} summarises the trade-off between expressiveness and automation across the systems discussed above.
 
 \begin{figure}[H]
   \centering
   \begin{tikzpicture}[
-    every node/.style={font=\small},
-    filled/.style={circle, fill=black, inner sep=0pt, minimum size=6pt},
-    hollow/.style={circle, draw=black, fill=white, inner sep=0pt, minimum size=6pt},scale=0.8
-  ]
+      every node/.style={font=\small},
+      filled/.style={circle, fill=black, inner sep=0pt, minimum size=6pt},
+      hollow/.style={circle, draw=black, fill=white, inner sep=0pt, minimum size=6pt},scale=0.8
+    ]
     % Axes
     \draw[->, thick] (0,0) -- (10.5,0) node[right] {\textit{Expressiveness}};
     \draw[->, thick] (0,0) -- (0,7.5) node[above] {\textit{Automation}};
@@ -173,7 +175,7 @@ Figure~\ref{fig:verification-landscape} summarises the trade-off between express
     \node[hollow, label={[font=\footnotesize]right:Proofs erased}] at (10,6.5) {};
 
   \end{tikzpicture}
-  \caption{Verification systems positioned by expressiveness of their type/specification language and degree of automation. Filled markers indicate systems that preserve type-level proofs through compilation; hollow markers indicate systems that erase them.\centering}
+  \caption{Verification systems positioned by expressiveness of their type/specification language and degree of automation.\centering}
   \label{fig:verification-landscape}
 \end{figure}
 
@@ -260,9 +262,9 @@ Veritas is an imperative language with C-like syntax, taking inspiration from Xi
 
 \subsection{DTAL target language design}
 
-The target language is a variant of Xi and Harper's Dependently Typed Assembly Language~\cite{Xi2001DTAL}, extended to support the Veritas refinement type system and targeting x86-64. DTAL resembles a RISC assembly language augmented with type annotations on registers, constraint assertions embedded in the instruction stream, and declared type states at basic block entry points. 
+The target language is a variant of Xi and Harper's Dependently Typed Assembly Language~\cite{Xi2001DTAL}, extended to support the Veritas refinement type system and targeting x86-64. DTAL resembles a RISC assembly language augmented with type annotations on registers, constraint assertions embedded in the instruction stream, and declared type states at basic block entry points.
 
-A key design decision was to define DTAL with its own \textit{physical register model} (registers \texttt{r0}--\texttt{r12}, \texttt{sp}, \texttt{fp}, \texttt{lr}) that maps directly to x86-64 registers. This allows verification to occur \textit{after} register allocation: the register allocator is untrusted, and its output is verified before the final (trivial) encoding to x86-64. 
+A key design decision was to define DTAL with its own \textit{physical register model} (registers \texttt{r0}--\texttt{r12}, \texttt{sp}, \texttt{fp}, \texttt{lr}) that maps directly to x86-64 registers. This allows verification to occur \textit{after} register allocation: the register allocator is untrusted, and its output is verified before the final (trivial) encoding to x86-64.
 
 \subsection{Design challenges}
 
@@ -279,238 +281,238 @@ Combining refinement types with imperative features, SSA-based compilation, and 
 % OLD LANGUAGE SECTIONS REMOVED — moved to Chapter 3
 % BEGIN REMOVAL MARKER
 \iffalse
-\begin{gather*}
-  \begin{aligned}
-    \textsf{aop} ::=\, & \texttt{+} \,|\, \texttt{-} \,|\, \texttt{*} \,|\, \texttt{/} \,|\, \texttt{\%}
-  \end{aligned}
-  \qquad \textbf{(Arithmetic operators)}
-\end{gather*}
+  \begin{gather*}
+    \begin{aligned}
+      \textsf{aop} ::=\, & \texttt{+} \,|\, \texttt{-} \,|\, \texttt{*} \,|\, \texttt{/} \,|\, \texttt{\%}
+    \end{aligned}
+    \qquad \textbf{(Arithmetic operators)}
+  \end{gather*}
 
-\begin{gather*}
-  \begin{aligned}
-    \textsf{cop} ::=\, & \texttt{==} \,|\, \texttt{!=} \,|\, \texttt{<} \,|\, \texttt{<=} \,|\, \texttt{>} \,|\, \texttt{>=}
-  \end{aligned}
-  \qquad \textbf{(Comparison operators)}
-\end{gather*}
+  \begin{gather*}
+    \begin{aligned}
+      \textsf{cop} ::=\, & \texttt{==} \,|\, \texttt{!=} \,|\, \texttt{<} \,|\, \texttt{<=} \,|\, \texttt{>} \,|\, \texttt{>=}
+    \end{aligned}
+    \qquad \textbf{(Comparison operators)}
+  \end{gather*}
 
-\begin{gather*}
-  \begin{aligned}
-    \textsf{lop} ::=\, & \texttt{\&\&} \,|\, \texttt{||} \,|\, \texttt{==>}
-  \end{aligned}
-  \qquad \textbf{(Logical operators)}
-\end{gather*}
+  \begin{gather*}
+    \begin{aligned}
+      \textsf{lop} ::=\, & \texttt{\&\&} \,|\, \texttt{||} \,|\, \texttt{==>}
+    \end{aligned}
+    \qquad \textbf{(Logical operators)}
+  \end{gather*}
 
-\begin{gather*}
-  \begin{aligned}
-    e ::=\, & c \,|\, x \,|\, e \textsf{ aop } e \,|\, e \textsf{ cop } e \,|\, e \textsf{ lop } e \,|\,
-              \texttt{!}\; e \,|\, \texttt{-}\; e \,|\, f(\overrightarrow{e}) \,|\, \\
-            & x[e_i] \,|\, \textsf{if } e_\textsf{cond}\; \{B\}\; \textsf{else } \{B'\} \,|\,
-              [e_\textsf{val}; e_\textsf{size}]
-  \end{aligned}
-  \qquad \textbf{(Expressions)}
-\end{gather*}
+  \begin{gather*}
+    \begin{aligned}
+      e ::=\, & c \,|\, x \,|\, e \textsf{ aop } e \,|\, e \textsf{ cop } e \,|\, e \textsf{ lop } e \,|\,
+      \texttt{!}\; e \,|\, \texttt{-}\; e \,|\, f(\overrightarrow{e}) \,|\,                                \\
+              & x[e_i] \,|\, \textsf{if } e_\textsf{cond}\; \{B\}\; \textsf{else } \{B'\} \,|\,
+      [e_\textsf{val}; e_\textsf{size}]
+    \end{aligned}
+    \qquad \textbf{(Expressions)}
+  \end{gather*}
 
-\begin{gather*}
-  \begin{aligned}
-    P ::=\, & e \textsf{ cop } e \,|\,
-              P \textsf{ lop } P \,|\, \texttt{!}\; P \,|\, \\
-            & \textsf{forall } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{P\} \,|\,
-            \textsf{exists } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{P\}
-  \end{aligned}
-  \qquad \textbf{(Propositions)}
-\end{gather*}
+  \begin{gather*}
+    \begin{aligned}
+      P ::=\, & e \textsf{ cop } e \,|\,
+      P \textsf{ lop } P \,|\, \texttt{!}\; P \,|\,                                            \\
+              & \textsf{forall } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{P\} \,|\,
+      \textsf{exists } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{P\}
+    \end{aligned}
+    \qquad \textbf{(Propositions)}
+  \end{gather*}
 
-\begin{gather*}
-  \begin{aligned}
-    S ::=\, & \textsf{let } x:T = e; \,|\,
-              \textsf{let mut } x:T = e; \,|\,
-              x = e; \,|\,
-              x[e_i] = e; \,|\,
-              \textsf{return } e; \,|\,
-              e; \,|\, \\
-            & \textsf{if } e_\textsf{cond}\; \{B\}\; (\textsf{else } \{B'\})^? \,|\,
-              \textsf{for } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\; (\textsf{invariant } P)^?\; \{B\} \,|\, \\
-            & \textsf{while } e_\textsf{cond}\; (\textsf{invariant } P)^?\; \{B\}
-  \end{aligned}
-  \qquad \textbf{(Statements)}
-\end{gather*}
+  \begin{gather*}
+    \begin{aligned}
+      S ::=\, & \textsf{let } x:T = e; \,|\,
+      \textsf{let mut } x:T = e; \,|\,
+      x = e; \,|\,
+      x[e_i] = e; \,|\,
+      \textsf{return } e; \,|\,
+      e; \,|\,                                                                                                 \\
+              & \textsf{if } e_\textsf{cond}\; \{B\}\; (\textsf{else } \{B'\})^? \,|\,
+      \textsf{for } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\; (\textsf{invariant } P)^?\; \{B\} \,|\, \\
+              & \textsf{while } e_\textsf{cond}\; (\textsf{invariant } P)^?\; \{B\}
+    \end{aligned}
+    \qquad \textbf{(Statements)}
+  \end{gather*}
 
-\begin{gather*}
-  \begin{aligned}
-    D ::=\, & \textsf{fn } f(x_1:T_1, \ldots)\; (\rightarrow T_\textsf{ret})^?\;
-              (\textsf{requires } P)^?\;
-              (\textsf{ensures } P)^?\;
-              \{B\}
-  \end{aligned}
-  \qquad \textbf{(Function definitions)}
-\end{gather*}
+  \begin{gather*}
+    \begin{aligned}
+      D ::=\, & \textsf{fn } f(x_1:T_1, \ldots)\; (\rightarrow T_\textsf{ret})^?\;
+      (\textsf{requires } P)^?\;
+      (\textsf{ensures } P)^?\;
+      \{B\}
+    \end{aligned}
+    \qquad \textbf{(Function definitions)}
+  \end{gather*}
 
-\begin{gather*}
-  \begin{aligned}
-    \textsf{Prog} ::=\, & D^*
-  \end{aligned}
-  \qquad \textbf{(Program)}
-\end{gather*}
+  \begin{gather*}
+    \begin{aligned}
+      \textsf{Prog} ::=\, & D^*
+    \end{aligned}
+    \qquad \textbf{(Program)}
+  \end{gather*}
 
-\begin{gather*}
-  \begin{aligned}
-    B ::=\, & S^*\; e^?
-  \end{aligned}
-  \qquad \textbf{(Blocks)}
-\end{gather*}
+  \begin{gather*}
+    \begin{aligned}
+      B ::=\, & S^*\; e^?
+    \end{aligned}
+    \qquad \textbf{(Blocks)}
+  \end{gather*}
 
-\begin{gather*}
-  \begin{aligned}
-    T ::=\, & \textsf{unit} \,|\, \textsf{int} \,|\, \textsf{bool} \,|\, [T; N] \,|\,
-              \textsf{\&}T \,|\, \textsf{\&mut } T \,|\, \textsf{int}(N) \,|\,
-              \{ x:\textsf{int} \mid P \}
-  \end{aligned}
-  \qquad \textbf{(Types)}
-\end{gather*}
+  \begin{gather*}
+    \begin{aligned}
+      T ::=\, & \textsf{unit} \,|\, \textsf{int} \,|\, \textsf{bool} \,|\, [T; N] \,|\,
+      \textsf{\&}T \,|\, \textsf{\&mut } T \,|\, \textsf{int}(N) \,|\,
+      \{ x:\textsf{int} \mid P \}
+    \end{aligned}
+    \qquad \textbf{(Types)}
+  \end{gather*}
 
-The metavariables used in the grammar are as follows: $n$ ranges over integer literals; $x$, $f$ range over identifiers (variables and function names); $N$ ranges over integer expressions that must reduce to a statically known constant (used for array sizes and singleton types). $P$ is the specification language used in refinement predicates, function contracts, and loop invariants, and additionally provides bounded quantifiers. A block $B$ is a sequence of zero or more statements followed by an optional trailing expression; when the trailing expression is present, its value is the block's result. The superscript $(\cdot)^?$ denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
+  The metavariables used in the grammar are as follows: $n$ ranges over integer literals; $x$, $f$ range over identifiers (variables and function names); $N$ ranges over integer expressions that must reduce to a statically known constant (used for array sizes and singleton types). $P$ is the specification language used in refinement predicates, function contracts, and loop invariants, and additionally provides bounded quantifiers. A block $B$ is a sequence of zero or more statements followed by an optional trailing expression; when the trailing expression is present, its value is the block's result. The superscript $(\cdot)^?$ denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
 
-\subsection{Typing contexts}
+  \subsection{Typing contexts}
 
-The typing context is a four-tuple $(\phi, \Gamma, \Delta, \Sigma_F)$:
+  The typing context is a four-tuple $(\phi, \Gamma, \Delta, \Sigma_F)$:
 
-\begin{itemize}
+  \begin{itemize}
     \item $\phi$: A set of refinement propositions known to be true (assumptions from branch conditions, preconditions, and refinement types).
     \item $\Gamma$: An immutable variable environment mapping names to types ($x : \tau$).
     \item $\Delta$: A mutable variable environment mapping names to pairs of a \textit{current type} and a \textit{master type} ($x : (\tau_c, \tau_m)$). We write $(x: \tau_c) \in \Delta$ to extract the current type and $(x: \tau_m) \in \Delta$ for the master type.
     \item $\Sigma_F$: A global function signature environment (read-only after an initial pass).
-\end{itemize}
+  \end{itemize}
 
-The master type $\tau_m$ represents the most general type a mutable variable may assume; it is set at declaration and never changes. The current type $\tau_c$ tracks the variable's type as it flows through control flow and may be refined. At control-flow joins, current types from both branches are merged using a \textsf{join} operation defined in Section~\ref{sec:context-joining}, but must remain subtypes of the master type.
+  The master type $\tau_m$ represents the most general type a mutable variable may assume; it is set at declaration and never changes. The current type $\tau_c$ tracks the variable's type as it flows through control flow and may be refined. At control-flow joins, current types from both branches are merged using a \textsf{join} operation defined in Section~\ref{sec:context-joining}, but must remain subtypes of the master type.
 
-\subsection{Judgement forms}\label{sec:judgement-forms}
+  \subsection{Judgement forms}\label{sec:judgement-forms}
 
-Throughout the typing rules, $\tau$ is used as the metavariable for types. The syntax grammar uses $T$ to define the syntactic forms of types as they appear in source code; in the judgements below, these are all simply $\tau$. 
+  Throughout the typing rules, $\tau$ is used as the metavariable for types. The syntax grammar uses $T$ to define the syntactic forms of types as they appear in source code; in the judgements below, these are all simply $\tau$.
 
-The type system uses the following judgements:
+  The type system uses the following judgements:
 
-\begin{itemize}
+  \begin{itemize}
     \item \textbf{Synthesis:} $\phi; \Delta; \Gamma \vdash e \Rightarrow (\phi'; \Delta'; \tau)$ --- synthesise type $\tau$ for expression $e$, potentially updating the context.
     \item \textbf{Checking:} $\phi; \Delta; \Gamma \vdash e \Leftarrow \tau : (\phi'; \Delta')$ --- check that $e$ has type $\tau$.
     \item \textbf{Subtyping:} $\phi \vdash \tau_1 <: \tau_2$ --- $\tau_1$ is a subtype of $\tau_2$ under assumptions $\phi$.
     \item \textbf{Provability:} $\phi \vdash P$ --- proposition $P$ is valid under assumptions $\phi$ (decided by SMT).
-\end{itemize}
+  \end{itemize}
 
-The checking and synthesis judgements are connected by a subsumption rule. If an expression synthesises type $\tau_1$ and the expected type is $\tau_2$, checking succeeds when $\tau_1 <: \tau_2$:
+  The checking and synthesis judgements are connected by a subsumption rule. If an expression synthesises type $\tau_1$ and the expected type is $\tau_2$, checking succeeds when $\tau_1 <: \tau_2$:
 
-$$\frac{\phi; \Delta; \Gamma \vdash e \Rightarrow (\phi'; \Delta'; \tau_e) \quad \phi' \vdash \tau_e <: \tau}{\phi; \Delta; \Gamma \vdash e \Leftarrow \tau : (\phi'; \Delta')} \quad (\textsc{T-Sub})$$
+  $$\frac{\phi; \Delta; \Gamma \vdash e \Rightarrow (\phi'; \Delta'; \tau_e) \quad \phi' \vdash \tau_e <: \tau}{\phi; \Delta; \Gamma \vdash e \Leftarrow \tau : (\phi'; \Delta')} \quad (\textsc{T-Sub})$$
 
-\subsection{Subtyping rules}
+  \subsection{Subtyping rules}
 
-The subtyping relation $\phi \vdash \tau_1 <: \tau_2$ is defined by structural rules (reflexivity, singleton-to-int widening, refined-to-int widening, array covariance, master type transparency --- listed in full in Appendix~\ref{app:source-rules}) and two rules that invoke the SMT solver. In both, the propositions in $\phi$ are asserted as assumptions, the goal is negated, and the solver is checked for unsatisfiability:
+  The subtyping relation $\phi \vdash \tau_1 <: \tau_2$ is defined by structural rules (reflexivity, singleton-to-int widening, refined-to-int widening, array covariance, master type transparency --- listed in full in Appendix~\ref{app:source-rules}) and two rules that invoke the SMT solver. In both, the propositions in $\phi$ are asserted as assumptions, the goal is negated, and the solver is checked for unsatisfiability:
 
-$$\frac{\phi \vdash P[N/x]}{\phi \vdash \textsf{int}(N) <: \{x: \textsf{int} \mid P\}} \quad (\textsc{Sub-Singleton-Refine})$$
+  $$\frac{\phi \vdash P[N/x]}{\phi \vdash \textsf{int}(N) <: \{x: \textsf{int} \mid P\}} \quad (\textsc{Sub-Singleton-Refine})$$
 
-$$\frac{\phi \wedge P_1 \vdash P_2}{\phi \vdash \{x: \textsf{int} \mid P_1\} <: \{x: \textsf{int} \mid P_2\}} \quad (\textsc{Sub-Refine-Refine})$$
+  $$\frac{\phi \wedge P_1 \vdash P_2}{\phi \vdash \{x: \textsf{int} \mid P_1\} <: \{x: \textsf{int} \mid P_2\}} \quad (\textsc{Sub-Refine-Refine})$$
 
-\subsection{Expression typing rules}
+  \subsection{Expression typing rules}
 
-The expression typing rules use two auxiliary functions on types. $\textsf{val}(\tau)$ extracts the value expression from a type: $\textsf{val}(\textsf{int}(N)) = N$ for singletons, and $\textsf{val}(\{x\!:\!\textsf{int} \mid P\}) = x$ for refined types. $\textsf{prop}(\tau)$ extracts a proposition: $\textsf{prop}(\textsf{int}(N)) = (v = N)$, $\textsf{prop}(\{x\!:\!\textsf{int} \mid P\}) = P$, and $\textsf{prop}(\tau) = \top$ for unrefined types.
+  The expression typing rules use two auxiliary functions on types. $\textsf{val}(\tau)$ extracts the value expression from a type: $\textsf{val}(\textsf{int}(N)) = N$ for singletons, and $\textsf{val}(\{x\!:\!\textsf{int} \mid P\}) = x$ for refined types. $\textsf{prop}(\tau)$ extracts a proposition: $\textsf{prop}(\textsf{int}(N)) = (v = N)$, $\textsf{prop}(\{x\!:\!\textsf{int} \mid P\}) = P$, and $\textsf{prop}(\tau) = \top$ for unrefined types.
 
-Standard rules for literals, variable lookup, comparisons, logical operators, and array creation are given in Appendix~\ref{app:source-rules}. Some of the more non-trivial rules are described below.
+  Standard rules for literals, variable lookup, comparisons, logical operators, and array creation are given in Appendix~\ref{app:source-rules}. Some of the more non-trivial rules are described below.
 
-Arithmetic operations use a $\textsf{join-op}$ function that performs constant folding when both operands are singletons (e.g., $\textsf{join-op}(+, \textsf{int}(1), \textsf{int}(2)) = \textsf{int}(3)$) and otherwise synthesises a refinement type via SMT refinement synthesis (e.g., $\{v\!:\!\textsf{int} \mid v = e_L + e_R\}$):
+  Arithmetic operations use a $\textsf{join-op}$ function that performs constant folding when both operands are singletons (e.g., $\textsf{join-op}(+, \textsf{int}(1), \textsf{int}(2)) = \textsf{int}(3)$) and otherwise synthesises a refinement type via SMT refinement synthesis (e.g., $\{v\!:\!\textsf{int} \mid v = e_L + e_R\}$):
 
-$$
-  \frac{
-    \begin{array}{c}
-      \phi_0; \Delta_0; \Gamma \vdash e_L \Rightarrow (\phi_1; \Delta_1; \tau_L) \quad \phi_1 \vdash \tau_L <: \textsf{int} \\
-      \phi_1; \Delta_1; \Gamma \vdash e_R \Rightarrow (\phi_2; \Delta_2; \tau_R) \quad \phi_2 \vdash \tau_R <: \textsf{int} \\
-      \tau_\textsf{res} = \textsf{join-op}(\textsf{aop}, \tau_L, \tau_R)
-    \end{array}
-  }{
-    \phi_0; \Delta_0; \Gamma \vdash e_L \textsf{ aop } e_R \Rightarrow (\phi_2; \Delta_2; \tau_\textsf{res})
-  } \quad (\textsc{T-Op})
-$$
+  $$
+    \frac{
+      \begin{array}{c}
+        \phi_0; \Delta_0; \Gamma \vdash e_L \Rightarrow (\phi_1; \Delta_1; \tau_L) \quad \phi_1 \vdash \tau_L <: \textsf{int} \\
+        \phi_1; \Delta_1; \Gamma \vdash e_R \Rightarrow (\phi_2; \Delta_2; \tau_R) \quad \phi_2 \vdash \tau_R <: \textsf{int} \\
+        \tau_\textsf{res} = \textsf{join-op}(\textsf{aop}, \tau_L, \tau_R)
+      \end{array}
+    }{
+      \phi_0; \Delta_0; \Gamma \vdash e_L \textsf{ aop } e_R \Rightarrow (\phi_2; \Delta_2; \tau_\textsf{res})
+    } \quad (\textsc{T-Op})
+  $$
 
-Array indexing requires a bounds proof obligation, verified by the SMT solver:
+  Array indexing requires a bounds proof obligation, verified by the SMT solver:
 
-$$
-  \frac{
-    \begin{array}{c}
-      (x: [\tau_\textsf{elem}; N]) \in (\Gamma \cup \Delta_0)                                                                              \\
-      \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i) \quad \phi_1 \vdash \tau_i <: \textsf{int} \\
-      \phi_1 \wedge \textsf{prop}(\tau_i) \vdash 0 \le \textsf{val}(\tau_i) < N \quad \text{(Bounds proof)}
-    \end{array}
-  }{
-    \phi_0; \Delta_0; \Gamma \vdash x[e_i] \Rightarrow (\phi_1; \Delta_1; \tau_\textsf{elem})
-  } \quad (\textsc{T-Array-Idx})
-$$
+  $$
+    \frac{
+      \begin{array}{c}
+        (x: [\tau_\textsf{elem}; N]) \in (\Gamma \cup \Delta_0)                                                               \\
+        \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i) \quad \phi_1 \vdash \tau_i <: \textsf{int} \\
+        \phi_1 \wedge \textsf{prop}(\tau_i) \vdash 0 \le \textsf{val}(\tau_i) < N \quad \text{(Bounds proof)}
+      \end{array}
+    }{
+      \phi_0; \Delta_0; \Gamma \vdash x[e_i] \Rightarrow (\phi_1; \Delta_1; \tau_\textsf{elem})
+    } \quad (\textsc{T-Array-Idx})
+  $$
 
-Conditional expressions check both branches under the condition and its negation, then join the resulting contexts using the $\textsf{join}$ operation defined in Section~\ref{sec:context-joining}:
+  Conditional expressions check both branches under the condition and its negation, then join the resulting contexts using the $\textsf{join}$ operation defined in Section~\ref{sec:context-joining}:
 
-$$
-  \frac{
-    \begin{array}{c}
-      \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
-      \phi_1 \wedge \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B \Rightarrow (\phi_2; \Delta_2; \tau_2)                      \\
-      \phi_1 \wedge \neg \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B' \Rightarrow (\phi_3; \Delta_3; \tau_3)                \\
-      (\phi_\textsf{join}, \Delta_\textsf{join}, \tau_\textsf{join}) = \textsf{join}(\phi_2, \Delta_2, \tau_2, \phi_3, \Delta_3, \tau_3)
-    \end{array}
-  }{
-    \phi_0; \Delta_0; \Gamma \vdash (\textsf{if } e_\textsf{cond}\; B \textsf{ else } B') \Rightarrow (\phi_\textsf{join}; \Delta_\textsf{join}; \tau_\textsf{join})
-  } \quad (\textsc{T-If-Expr})
-$$
+  $$
+    \frac{
+      \begin{array}{c}
+        \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
+        \phi_1 \wedge \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B \Rightarrow (\phi_2; \Delta_2; \tau_2)                              \\
+        \phi_1 \wedge \neg \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B' \Rightarrow (\phi_3; \Delta_3; \tau_3)                        \\
+        (\phi_\textsf{join}, \Delta_\textsf{join}, \tau_\textsf{join}) = \textsf{join}(\phi_2, \Delta_2, \tau_2, \phi_3, \Delta_3, \tau_3)
+      \end{array}
+    }{
+      \phi_0; \Delta_0; \Gamma \vdash (\textsf{if } e_\textsf{cond}\; B \textsf{ else } B') \Rightarrow (\phi_\textsf{join}; \Delta_\textsf{join}; \tau_\textsf{join})
+    } \quad (\textsc{T-If-Expr})
+  $$
 
-Function calls verify argument types and the precondition (a proof obligation discharged by the SMT solver):
+  Function calls verify argument types and the precondition (a proof obligation discharged by the SMT solver):
 
-$$
-  \frac{
-    \begin{array}{c}
-      \Sigma_F(f) = ( (x_i:\tau_i)_{i=1}^k \rightarrow \tau_\textsf{ret}\; \textsf{requires } P_\textsf{req} )                                  \\
-      \phi_0; \Delta_0; \Gamma \vdash \vec{e} \Rightarrow (\phi_k; \Delta_k; \vec{\sigma}) \\
-      \forall i \in 1..k,\; \phi_k \vdash \sigma_i <: \tau_i                                                \\
-      \phi_k \wedge \textsf{prop}(\vec{\sigma}) \vdash P_\textsf{req}[\textsf{val}(\vec{\sigma}) / \vec{x}] \quad \text{(Precondition proof)}
-    \end{array}
-  }{
-    \phi_0; \Delta_0; \Gamma \vdash f(\vec{e}) \Rightarrow (\phi_k; \Delta_k; \tau_\textsf{ret})
-  } \quad (\textsc{T-Call})
-$$
+  $$
+    \frac{
+      \begin{array}{c}
+        \Sigma_F(f) = ( (x_i:\tau_i)_{i=1}^k \rightarrow \tau_\textsf{ret}\; \textsf{requires } P_\textsf{req} ) \\
+        \phi_0; \Delta_0; \Gamma \vdash \vec{e} \Rightarrow (\phi_k; \Delta_k; \vec{\sigma})                     \\
+        \forall i \in 1..k,\; \phi_k \vdash \sigma_i <: \tau_i                                                   \\
+        \phi_k \wedge \textsf{prop}(\vec{\sigma}) \vdash P_\textsf{req}[\textsf{val}(\vec{\sigma}) / \vec{x}] \quad \text{(Precondition proof)}
+      \end{array}
+    }{
+      \phi_0; \Delta_0; \Gamma \vdash f(\vec{e}) \Rightarrow (\phi_k; \Delta_k; \tau_\textsf{ret})
+    } \quad (\textsc{T-Call})
+  $$
 
-\subsection{Statement typing rules}
+  \subsection{Statement typing rules}
 
-Standard rules for blocks, let bindings, array assignment, if-statements, and while loops are given in Appendix~\ref{app:source-rules}. Some of the more non-trivial rules are described below.
+  Standard rules for blocks, let bindings, array assignment, if-statements, and while loops are given in Appendix~\ref{app:source-rules}. Some of the more non-trivial rules are described below.
 
-Assignment checks that the new value conforms to the master type:
+  Assignment checks that the new value conforms to the master type:
 
-$$
-  \frac{
-    \begin{array}{c}
-      (x: \tau_\textsf{master}) \in \Delta_0 \\
-      \phi_0; \Delta_0; \Gamma \vdash e \Rightarrow (\phi_1; \Delta_1; \tau_e)  \\
-      \phi_1 \vdash \tau_e <: \tau_\textsf{master}
-    \end{array}
-  }{
-    \phi_0; \Delta_0; \Gamma \vdash (x = e;) : (\phi_1; \Delta_1[x \mapsto \tau_e]; \Gamma)
-  } \quad (\textsc{T-Assign})
-$$
+  $$
+    \frac{
+      \begin{array}{c}
+        (x: \tau_\textsf{master}) \in \Delta_0                                   \\
+        \phi_0; \Delta_0; \Gamma \vdash e \Rightarrow (\phi_1; \Delta_1; \tau_e) \\
+        \phi_1 \vdash \tau_e <: \tau_\textsf{master}
+      \end{array}
+    }{
+      \phi_0; \Delta_0; \Gamma \vdash (x = e;) : (\phi_1; \Delta_1[x \mapsto \tau_e]; \Gamma)
+    } \quad (\textsc{T-Assign})
+  $$
 
-For loops bind the loop variable to the immutable context with bound propositions added to $\phi$, and require the loop invariant (if present) to hold on entry and be preserved by the body. The invariant is checked at entry by substituting $e_\textsf{start}$ for $i$, and preservation is checked after the body by substituting $i + 1$ for $i$:
+  For loops bind the loop variable to the immutable context with bound propositions added to $\phi$, and require the loop invariant (if present) to hold on entry and be preserved by the body. The invariant is checked at entry by substituting $e_\textsf{start}$ for $i$, and preservation is checked after the body by substituting $i + 1$ for $i$:
 
-$$
-  \frac{
-  \begin{array}{c}
-    \phi_0 \wedge P_I[e_\textsf{start}/i] \quad \text{(Invariant holds on entry)} \\
-    \phi_0 \wedge P_I \wedge e_\textsf{start} \le i < e_\textsf{end};\; \Delta_0;\; (\Gamma, i: \textsf{int}) \vdash B : (\phi_1; \Delta_1; \Gamma) \\
-    \phi_1 \vdash P_I[(i+1)/i] \quad \text{(Invariant preserved by body)}
-  \end{array}
-  }{
-  \phi_0; \Delta_0; \Gamma \vdash (\textsf{for } i \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{B\}) : (\phi_0 \wedge P_I; \Delta_0; \Gamma)
-  } \quad (\textsc{T-For})
-$$
+  $$
+    \frac{
+      \begin{array}{c}
+        \phi_0 \wedge P_I[e_\textsf{start}/i] \quad \text{(Invariant holds on entry)}                                                                   \\
+        \phi_0 \wedge P_I \wedge e_\textsf{start} \le i < e_\textsf{end};\; \Delta_0;\; (\Gamma, i: \textsf{int}) \vdash B : (\phi_1; \Delta_1; \Gamma) \\
+        \phi_1 \vdash P_I[(i+1)/i] \quad \text{(Invariant preserved by body)}
+      \end{array}
+    }{
+      \phi_0; \Delta_0; \Gamma \vdash (\textsf{for } i \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{B\}) : (\phi_0 \wedge P_I; \Delta_0; \Gamma)
+    } \quad (\textsc{T-For})
+  $$
 
-\noindent where $P_I$ is the invariant proposition (or $\top$ if no invariant is specified).
+  \noindent where $P_I$ is the invariant proposition (or $\top$ if no invariant is specified).
 
-\subsection{Context joining}\label{sec:context-joining}
+  \subsection{Context joining}\label{sec:context-joining}
 
-At control-flow merge points (after \textbf{if-else} and loops), the typing contexts from each branch must be joined. The $\textsf{join}$ operation computes a least upper bound for each mutable variable's type and intersects the proposition sets:
+  At control-flow merge points (after \textbf{if-else} and loops), the typing contexts from each branch must be joined. The $\textsf{join}$ operation computes a least upper bound for each mutable variable's type and intersects the proposition sets:
 
-\begin{itemize}
+  \begin{itemize}
     \item Same singletons: $\textsf{int}(N) \sqcup \textsf{int}(N) = \textsf{int}(N)$.
     \item Different singletons: $\textsf{int}(N_1) \sqcup \textsf{int}(N_2) = \textsf{int}$ where $N_1 \ne N_2$ (widen to base type).
     \item Refined types: $\{v \mid P\} \sqcup \{v \mid Q\} = \{v \mid P \vee Q\}$ (disjoin predicates).
@@ -518,118 +520,118 @@ At control-flow merge points (after \textbf{if-else} and loops), the typing cont
     \item Refined and unrefined: $\{v \mid P\} \sqcup \textsf{int} = \textsf{int}$ (widen to base type).
     \item Arrays: $[\tau_1; N] \sqcup [\tau_2; N] = [\tau_1 \sqcup \tau_2; N]$ (join element types covariantly).
     \item Propositions ($\phi$): intersect (keep only propositions provable in both branches).
-\end{itemize}
+  \end{itemize}
 
-\noindent When $\textsf{join}$ is used in expression rules (e.g., \textsc{T-If-Expr}), the same type-joining rules apply to the result types of both branches.
+  \noindent When $\textsf{join}$ is used in expression rules (e.g., \textsc{T-If-Expr}), the same type-joining rules apply to the result types of both branches.
 
-\subsection{Function contracts}
+  \subsection{Function contracts}
 
-Programmers may declare preconditions ($\mathbf{requires}\ P$) and postconditions ($\mathbf{ensures}\ P$) on functions, where $P$ is a proposition that may reference parameters and (for postconditions) the special variable $\mathtt{result}$.
+  Programmers may declare preconditions ($\mathbf{requires}\ P$) and postconditions ($\mathbf{ensures}\ P$) on functions, where $P$ is a proposition that may reference parameters and (for postconditions) the special variable $\mathtt{result}$.
 
-At each call site, the type checker verifies $\phi \vdash P_\textsf{req}[\overline{e_i/x_i}]$: the precondition with actual argument expressions substituted for formal parameters (see rule \textsc{T-Call}). At each \textsf{return} statement, the return expression is synthesised, checked against the declared return type, and the postcondition is verified:
+  At each call site, the type checker verifies $\phi \vdash P_\textsf{req}[\overline{e_i/x_i}]$: the precondition with actual argument expressions substituted for formal parameters (see rule \textsc{T-Call}). At each \textsf{return} statement, the return expression is synthesised, checked against the declared return type, and the postcondition is verified:
 
-$$
-  \frac{
-    \begin{array}{c}
-      \phi_0; \Delta_0; \Gamma \vdash e \Rightarrow (\phi_1; \Delta_1; \tau_e) \quad \phi_1 \vdash \tau_e <: \tau_\textsf{ret} \\
-      \phi_1 \vdash P_\textsf{ens}[e/\mathtt{result}] \quad \text{(Postcondition proof)}
-    \end{array}
-  }{
-    \phi_0; \Delta_0; \Gamma \vdash (\textsf{return } e;) : (\phi_1; \Delta_1; \Gamma)
-  } \quad (\textsc{T-Return})
-$$
+  $$
+    \frac{
+      \begin{array}{c}
+        \phi_0; \Delta_0; \Gamma \vdash e \Rightarrow (\phi_1; \Delta_1; \tau_e) \quad \phi_1 \vdash \tau_e <: \tau_\textsf{ret} \\
+        \phi_1 \vdash P_\textsf{ens}[e/\mathtt{result}] \quad \text{(Postcondition proof)}
+      \end{array}
+    }{
+      \phi_0; \Delta_0; \Gamma \vdash (\textsf{return } e;) : (\phi_1; \Delta_1; \Gamma)
+    } \quad (\textsc{T-Return})
+  $$
 
-\subsection{Quantified specifications}
+  \subsection{Quantified specifications}
 
-The constraint language supports bounded quantifiers and implication in specification positions:
+  The constraint language supports bounded quantifiers and implication in specification positions:
 
-\begin{itemize}
+  \begin{itemize}
     \item $\mathbf{forall}\ x\ \mathbf{in}\ e_\textsf{start}..e_\textsf{end}\ \{P\}$: asserts $\forall x.\; e_\textsf{start} \le x < e_\textsf{end} \Rightarrow P$.
     \item $\mathbf{exists}\ x\ \mathbf{in}\ e_\textsf{start}..e_\textsf{end}\ \{P\}$: asserts $\exists x.\; e_\textsf{start} \le x < e_\textsf{end} \wedge P$.
     \item $P \Rightarrow Q$ (implication): enables conditional specifications.
-\end{itemize}
+  \end{itemize}
 
-Quantifiers may only appear in specification positions (preconditions, postconditions, refinement predicates), not in runtime code. The type checker enforces this restriction.
+  Quantifiers may only appear in specification positions (preconditions, postconditions, refinement predicates), not in runtime code. The type checker enforces this restriction.
 
-An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\!\textsf{int} \mid v \ge 0\}; N]$ automatically satisfies the quantified constraint $\forall i \in [0, N).\; \mathit{arr}[i] \ge 0$. This is achieved by extracting a quantified proposition from the array's element type and adding it to the context when the array is in scope.
+  An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\!\textsf{int} \mid v \ge 0\}; N]$ automatically satisfies the quantified constraint $\forall i \in [0, N).\; \mathit{arr}[i] \ge 0$. This is achieved by extracting a quantified proposition from the array's element type and adding it to the context when the array is in scope.
 
-\section{The DTAL target language}
+  \section{The DTAL target language}
 
-As introduced in Section~\ref{sec:dtal-background}, Veritas targets its own DTAL variant based on Xi and Harper's design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system. Veritas builds on this theoretical foundation: the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. This section describes the concrete instruction set and typing judgements of the Veritas DTAL.
+  As introduced in Section~\ref{sec:dtal-background}, Veritas targets its own DTAL variant based on Xi and Harper's design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system. Veritas builds on this theoretical foundation: the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. This section describes the concrete instruction set and typing judgements of the Veritas DTAL.
 
-\subsection{Instruction set}\label{sec:dtal-instr-set}
+  \subsection{Instruction set}\label{sec:dtal-instr-set}
 
-The DTAL instruction set resembles a standard RISC assembly language but is augmented with type annotations and constraint assertions. It operates over a set of virtual registers (which are later allocated to x86-64 physical registers) and linear memory. Instructions fall into six categories:
+  The DTAL instruction set resembles a standard RISC assembly language but is augmented with type annotations and constraint assertions. It operates over a set of virtual registers (which are later allocated to x86-64 physical registers) and linear memory. Instructions fall into six categories:
 
-\begin{itemize}
+  \begin{itemize}
     \item \textbf{Data movement:} \texttt{mov $r_d$, $r_s$}, \texttt{mov $r_d$, $n$}, \texttt{load $r_d$, [$r_b$, $r_i$]}, \texttt{store [$r_b$, $r_i$], $r_s$}
     \item \textbf{Arithmetic:} \texttt{binop $r_d$, $r_{s1}$, $r_{s2}$} (add, sub, mul, div, mod), \texttt{addimm $r_d$, $r_s$, $n$}, \texttt{not $r_d$, $r_s$}
     \item \textbf{Comparison:} \texttt{cmp $r_1$, $r_2$}, \texttt{cmp $r_1$, $n$}, \texttt{setcc $r_d$, \textit{cond}} (materialise boolean from flags)
     \item \textbf{Control flow:} \texttt{jmp $L$}, \texttt{branch \textit{cond} $L$}, \texttt{call $L$}, \texttt{ret}
     \item \textbf{Stack:} \texttt{push $r_s$}, \texttt{pop $r_d$}, \texttt{alloca $r_d$, $n$} (stack-allocate an array of $n$ elements)
     \item \textbf{Annotations:} \texttt{type $r$: $\tau$} (type annotation), \texttt{assert $C$} (constraint assertion)
-\end{itemize}
+  \end{itemize}
 
-\noindent The annotation instructions are the distinguishing feature of DTAL. Every instruction carries a type annotation on its destination register, and \texttt{assert} instructions embed constraint assertions (e.g., bounds proofs, loop invariants) directly into the instruction stream. These annotations serve as verification evidence: the compiler emits them, and the verifier checks them independently.
+  \noindent The annotation instructions are the distinguishing feature of DTAL. Every instruction carries a type annotation on its destination register, and \texttt{assert} instructions embed constraint assertions (e.g., bounds proofs, loop invariants) directly into the instruction stream. These annotations serve as verification evidence: the compiler emits them, and the verifier checks them independently.
 
-After register allocation, additional physical instructions are emitted (\texttt{prologue}, \texttt{epilogue}, spill loads/stores, \texttt{cqo}/\texttt{idiv} for division) which are verified but not relevant to the formal typing rules. Crucially, the independent verifier operates on this post-regalloc \textit{physical} DTAL rather than the virtual-register SSA form, meaning it also validates the correctness of register allocation and spilling. This strengthens the safety guarantee: the register allocator, like the rest of the compiler, is untrusted.
+  After register allocation, additional physical instructions are emitted (\texttt{prologue}, \texttt{epilogue}, spill loads/stores, \texttt{cqo}/\texttt{idiv} for division) which are verified but not relevant to the formal typing rules. Crucially, the independent verifier operates on this post-regalloc \textit{physical} DTAL rather than the virtual-register SSA form, meaning it also validates the correctness of register allocation and spilling. This strengthens the safety guarantee: the register allocator, like the rest of the compiler, is untrusted.
 
-The final step translates verified physical DTAL to x86-64 machine code and packages it as a freestanding ELF binary. Rather than emitting assembly text and invoking an external assembler (e.g., NASM or GAS), Veritas encodes x86-64 instructions directly as bytes. This is a deliberate design choice to minimise the trusted computing base: an external assembler would be a large, unverified component whose correctness must be assumed. The Veritas encoder comprises three small modules: a one-to-one mapping from physical DTAL instructions to x86-64 instructions, a byte encoder, and an ELF generator. The mapping is deliberately trivial---each DTAL instruction translates to exactly one x86-64 instruction (or a small fixed sequence for prologues/epilogues)---making the entire path amenable to manual audit.
+  The final step translates verified physical DTAL to x86-64 machine code and packages it as a freestanding ELF binary. Rather than emitting assembly text and invoking an external assembler (e.g., NASM or GAS), Veritas encodes x86-64 instructions directly as bytes. This is a deliberate design choice to minimise the trusted computing base: an external assembler would be a large, unverified component whose correctness must be assumed. The Veritas encoder comprises three small modules: a one-to-one mapping from physical DTAL instructions to x86-64 instructions, a byte encoder, and an ELF generator. The mapping is deliberately trivial---each DTAL instruction translates to exactly one x86-64 instruction (or a small fixed sequence for prologues/epilogues)---making the entire path amenable to manual audit.
 
-The choice of x86-64 as the target architecture is a pragmatic one: the development machine runs x86-64 Linux, enabling direct execution and testing of compiled binaries without emulation. Targeting a different ISA (e.g., AArch64) would require replacing only the instruction mapping, byte encoder, and register definitions. The DTAL instruction set, type system, verifier, and everything upstream would remain unchanged.
+  The choice of x86-64 as the target architecture is a pragmatic one: the development machine runs x86-64 Linux, enabling direct execution and testing of compiled binaries without emulation. Targeting a different ISA (e.g., AArch64) would require replacing only the instruction mapping, byte encoder, and register definitions. The DTAL instruction set, type system, verifier, and everything upstream would remain unchanged.
 
-\subsection{DTAL type system}
+  \subsection{DTAL type system}
 
-The DTAL type system mirrors the source-level type system but operates over registers rather than variables. Types include:
+  The DTAL type system mirrors the source-level type system but operates over registers rather than variables. Types include:
 
-\begin{itemize}
+  \begin{itemize}
     \item \textbf{Base types:} $\textsf{int}$, $\textsf{bool}$, $\textsf{unit}$
     \item \textbf{Singleton types:} $\textsf{int}(e)$ where $e$ is an index expression (e.g., $\textsf{int}(5)$, $\textsf{int}(r_1 + r_2)$)
     \item \textbf{Refined types:} $\{x\!:\!\textsf{int} \mid C\}$ where $C$ is a constraint over $x$
     \item \textbf{Existential types:} $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; C$ --- the result of arithmetic on refined (non-singleton) operands
     \item \textbf{Array types:} $[\tau; e]$ where $\tau$ is the element type and $e$ is the size
-\end{itemize}
+  \end{itemize}
 
-\noindent Index expressions form the language of type indices: constants, register names, arithmetic ($+, -, \times, \div, \%$), and $\textsf{select}(\mathit{arr}, i)$ for array element access. Constraints are first-order formulae over index expressions supporting comparison, logical connectives, and bounded quantifiers.
+  \noindent Index expressions form the language of type indices: constants, register names, arithmetic ($+, -, \times, \div, \%$), and $\textsf{select}(\mathit{arr}, i)$ for array element access. Constraints are first-order formulae over index expressions supporting comparison, logical connectives, and bounded quantifiers.
 
-\subsection{DTAL typing judgements}
+  \subsection{DTAL typing judgements}
 
-DTAL type checking operates over a \textit{type state} $(\Gamma, \Phi)$ where $\Gamma$ maps registers to their current types and $\Phi$ is a set of constraints known to hold at a given program point. The core judgement for instruction typing is $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, meaning that executing $\textsf{instr}$ under constraints $\Phi$ and register state $\Gamma$ produces a new register state $\Gamma'$.
+  DTAL type checking operates over a \textit{type state} $(\Gamma, \Phi)$ where $\Gamma$ maps registers to their current types and $\Phi$ is a set of constraints known to hold at a given program point. The core judgement for instruction typing is $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, meaning that executing $\textsf{instr}$ under constraints $\Phi$ and register state $\Gamma$ produces a new register state $\Gamma'$.
 
-\paragraph{Move Immediate}
-Loading a constant into a register assigns it a singleton type:
-$$
-\frac{}{\Phi; \Gamma \vdash \textsf{mov } r_d, n \Rightarrow \Gamma[r_d \mapsto \textsf{int}(n)]} \quad (\textsc{D-MovImm})
-$$
+  \paragraph{Move Immediate}
+  Loading a constant into a register assigns it a singleton type:
+  $$
+    \frac{}{\Phi; \Gamma \vdash \textsf{mov } r_d, n \Rightarrow \Gamma[r_d \mapsto \textsf{int}(n)]} \quad (\textsc{D-MovImm})
+  $$
 
-\paragraph{Arithmetic}
-When both operands have singleton types, the result is a singleton capturing the exact value. In the general case (refined or existential operands), the result is an existential type:
-$$
-\frac{\Gamma(r_1) = \textsf{int}(e_1) \quad \Gamma(r_2) = \textsf{int}(e_2)}{\Phi; \Gamma \vdash \textsf{add } r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \textsf{int}(e_1 + e_2)]} \quad (\textsc{D-BinOp-Singleton})
-$$
+  \paragraph{Arithmetic}
+  When both operands have singleton types, the result is a singleton capturing the exact value. In the general case (refined or existential operands), the result is an existential type:
+  $$
+    \frac{\Gamma(r_1) = \textsf{int}(e_1) \quad \Gamma(r_2) = \textsf{int}(e_2)}{\Phi; \Gamma \vdash \textsf{add } r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \textsf{int}(e_1 + e_2)]} \quad (\textsc{D-BinOp-Singleton})
+  $$
 
-$$
-\frac{\Gamma(r_1) = \{a\!:\!\textsf{int} \mid \varphi_1\} \quad \Gamma(r_2) = \{b\!:\!\textsf{int} \mid \varphi_2\}}{\Phi; \Gamma \vdash \textsf{add } r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \exists c.\; \textsf{int}(c) \;\mathbf{where}\; \exists a,b.\; \varphi_1 \wedge \varphi_2 \wedge c = a + b]} \quad (\textsc{D-BinOp-Refined})
-$$
+  $$
+    \frac{\Gamma(r_1) = \{a\!:\!\textsf{int} \mid \varphi_1\} \quad \Gamma(r_2) = \{b\!:\!\textsf{int} \mid \varphi_2\}}{\Phi; \Gamma \vdash \textsf{add } r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \exists c.\; \textsf{int}(c) \;\mathbf{where}\; \exists a,b.\; \varphi_1 \wedge \varphi_2 \wedge c = a + b]} \quad (\textsc{D-BinOp-Refined})
+  $$
 
-\paragraph{Memory Access (Bounds Checking)}
-A memory load is only well-typed if $\Phi$ can prove that the index is within bounds. The result type is the array's element type:
-$$
-\frac{\Gamma(r_b) = [\tau; N] \quad \Phi \vdash 0 \le e_i < N}{\Phi; \Gamma \vdash \textsf{load } r_d, [r_b, r_i] \Rightarrow \Gamma[r_d \mapsto \tau]} \quad (\textsc{D-Load})
-$$
+  \paragraph{Memory Access (Bounds Checking)}
+  A memory load is only well-typed if $\Phi$ can prove that the index is within bounds. The result type is the array's element type:
+  $$
+    \frac{\Gamma(r_b) = [\tau; N] \quad \Phi \vdash 0 \le e_i < N}{\Phi; \Gamma \vdash \textsf{load } r_d, [r_b, r_i] \Rightarrow \Gamma[r_d \mapsto \tau]} \quad (\textsc{D-Load})
+  $$
 
-\noindent where $e_i$ is the index expression extracted from the type of $r_i$. Stores are handled symmetrically, with an additional mechanism: the verifier maintains \textit{array versions} so that each store creates a fresh logical name for the array. This enables the SMT solver to reason about array contents using store/select axioms without conflating values written at different program points.
+  \noindent where $e_i$ is the index expression extracted from the type of $r_i$. Stores are handled symmetrically, with an additional mechanism: the verifier maintains \textit{array versions} so that each store creates a fresh logical name for the array. This enables the SMT solver to reason about array contents using store/select axioms without conflating values written at different program points.
 
-\paragraph{Conditional Branching}
-A comparison instruction (\texttt{cmp $r_1$, $r_2$}) records the operands; a subsequent conditional branch (\texttt{branch \textit{cond} $L$}) refines the constraint context on both paths. If the operands have index expressions $e_1$ and $e_2$:
-\begin{itemize}
+  \paragraph{Conditional Branching}
+  A comparison instruction (\texttt{cmp $r_1$, $r_2$}) records the operands; a subsequent conditional branch (\texttt{branch \textit{cond} $L$}) refines the constraint context on both paths. If the operands have index expressions $e_1$ and $e_2$:
+  \begin{itemize}
     \item Taken branch (to $L$): $\Phi' = \Phi \wedge (e_1 \textsf{ cond } e_2)$
     \item Fall-through: $\Phi' = \Phi \wedge \neg(e_1 \textsf{ cond } e_2)$
-\end{itemize}
+  \end{itemize}
 
-\noindent This is used to verify bounds checks: a comparison followed by a branch-if-greater-or-equal exits the loop, and the fall-through path continues with the assumption that the index is within bounds.
+  \noindent This is used to verify bounds checks: a comparison followed by a branch-if-greater-or-equal exits the loop, and the fall-through path continues with the assumption that the index is within bounds.
 
-These rules are representative; the verifier handles all instruction variants listed in Section~\ref{sec:dtal-instr-set}. The complete set of DTAL typing rules is given in Appendix~\ref{app:dtal-rules}.
+  These rules are representative; the verifier handles all instruction variants listed in Section~\ref{sec:dtal-instr-set}. The complete set of DTAL typing rules is given in Appendix~\ref{app:dtal-rules}.
 \fi
 % END REMOVAL MARKER
 
@@ -640,37 +642,37 @@ A systematic requirements analysis was conducted during the preparation phase to
 \subsection{Must-have}
 To successfully demonstrate the paradigm of proof-carrying code and independent assembly verification, the system must include:
 \begin{itemize}
-    \item A high-level systems language featuring essential constructs (variables, control flow, functions, arrays).
-    \item A dependent type system supporting refinement types and singleton types to express spatial memory safety invariants.
-    \item A compiler frontend with a bidirectional type checker that delegates proof obligations (e.g., array bounds) to an SMT solver.
-    \item A Dependently Typed Assembly Language (DTAL) target capable of embedding type states and constraint assertions.
-    \item A compiler backend that preserves type information through intermediate representations and outputs verified DTAL.
-    \item A standalone DTAL verifier capable of re-verifying the safety of the generated assembly without access to the original source code.
+  \item A high-level systems language featuring essential constructs (variables, control flow, functions, arrays).
+  \item A dependent type system supporting refinement types and singleton types to express spatial memory safety invariants.
+  \item A compiler frontend with a bidirectional type checker that delegates proof obligations (e.g., array bounds) to an SMT solver.
+  \item A Dependently Typed Assembly Language (DTAL) target capable of embedding type states and constraint assertions.
+  \item A compiler backend that preserves type information through intermediate representations and outputs verified DTAL.
+  \item A standalone DTAL verifier capable of re-verifying the safety of the generated assembly without access to the original source code.
 \end{itemize}
 
 \subsection{Should-have}
 To enhance the practical utility and robustness of the toolchain, the project should ideally include:
 \begin{itemize}
-    \item End-to-end executable generation, translating the verified DTAL into native x86-64 machine code and packaging it as a freestanding ELF binary.
-    \item Advanced function contracts, including postconditions (\texttt{ensures}) and quantified specifications (\texttt{forall}, \texttt{exists}).
-    \item A comprehensive automated test suite capable of systematically testing both compilation success for safe programs and targeted rejection of unsafe programs.
+  \item End-to-end executable generation, translating the verified DTAL into native x86-64 machine code and packaging it as a freestanding ELF binary.
+  \item Advanced function contracts, including postconditions (\texttt{ensures}) and quantified specifications (\texttt{forall}, \texttt{exists}).
+  \item A comprehensive automated test suite capable of systematically testing both compilation success for safe programs and targeted rejection of unsafe programs.
 \end{itemize}
 % TODO: why x86?
 
 \subsection{Could-have}
 Features that would extend the system's capabilities but were not critical to the core proof-of-concept included:
 \begin{itemize}
-    \item Backend compiler optimisations (such as copy propagation and dead code elimination) operating over the typed intermediate representation.
-    \item Extended language semantics, such as structs, generics, and a full ownership model (similar to Rust).
-    \item An interpreter for executing DTAL programs directly.
+  \item Backend compiler optimisations (such as copy propagation and dead code elimination) operating over the typed intermediate representation.
+  \item Extended language semantics, such as structs, generics, and a full ownership model (similar to Rust).
+  \item An interpreter for executing DTAL programs directly.
 \end{itemize}
 
 \subsection{Won't-have}
 To maintain a manageable scope and clear focus on structural safety, several ambitious extensions were explicitly excluded:
 \begin{itemize}
-    \item A foundational, machine-checked proof of compiler correctness (e.g., via Coq or Isabelle). The project's trust model explicitly treats the compiler as untrusted.
-    \item Verification of concurrency properties, such as data race freedom or deadlock avoidance.
-    \item Verification of information flow control or cryptographic protocols.
+  \item A foundational, machine-checked proof of compiler correctness (e.g., via Coq or Isabelle). The project's trust model explicitly treats the compiler as untrusted.
+  \item Verification of concurrency properties, such as data race freedom or deadlock avoidance.
+  \item Verification of information flow control or cryptographic protocols.
 \end{itemize}
 
 \section{Evaluation plan}
@@ -700,17 +702,17 @@ The language and its performance will also be compared against the existing veri
 \subsection{Methodology}
 Development followed a hybrid approach. Initial planning resembled a waterfall model in which the compiler pipeline modules, source and target language features and specifications were defined. Software development then followed a spiral approach: the pipeline was built end-to-end with minimal features first (integer arithmetic only), then progressively extended with arrays, mutable variables, refinement types, function contracts, and quantifiers. Work items were planned for two-week sprints and I kept track of tasks using a Kanban board on Jira. Each feature was accompanied by test cases in both positive (should compile) and negative (should produce a specific error) categories. The test suite features unit tests for each significant module and integration tests between the components of the pipeline.
 
-[TODO: final Gantt chart diagram here]
+  [TODO: final Gantt chart diagram here]
 
 % TODO: Development proceeded with evaluation in mind. TCB shrunk as project progressed
 
-Version control was managed using Git, employing a trunk-based development strategy. Features and bug fixes were developed in short-lived branches before being integrated into a central master branch. To maintain code quality and ensure continuous correctness, I set up an automated Continuous Integration (CI) pipeline via GitHub Actions, which triggered on every push to the remote repository. This pipeline enforced formatting and linting standards (using the \texttt{cargo fmt} and \texttt{cargo clippy} tools), validated the suite of example programs, and executed the test suite across both Ubuntu Linux and macOS environments; this covers two primary platforms on which systems programming toolchains are used in practice and ensures the compiler and verifier implementations remain portable and correct across OS environments, libc implementations (relevant to the C-based implementation of Z3), and toolchain versions. Testing was done against both stable and nightly Rust toolchains; stable ensures the project builds with the version most users would have, while nightly provides early warning of upcoming compiler changes or deprecations, and is necessary if any features behind features gates are used. 
+Version control was managed using Git, employing a trunk-based development strategy. Features and bug fixes were developed in short-lived branches before being integrated into a central master branch. To maintain code quality and ensure continuous correctness, I set up an automated Continuous Integration (CI) pipeline via GitHub Actions, which triggered on every push to the remote repository. This pipeline enforced formatting and linting standards (using the \texttt{cargo fmt} and \texttt{cargo clippy} tools), validated the suite of example programs, and executed the test suite across both Ubuntu Linux and macOS environments; this covers two primary platforms on which systems programming toolchains are used in practice and ensures the compiler and verifier implementations remain portable and correct across OS environments, libc implementations (relevant to the C-based implementation of Z3), and toolchain versions. Testing was done against both stable and nightly Rust toolchains; stable ensures the project builds with the version most users would have, while nightly provides early warning of upcoming compiler changes or deprecations, and is necessary if any features behind features gates are used.
 
 I also attended thrice weekly standups with other Computer Science students, where we gave brief reports on our project status and upcoming work items.
 
 \subsection{Tools and Technologies}
 % TODO: also Rust's desirable safety features that were used as inspiration (borrow checker?)
-The project was implemented in Rust, chosen for its strong type system, pattern matching, and memory safety guarantees without garbage collection. 
+The project was implemented in Rust, chosen for its strong type system, pattern matching, and memory safety guarantees without garbage collection.
 
 The Z3 SMT solver used for the frontend typechecker and DTAL verifier was accessed via the \texttt{z3} Rust crate, which provided high-quality, idiomatic Rust bindings, compared to potential alternatives like CVC5 that have less mature Rust ecosystem support. As mentioned in Section~\ref{sec:smt-based-ver}, Z3 is one of the most widely-deployed, well-audited SMT solvers. In Veritas, Z3 is used by the DTAL verifier and thus forms part of the trusted computing base; it is important to minimise the risk introduced by this trust---using an obscure solver would weaken this argument. Another prominent reason for using Z3 is that it natively supports the theories featured in Veritas: quantifier-free LIA for refinement subtyping, and bounded quantifiers for array specifications.
 
