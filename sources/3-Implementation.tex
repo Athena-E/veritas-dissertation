@@ -82,6 +82,22 @@ The typing context is a tuple $(\phi, \Gamma, \Delta, \Sigma_F)$:
 
 The master type $\tau_m$ is set at declaration and never changes; the current type $\tau_c$ may be refined through control flow but must remain a subtype of $\tau_m$. The interaction between master types and mutable variables is described in Section~\ref{sec:typechecker}.
 
+\subsection{Context joining}\label{sec:context-joining}
+
+At control-flow merge points (i.e., after \textbf{if-else} and loops), the typing contexts from each branch must be joined. The $\textsf{join}$ operation computes a least upper bound for each mutable variable's type and intersects the proposition sets:
+
+\begin{itemize}
+    \item Same singletons: $\textsf{int}(N) \sqcup \textsf{int}(N) = \textsf{int}(N)$.
+    \item Different singletons: $\textsf{int}(N_1) \sqcup \textsf{int}(N_2) = \textsf{int}$ where $N_1 \ne N_2$ (widen to base type).
+    \item Refined types: $\{v \mid P\} \sqcup \{v \mid Q\} = \{v \mid P \vee Q\}$ (disjoin predicates).
+    \item Singleton and refined: promote the singleton to $\{v \mid v = N\}$, then disjoin with the refined type's predicate.
+    \item Refined and unrefined: $\{v \mid P\} \sqcup \textsf{int} = \textsf{int}$ (widen to base type).
+    \item Arrays: $[\tau_1; N] \sqcup [\tau_2; N] = [\tau_1 \sqcup \tau_2; N]$ (join element types covariantly).
+    \item Propositions ($\phi$): intersect (keep only propositions provable in both branches).
+\end{itemize}
+
+\noindent When $\textsf{join}$ is used in expression rules (e.g., \textsc{T-If-Expr}), the same type-joining rules apply to the result types of both branches.
+
 \subsection{Judgement forms}\label{sec:judgement-forms}
 
 Throughout the typing rules, $\tau$ is used as the metavariable for types.
@@ -112,20 +128,20 @@ $$\frac{\phi \wedge P_1 \vdash P_2}{\phi \vdash \{x: \textsf{int} \mid P_1\} <: 
 The expression typing rules use two auxiliary functions on integer-like types. The partial function $\textsf{val}$ extracts the value representative of a singleton or refined integer type, while $\textsf{prop}$ extracts the logical proposition carried by a type:
 
 \[
+\begin{array}{c@{\hspace{3em}}c}
 \textsf{val}(\tau) =
 \begin{cases}
 N & \text{if } \tau = \textsf{int}(N) \\
 x & \text{if } \tau = \{x:\textsf{int} \mid P\}
 \end{cases}
-\]
-
-\[
+&
 \textsf{prop}(\tau) =
 \begin{cases}
 (v = N) & \text{if } \tau = \textsf{int}(N) \\
 P & \text{if } \tau = \{x:\textsf{int} \mid P\} \\
 \top & \text{otherwise}
 \end{cases}
+\end{array}
 \]
 
 \noindent The function $\textsf{val}$ is used only in premises where $\tau <: \textsf{int}$ has already been established.
@@ -160,7 +176,8 @@ $$
   } \quad (\textsc{T-Array-Idx})
 $$
 
-Conditional expressions check both branches under the condition and its negation, then join the resulting contexts using the $\textsf{join}$ operation defined in Section~\ref{sec:context-joining}:
+Conditional expressions check both branches under the condition and its negation, then join the resulting contexts:
+% using the $\textsf{join}$ operation defined in Section~\ref{sec:context-joining}
 
 $$
   \frac{
@@ -223,22 +240,6 @@ $$
 $$
 
 \noindent where $P_I$ is the invariant proposition (or $\top$ if no invariant is specified).
-
-\subsection{Context joining}\label{sec:context-joining}
-
-At control-flow merge points (after \textbf{if-else} and loops), the typing contexts from each branch must be joined. The $\textsf{join}$ operation computes a least upper bound for each mutable variable's type and intersects the proposition sets:
-
-\begin{itemize}
-    \item Same singletons: $\textsf{int}(N) \sqcup \textsf{int}(N) = \textsf{int}(N)$.
-    \item Different singletons: $\textsf{int}(N_1) \sqcup \textsf{int}(N_2) = \textsf{int}$ where $N_1 \ne N_2$ (widen to base type).
-    \item Refined types: $\{v \mid P\} \sqcup \{v \mid Q\} = \{v \mid P \vee Q\}$ (disjoin predicates).
-    \item Singleton and refined: promote the singleton to $\{v \mid v = N\}$, then disjoin with the refined type's predicate.
-    \item Refined and unrefined: $\{v \mid P\} \sqcup \textsf{int} = \textsf{int}$ (widen to base type).
-    \item Arrays: $[\tau_1; N] \sqcup [\tau_2; N] = [\tau_1 \sqcup \tau_2; N]$ (join element types covariantly).
-    \item Propositions ($\phi$): intersect (keep only propositions provable in both branches).
-\end{itemize}
-
-\noindent When $\textsf{join}$ is used in expression rules (e.g., \textsc{T-If-Expr}), the same type-joining rules apply to the result types of both branches.
 
 \subsection{Function contracts}
 
