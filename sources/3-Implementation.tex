@@ -10,101 +10,63 @@ This section presents the syntax and formal typing rules of the Veritas source l
 
 The abstract syntax of Veritas is defined by the following grammar:
 
-\begin{gather*}
-  \begin{aligned}
-    c ::=\, & \underline{n} \,|\, \textsf{true} \,|\, \textsf{false}
-  \end{aligned}
-  \qquad \textbf{(Base values)}
-\end{gather*}
-
-\begin{gather*}
-  \begin{aligned}
-    \textsf{aop} ::=\, & \texttt{+} \,|\, \texttt{-} \,|\, \texttt{*} \,|\, \texttt{/} \,|\, \texttt{\%}
-  \end{aligned}
-  \qquad \textbf{(Arithmetic operators)}
-\end{gather*}
-
-\begin{gather*}
-  \begin{aligned}
-    \textsf{cop} ::=\, & \texttt{==} \,|\, \texttt{!=} \,|\, \texttt{<} \,|\, \texttt{<=} \,|\, \texttt{>} \,|\, \texttt{>=}
-  \end{aligned}
-  \qquad \textbf{(Comparison operators)}
-\end{gather*}
-
-\begin{gather*}
-  \begin{aligned}
-    \textsf{lop} ::=\, & \texttt{\&\&} \,|\, \texttt{||} \,|\, \texttt{==>}
-  \end{aligned}
-  \qquad \textbf{(Logical operators)}
-\end{gather*}
-
-\begin{gather*}
-  \begin{aligned}
-    e ::=\, & c \,|\, x \,|\, e \textsf{ aop } e \,|\, e \textsf{ cop } e \,|\, e \textsf{ lop } e \,|\,
-              \texttt{!}\; e \,|\, \texttt{-}\; e \,|\, f(\overrightarrow{e}) \,|\, \\
-            & x[e_i] \,|\, \textsf{if } e_\textsf{cond}\; \{B\}\; \textsf{else } \{B'\} \,|\,
-              [e_\textsf{val}; e_\textsf{size}]
-  \end{aligned}
-  \qquad \textbf{(Expressions)}
-\end{gather*}
-
-\begin{gather*}
-  \begin{aligned}
-    P ::=\, & e \textsf{ cop } e \,|\,
-              P \textsf{ lop } P \,|\, \texttt{!}\; P \,|\, \\
-            & \textsf{forall } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{P\} \,|\,
-            \textsf{exists } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{P\}
-  \end{aligned}
-  \qquad \textbf{(Propositions)}
-\end{gather*}
-
-\begin{gather*}
-  \begin{aligned}
-    S ::=\, & \textsf{let } x:T = e; \,|\,
-              \textsf{let mut } x:T = e; \,|\,
-              x = e; \,|\,
-              x[e_i] = e; \,|\,
-              \textsf{return } e; \,|\,
-              e; \,|\, \\
-            & \textsf{if } e_\textsf{cond}\; \{B\}\; (\textsf{else } \{B'\})^? \,|\,
-              \textsf{for } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\; (\textsf{invariant } P)^?\; \{B\} \,|\, \\
-            & \textsf{while } e_\textsf{cond}\; (\textsf{invariant } P)^?\; \{B\}
-  \end{aligned}
-  \qquad \textbf{(Statements)}
-\end{gather*}
-
-\begin{gather*}
-  \begin{aligned}
-    D ::=\, & \textsf{fn } f(x_1:T_1, \ldots)\; (\rightarrow T_\textsf{ret})^?\;
-              (\textsf{requires } P)^?\;
-              (\textsf{ensures } P)^?\;
-              \{B\}
-  \end{aligned}
-  \qquad \textbf{(Function definitions)}
-\end{gather*}
-
-\begin{gather*}
-  \begin{aligned}
-    \textsf{Prog} ::=\, & D^*
-  \end{aligned}
-  \qquad \textbf{(Program)}
-\end{gather*}
-
-\begin{gather*}
-  \begin{aligned}
-    B ::=\, & S^*\; e^?
-  \end{aligned}
-  \qquad \textbf{(Blocks)}
-\end{gather*}
-
-\begin{gather*}
-  \begin{aligned}
-    T ::=\, & \textsf{unit} \,|\, \textsf{int} \,|\, \textsf{bool} \,|\, [T; N] \,|\,
-              \textsf{\&}T \,|\, \textsf{\&mut } T \,|\, \textsf{int}(N) \,|\,
-              \{ x:\textsf{int} \mid P \}
-  \end{aligned}
-  \qquad \textbf{(Types)}
-\end{gather*}
+{\small
+\[
+\renewcommand{\arraystretch}{1.09}
+\begin{array}{@{}r@{\ }c@{\ }l@{\hspace{1.2em}}p{0.25\textwidth}@{}}
+  c & ::= &
+  \underline{n} \,|\, \textsf{true} \,|\, \textsf{false}
+  & \textbf{(Base values)} \\[2pt]
+  \textsf{aop} & ::= &
+  \texttt{+} \,|\, \texttt{-} \,|\, \texttt{*} \,|\, \texttt{/} \,|\, \texttt{\%}
+  & \textbf{(Arithmetic operators)} \\[2pt]
+  \textsf{cop} & ::= &
+  \texttt{==} \,|\, \texttt{!=} \,|\, \texttt{<} \,|\, \texttt{<=} \,|\, \texttt{>} \,|\, \texttt{>=}
+  & \textbf{(Comparison operators)} \\[2pt]
+  \textsf{lop} & ::= &
+  \texttt{\&\&} \,|\, \texttt{||} \,|\, \texttt{==>}
+  & \textbf{(Logical operators)} \\[2pt]
+  e & ::= &
+  \parbox[t]{0.66\textwidth}{
+    $c \,|\, x \,|\, e \textsf{ aop } e \,|\, e \textsf{ cop } e \,|\, e \textsf{ lop } e \,|\, \texttt{!}\; e \,|\, \texttt{-}\; e \,|\, f(\overrightarrow{e}) \,|\, {}$\\
+    $x[e_i] \,|\, \textsf{if } e_\textsf{cond}\; \{B\}\; \textsf{else } \{B'\} \,|\, [e_\textsf{val}; e_\textsf{size}]$
+  }
+  & \textbf{(Expressions)} \\[4pt]
+  P & ::= &
+  \parbox[t]{0.66\textwidth}{
+    $e \textsf{ cop } e \,|\, P \textsf{ lop } P \,|\, \texttt{!}\; P \,|\, {}$\\
+    $\textsf{forall } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{P\} \,|\, \textsf{exists } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{P\}$
+  }
+  & \textbf{(Propositions)} \\[4pt]
+  S & ::= &
+  \parbox[t]{0.66\textwidth}{
+    $\textsf{let } x:T = e; \,|\, \textsf{let mut } x:T = e; \,|\, x = e; \,|\, x[e_i] = e; \,|\, \textsf{return } e; \,|\, e; \,|\, {}$\\
+    $\textsf{if } e_\textsf{cond}\; \{B\}\; (\textsf{else } \{B'\})^? \,|\, {}$\\
+    $\textsf{for } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\; (\textsf{invariant } P)^?\; \{B\} \,|\, {}$\\
+    $\textsf{while } e_\textsf{cond}\; (\textsf{invariant } P)^?\; \{B\}$
+  }
+  & \textbf{(Statements)} \\[4pt]
+  D & ::= &
+  \parbox[t]{0.66\textwidth}{
+    $\textsf{fn } f(x_1:T_1, \ldots)\; (\rightarrow T_\textsf{ret})^?\; (\textsf{requires } P)^?\;$\\
+    $(\textsf{ensures } P)^?\; \{B\}$
+  }
+  & \textbf{(Function definitions)} \\[2pt]
+  \textsf{Prog} & ::= &
+  D^*
+  & \textbf{(Program)} \\[2pt]
+  B & ::= &
+  S^*\; e^?
+  & \textbf{(Blocks)} \\[2pt]
+  T & ::= &
+  \parbox[t]{0.66\textwidth}{
+    $\textsf{unit} \,|\, \textsf{int} \,|\, \textsf{bool} \,|\, [T; N] \,|\, \textsf{\&}T \,|\, \textsf{\&mut } T \,|\, {}$\\
+    $\textsf{int}(N) \,|\, \{ x:\textsf{int} \mid P \}$
+  }
+  & \textbf{(Types)}
+\end{array}
+\]
+}
 
 The metavariables used in the grammar are as follows: $n$ ranges over integer literals; $x$, $f$ range over identifiers (variables and function names); $N$ ranges over integer expressions that must reduce to a statically known constant (used for array sizes and singleton types). $P$ is the specification language used in refinement predicates, function contracts, and loop invariants, and additionally provides bounded quantifiers. A block $B$ is a sequence of zero or more statements followed by an optional trailing expression; when the trailing expression is present, its value is the block's result. The superscript $(\cdot)^?$ denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
 
@@ -1062,4 +1024,3 @@ For example, compiling and verifying a program end-to-end:
 The resulting executable is a statically linked, freestanding ELF binary. The return value of \texttt{main} becomes the process exit code. The runtime provides five intrinsics overall: \texttt{print\_int(n)}, \texttt{print\_char(c)}, \texttt{read\_int()}, \texttt{port\_in(port)}, and \texttt{port\_out(port, val)}. On the bare-metal target, the type checker admits only the port-I/O intrinsics.
 
 A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source, demonstrating that the verifier operates independently of the compiler frontend. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU.
-
