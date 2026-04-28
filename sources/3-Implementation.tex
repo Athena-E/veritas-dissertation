@@ -180,9 +180,9 @@ Assignment checks that the new value conforms to the master type:
 $$
   \frac{
     \begin{array}{c}
-      (x: \tau_\textsf{master}) \in \Delta_0 \\
+      (x: \tau_m) \in \Delta_0 \\
       \phi_0; \Delta_0; \Gamma \vdash e \Rightarrow (\phi_1; \Delta_1; \tau_e)  \\
-      \phi_1 \vdash \tau_e <: \tau_\textsf{master}
+      \phi_1 \vdash \tau_e <: \tau_m
     \end{array}
   }{
     \phi_0; \Delta_0; \Gamma \vdash (x = e;) : (\phi_1; \Delta_1[x \mapsto \tau_e]; \Gamma)
