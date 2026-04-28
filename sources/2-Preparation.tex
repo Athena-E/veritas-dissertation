@@ -5,9 +5,11 @@
 
 \chapter{Preparation}\label{ch:prep}
 
-This chapter establishes the conceptual and technical background for Veritas. It first introduces the type-theoretic foundations that motivate the project: type soundness, dependent and refinement types, bidirectional type checking, SMT-based proof discharge, and type-preserving compilation. It then places Veritas in the context of related work, particularly systems that trade off expressiveness, automation, and trust in different ways. The goal of the chapter is to give insight to existing ideas as well as make precise which of them Veritas does (or does not) adopt, and why those choices are appropriate for a project centred on independently verifiable systems code.
+This chapter establishes the conceptual and technical background for Veritas. It first introduces the type-theoretic foundations that motivate the project: type soundness, dependent and refinement types, bidirectional type checking, SMT-based proof discharge, and type-preserving compilation (Section~\ref{sec:background}). It then places Veritas in the context of related work (Section~\ref{sec:related-work}), particularly systems that trade off expressiveness, automation, and trust in different ways. Section~\ref{sec:design-decisions} covers design decisions for the system architecture, trust model, and languages as well as challenges and how they were addressed. Sections~\ref{sec:requirements-anal}--\ref{sec:starting-point} contain the requirements analysis, software engineering approach, and starting point for the project.
 
-\section{Background}
+% The goal of the chapter is to give insight to existing ideas and make precise which of them Veritas does (or does not) adopt, and why those choices are appropriate for a project centred on independently verifiable systems code.
+
+\section{Background}\label{sec:background}
 
 \subsection{Type systems and safety}
 
@@ -635,7 +637,7 @@ Combining refinement types with imperative features, SSA-based compilation, and 
 \fi
 % END REMOVAL MARKER
 
-\section{Requirements analysis}
+\section{Requirements analysis}\label{sec:requirements-anal}
 
 A systematic requirements analysis was conducted during the preparation phase to define the scope of the project. The requirements were categorised using the MoSCoW method (Must-have, Should-have, Could-have, Won't-have) to prioritise features and ensure the core objectives of type-preserving compilation and independent verification were met.
 
@@ -720,6 +722,6 @@ Another notable crate used to develop the Veritas compiler was the \texttt{im} c
 
 
 
-\section{Starting point}
+\section{Starting point}\label{sec:starting-point}
 
 I had introductory knowledge of dependent type theory (DTT) and proof assistant and verification languages, and was introduced to refinement types via Xi and Harper's DTAL. No external code was used for the compiler or verifier. To successfully complete the project, I had to gain proficiency in several new tools, algorithms and theories: the Rust programming language, typechecking and proof assertion via SMT, Z3 theories, x86-64 machine code encoding, and bidirectional type checking. Key resources included the papers from Xi et al. on DML, Xanadu, and DTAL as well as other existing systems and their theories.
