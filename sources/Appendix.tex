@@ -174,7 +174,7 @@ $$
       \phi_1 \vdash \tau_e <: \tau_m
     \end{array}
   }{
-    \phi_0; \Delta_0; \Gamma \vdash (x = e;) : (\phi_1; \Delta_1[x \mapsto \tau_e]; \Gamma)
+    \phi_0; \Delta_0; \Gamma \vdash (x = e;) : (\phi_1; \Delta_1[x \mapsto (\tau_e, \tau_m)]; \Gamma)
   } \quad (\textsc{T-Assign})^\star
 $$
 
