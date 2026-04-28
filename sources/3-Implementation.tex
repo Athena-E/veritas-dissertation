@@ -414,9 +414,10 @@ Translation requires mapping between the Veritas type system and Z3's sort syste
 
 An important feature is \textit{refinement lifting}: when an array has a refined element type (e.g., $[\{v\!:\!\mathtt{int} \mid v \ge 0\}; n]$), the oracle extracts a universally quantified proposition ($\forall i \in [0, n).\; \mathit{arr}[i] \ge 0$) and adds it to the assumption set. This allows element-level refinements to be used in quantified reasoning without the programmer restating them.
 
-\subsubsection{Array bounds and function contracts}
-
-Array bounds checking and function contract verification follow the formal rules T-Array-Idx, T-Call, and T-Return defined in Section~\ref{sec:source-language}. The implementation translates each rule directly: array accesses invoke the SMT oracle with the bounds obligation constructed from the index's synthesised type; call sites substitute actual arguments into the precondition; and return statements substitute the return expression for the special variable \texttt{result} in the postcondition.
+% Evaluate array bounds checking in evaluation section
+% \subsubsection{Array bounds and function contracts}
+%
+% Array bounds checking and function contract verification follow the formal rules T-Array-Idx, T-Call, and T-Return defined in Section~\ref{sec:source-language}. The implementation translates each rule directly: array accesses invoke the SMT oracle with the bounds obligation constructed from the index's synthesised type; call sites substitute actual arguments into the precondition; and return statements substitute the return expression for the special variable \texttt{result} in the postcondition.
 
 \subsection{Error reporting}
 
