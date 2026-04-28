@@ -109,7 +109,26 @@ $$\frac{\phi \wedge P_1 \vdash P_2}{\phi \vdash \{x: \textsf{int} \mid P_1\} <: 
 
 \subsection{Expression typing rules}
 
-The expression typing rules use two auxiliary functions on types. $\textsf{val}(\tau)$ extracts the value expression from a type: $\textsf{val}(\textsf{int}(N)) = N$ for singletons, and $\textsf{val}(\{x\!:\!\textsf{int} \mid P\}) = x$ for refined types. $\textsf{prop}(\tau)$ extracts a proposition: $\textsf{prop}(\textsf{int}(N)) = (v = N)$, $\textsf{prop}(\{x\!:\!\textsf{int} \mid P\}) = P$, and $\textsf{prop}(\tau) = \top$ for ordinary types.
+The expression typing rules use two auxiliary functions on integer-like types. The partial function $\textsf{val}$ extracts the value representative of a singleton or refined integer type, while $\textsf{prop}$ extracts the logical proposition carried by a type:
+
+\[
+\textsf{val}(\tau) =
+\begin{cases}
+N & \text{if } \tau = \textsf{int}(N) \\
+x & \text{if } \tau = \{x:\textsf{int} \mid P\}
+\end{cases}
+\]
+
+\[
+\textsf{prop}(\tau) =
+\begin{cases}
+(v = N) & \text{if } \tau = \textsf{int}(N) \\
+P & \text{if } \tau = \{x:\textsf{int} \mid P\} \\
+\top & \text{otherwise}
+\end{cases}
+\]
+
+\noindent The function $\textsf{val}$ is used only in premises where $\tau <: \textsf{int}$ has already been established.
 
 Standard rules for literals, variable lookup, comparisons, logical operators, and array creation are given in Appendix~\ref{app:source-rules}. Some of the more non-trivial rules are described below.
 
