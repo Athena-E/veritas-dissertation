@@ -1,6 +1,6 @@
 \chapter{Implementation}\label{ch:impl}
 %
-This chapter describes the implementation of the Veritas toolchain: a type-preserving compiler, an independent DTAL verifier, a compact runtime, and a bare-metal unikernel target. The chapter begins with the formal definitions of the source language (Section~\ref{sec:source-language}) and DTAL target language, then presents the compilation pipeline (Sections~\ref{sec:frontend}--\ref{sec:backend}), the verifier (Section~\ref{sec:verifier}), and the runtime and bare-metal components (Sections~\ref{sec:runtime}--\ref{sec:unikernel}). Section~\ref{sec:worked-example} traces a binary search program through the full pipeline as a worked example, and Section~\ref{sec:repo-overview} provides a repository overview.
+This chapter describes the implementation of the Veritas toolchain: a type-preserving compiler, an independent DTAL verifier, a compact runtime, and a bare-metal unikernel target. The chapter begins with the formal definitions of the source language (Section~\ref{sec:source-language}) and DTAL target language~\ref{sec:dtal-target-lang}, then presents the compilation pipeline (Sections~\ref{sec:frontend}--\ref{sec:backend}), the verifier (Section~\ref{sec:verifier}), and the runtime and bare-metal components (Sections~\ref{sec:runtime}--\ref{sec:unikernel}). Section~\ref{sec:worked-example} traces a binary search program through the full pipeline as a worked example, and Section~\ref{sec:repo-overview} provides a repository overview.
 %
 \section{The Veritas language}\label{sec:source-language}
 
@@ -291,7 +291,7 @@ Quantifiers may only appear in specification positions (preconditions, postcondi
 
 An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\!\textsf{int} \mid v \ge 0\}; N]$ automatically satisfies the quantified constraint $\forall i \in [0, N).\; \mathit{arr}[i] \ge 0$. This is achieved by extracting a quantified proposition from the array's element type and adding it to the context when the array is in scope.
 
-\section{The DTAL target language}
+\section{The DTAL target language}\label{sec:dtal-target-lang}
 
 As introduced in Section~\ref{sec:dtal-background}, Veritas targets its own DTAL variant based on Xi and Harper's design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system. Veritas builds on this theoretical foundation: the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. This section describes the concrete instruction set and typing judgements of the Veritas DTAL.
 
