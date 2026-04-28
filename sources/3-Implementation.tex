@@ -368,7 +368,7 @@ The type checker operates in two passes. The first collects all function signatu
 
 \subsubsection{Bidirectional checking}
 
-The two modes of the bidirectional system are implemented as separate functions. \texttt{synth\_expr} implements synthesis: given an expression, it returns the most precise type the checker can infer. Integer literals produce singleton types ($\mathtt{int}(n)$), variable lookups return the type from $\Gamma$ or $\Delta$, and arithmetic operations use the \texttt{join\_op} function described below. \texttt{check\_expr} implements checking: given an expression and an expected type, it synthesises a type and verifies the subtyping relationship via the SMT oracle.
+The two modes of the bidirectional system are implemented as separate functions. The function \texttt{synth\_expr} takes a typing context and an expression as input and returns either a type error or, on success, returns an updated context together with the synthesised type. Integer literals produce singleton types ($\mathtt{int}(n)$), variable lookups return the type from $\Gamma$ or $\Delta$, and arithmetic operations use the \texttt{join\_op} function described below. \texttt{check\_expr} takes a typing context, an expression, and an expected type as input and returns a type error or, on success, an updated context; unlike synthesis, it does not produce a new type, but verifies that the expression conforms to the expected one via the SMT-backed subtyping check.
 
 Statement checking (\texttt{check\_stmts}) updates the typing context according to each statement's effect: \texttt{let} bindings extend $\Gamma$ or $\Delta$, assignments update the current type in $\Delta$, and loops apply invariant-based reasoning as described in Chapter~\ref{ch:prep}.
 
