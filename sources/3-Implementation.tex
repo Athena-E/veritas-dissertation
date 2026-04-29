@@ -42,10 +42,10 @@ The source code is organised as a single Rust crate with the following top-level
 
 \textbf{External dependencies.} Four third-party Rust crates are used:
 \begin{itemize}
-  \item \texttt{z3} (v0.19, MIT): Rust bindings for the Z3 SMT solver~\cite{DeMoura2008Z3} (MIT-licensed), used for proof obligations in both the type checker and verifier. Z3 is a substantial external system; its correctness is assumed.
-  \item \texttt{chumsky} (v1.0.0-alpha.8, MIT): a parser combinator library used for the lexer and parser. It provides the parsing infrastructure, but all grammar rules are original.
-  \item \texttt{im} (v15.1, MPL-2.0+): persistent (structurally shared) data structures, used for efficient context cloning during type checking.
-  \item \texttt{ariadne} (v0.5, MIT): a diagnostic rendering library used for formatting error messages with source-location highlights. It handles the presentation layer only; all error detection and classification is original.
+  \item \texttt{z3}\footnote{\url{https://docs.rs/z3/latest/z3/}} (v0.19, MIT): Rust bindings for the Z3 SMT solver~\cite{DeMoura2008Z3} (MIT-licensed), used for proof obligations in both the type checker and verifier. Z3 is a substantial external system; its correctness is assumed.
+  \item \texttt{chumsky}\footnote{\url{https://docs.rs/chumsky/latest/chumsky/}} (v1.0.0-alpha.8, MIT): a parser combinator library used for the lexer and parser. It provides the parsing infrastructure, but all grammar rules are original.
+  \item \texttt{im}\footnote{\url{https://docs.rs/im/latest/im/}} (v15.1, MPL-2.0+): persistent (structurally shared) data structures, used for efficient context cloning during type checking.
+  \item \texttt{ariadne}\footnote{\url{https://docs.rs/ariadne/latest/ariadne/}} (v0.5, MIT): a diagnostic rendering library used for formatting error messages with source-location highlights. It handles the presentation layer only; all error detection and classification is original.
 \end{itemize}
 
 \subsection{Usage}\label{sec:usage}
@@ -160,7 +160,7 @@ The abstract syntax of Veritas is defined by the following grammar:
 % consider moving before rules
 The metavariables used in the grammar are as follows: $n$ ranges over integer literals; $x$, $f$ range over identifiers (variables and function names); $N$ ranges over integer expressions that must reduce to a statically known constant (used for array sizes and singleton types). $P$ is the specification language used in refinement predicates, function contracts, and loop invariants, and additionally provides bounded quantifiers. A block $B$ is a sequence of zero or more statements followed by an optional trailing expression. If a block has a trailing expression, its value is the block's result; otherwise, its result is unit. The superscript $(\cdot)^?$ denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
 
-\subsection{Typing contexts}
+\subsection{Typing contexts}\label{sec:typing-contexts}
 
 The typing context is a tuple $(\phi, \Gamma, \Delta, \Sigma_F)$:
 
@@ -471,7 +471,7 @@ The type checker is the most substantial frontend component. It implements the b
 
 \subsubsection{Architecture}
 
-The type checker is structured around the \texttt{TypingContext} $(\phi, \Gamma, \Delta, \Sigma_F)$ defined in Section~\ref{sec:source-language}. Each judgement receives a context and returns an updated one, following a functional style. This design is made practical by the \texttt{im} crate, which provides persistent (structurally shared) data structures: cloning a context at a control-flow branch is $O(\log n)$ rather than $O(n)$.
+The type checker is structured around the \texttt{TypingContext} $(\phi, \Gamma, \Delta, \Sigma_F)$ defined in Section~\ref{sec:typing-contexts}. Contexts are immutable values as opposed to shared global state where each judgement takes a context as input and returns an updated context as output. This design is made practical by the \texttt{im} crate, which provides persistent (structurally shared) data structures: cloning a context at a control-flow branch is $O(\log n)$ rather than $O(n)$.
 
 The type checker operates in two passes. The first collects all function signatures into $\Sigma_F$, enabling mutual recursion and allowing functions to be defined in any order. The second type-checks each function body against its signature.
 
