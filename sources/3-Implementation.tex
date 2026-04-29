@@ -388,15 +388,19 @@ The DTAL instruction set resembles a standard RISC assembly language but is augm
 
 The DTAL type system mirrors the source-level type system but operates over registers rather than variables. Types include:
 
-\begin{itemize}
-    \item \textbf{Base types:} $\textsf{int}$, $\textsf{bool}$, $\textsf{unit}$
-    \item \textbf{Singleton types:} $\textsf{int}(e)$ where $e$ is an index expression (e.g., $\textsf{int}(5)$, $\textsf{int}(r_1 + r_2)$)
-    \item \textbf{Refined types:} $\{x\!:\!\textsf{int} \mid C\}$ where $C$ is a constraint over $x$
-    \item \textbf{Existential types:} $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; C$ --- the result of arithmetic on refined (non-singleton) operands
-    \item \textbf{Array types:} $[\tau; e]$ where $\tau$ is the element type and $e$ is the size
-\end{itemize}
+The DTAL type system largely mirrors the source-level type system: it retains base types, singleton integers $\textsf{int}(N)$, refinement types, and arrays. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, DTAL index expressions may mention constants, register names, arithmetic ($+, -, \times, \div, \%$), and $\textsf{select}(\mathit{arr}, i)$ for array element access.
 
-\noindent Index expressions form the language of type indices: constants, register names, arithmetic ($+, -, \times, \div, \%$), and $\textsf{select}(\mathit{arr}, i)$ for array element access. Constraints are first-order formulae over index expressions supporting comparison, logical connectives, and bounded quantifiers.
+The most important addition is the use of \textit{existential types} to represent results that are known only symbolically at the assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; C$. This allows the verifier to retain enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
+
+To make this precise, DTAL index expressions are given by:
+\[
+\begin{aligned}
+  e_i ::=\, & n \,|\, r \,|\, e_i + e_i \,|\, e_i - e_i \,|\, e_i \times e_i \,|\, e_i \div e_i \,|\, e_i \bmod e_i \,|\, {}\\
+            & \textsf{select}(\mathit{arr}, e_i)
+\end{aligned}
+\]
+
+\noindent where $n$ ranges over integer constants and $r$ over registers. The DTAL constraint language preserves the same logical fragment used in source-level specifications: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over DTAL index expressions rather than directly as source expressions. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
 
 \subsection{DTAL typing judgements}
 
