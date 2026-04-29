@@ -1,7 +1,98 @@
 \chapter{Implementation}\label{ch:impl}
 %
-This chapter describes the implementation of the Veritas toolchain: a type-preserving compiler, an independent DTAL verifier, a compact runtime, and a bare-metal unikernel target. The chapter begins with the formal definitions of the source language (Section~\ref{sec:source-language}) and DTAL target language~\ref{sec:dtal-target-lang}, then presents the compilation pipeline (Sections~\ref{sec:frontend}--\ref{sec:backend}), the verifier (Section~\ref{sec:verifier}), and the runtime and bare-metal components (Sections~\ref{sec:runtime}--\ref{sec:unikernel}). Section~\ref{sec:worked-example} traces a binary search program through the full pipeline as a worked example, and Section~\ref{sec:repo-overview} provides a repository overview.
+This chapter describes the implementation of the Veritas toolchain: a type-preserving compiler, an independent DTAL verifier, a compact runtime, and a bare-metal unikernel target. The chapter begins with a repository overview (Section~\ref{sec:repo-overview}). It then presents the formal definitions of the source language (Section~\ref{sec:source-language}) and DTAL target language~\ref{sec:dtal-target-lang}, then the compilation pipeline (Sections~\ref{sec:frontend}--\ref{sec:backend}), the verifier (Section~\ref{sec:verifier}), and the runtime and bare-metal components (Sections~\ref{sec:runtime}--\ref{sec:unikernel}). Finally, Section~\ref{sec:worked-example} traces a binary search program through the full pipeline as a worked example. 
 %
+
+\section{Repository overview}\label{sec:repo-overview}
+%
+The source code is organised as a single Rust crate with the following top-level module structure:
+%
+\begin{table}[h]
+  \centering
+  \begin{tabular}{l r l}
+    \hline
+    \textbf{Directory}                         & \textbf{Lines}  & \textbf{Responsibility}                     \\
+    \hline
+    \texttt{src/common/}                       & 624             & Shared AST, typed AST, and type definitions \\
+    \texttt{src/frontend/}                     & 6,498           & Lexer, parser, and bidirectional type checker \\
+    \texttt{src/backend/tir/}                  & 689             & Typed intermediate representation (SSA)     \\
+    \texttt{src/backend/lower/}                & 1,548           & TAST to TIR lowering                        \\
+    \texttt{src/backend/dtal/}                 & 2,387           & DTAL syntax, constraints, and parser        \\
+    \texttt{src/backend/codegen/}              & 1,004           & TIR to DTAL code generation                 \\
+    \texttt{src/backend/optimise/}             & 935             & Copy propagation and dead code elimination  \\
+    \texttt{src/backend/regalloc/}             & 1,300           & Liveness analysis and allocators            \\
+    \texttt{src/backend/physalloc.rs}          & 1,171           & Physical allocation and spill insertion     \\
+    \texttt{src/backend/direct\_encode.rs}     & 309             & Direct physical-DTAL to x86-64 encoding     \\
+    \texttt{src/backend/x86\_64/}              & 2,699           & Legacy trusted x86-64 lowering backend      \\
+    \texttt{src/backend/elf/}                  & 601             & ELF generation, including bare-metal output \\
+    \texttt{src/backend/runtime.rs}            & 99              & Hand-written runtime intrinsics             \\
+    \texttt{src/backend/emit/}                 & 411             & DTAL text emitter                           \\
+    \texttt{src/verifier/}                     & 4,825           & Independent DTAL verifier                   \\
+    \texttt{src/main.rs}, \texttt{src/pipeline.rs} & 1,046       & CLI and pipeline orchestration              \\
+    \hline
+    \textbf{Total (excl.\ tests)}              & \textbf{26,017} &                                             \\
+    \hline
+  \end{tabular}
+  \caption{Repository structure and approximate line counts.}
+  \label{tab:repo}
+\end{table}
+
+
+\textbf{Original work.} The entire compiler, verifier, and test suite were written from scratch for this project. No existing compiler or tutorial was used as a starting point. The project's design draws on the DTAL paper by Xi and Harper~\cite{Xi2001DTAL} for the typed assembly language and on the Liquid Types paper by Rondon et al.~\cite{Rondon2008Liquid} for the refinement type checking approach, but the implementations are original.
+
+\textbf{External dependencies.} Four third-party Rust crates are used:
+\begin{itemize}
+  \item \texttt{z3} (v0.19, MIT): Rust bindings for the Z3 SMT solver~\cite{DeMoura2008Z3} (MIT-licensed), used for proof obligations in both the type checker and verifier. Z3 is a substantial external system; its correctness is assumed.
+  \item \texttt{chumsky} (v1.0.0-alpha.8, MIT): a parser combinator library used for the lexer and parser. It provides the parsing infrastructure, but all grammar rules are original.
+  \item \texttt{im} (v15.1, MPL-2.0+): persistent (structurally shared) data structures, used for efficient context cloning during type checking.
+  \item \texttt{ariadne} (v0.5, MIT): a diagnostic rendering library used for formatting error messages with source-location highlights. It handles the presentation layer only; all error detection and classification is original.
+\end{itemize}
+
+\subsection{Usage}\label{sec:usage}
+
+Veritas programs are written in \texttt{.veri} source files. The compiler is invoked from the command line:
+
+\begin{verbatim}
+  veritas <source.veri> [OPTIONS]
+\end{verbatim}
+
+By default, the compiler type-checks the source, lowers it through TIR and DTAL, and prints the DTAL output to stdout. The most common options are:
+
+\begin{itemize}
+  \item \texttt{-o <file>}: compile to a native ELF executable.
+  \item \texttt{--verify}: verify the DTAL output before code generation.
+  \item \texttt{--verify-only}: verify DTAL and exit without producing an executable.
+  \item \texttt{-O}: enable all optimisations (copy propagation and dead code elimination).
+  \item \texttt{-v}: verbose mode, showing each compilation stage.
+  \item \texttt{--tir}: print the TIR (SSA) intermediate representation.
+\end{itemize}
+
+For example, compiling and verifying a program end-to-end:
+
+\begin{verbatim}
+  veritas bubble_sort.veri --verify -O -o bubble_sort
+\end{verbatim}
+
+The resulting executable is a statically linked, freestanding ELF binary. The return value of \texttt{main} becomes the process exit code. The runtime provides five intrinsics overall: \texttt{print\_int(n)}, \texttt{print\_char(c)}, \texttt{read\_int()}, \texttt{port\_in(port)}, and \texttt{port\_out(port, val)}. On the bare-metal target, the type checker admits only the port-I/O intrinsics.
+
+A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source, demonstrating that the verifier operates independently of the compiler frontend. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU.
+
+\section{Pipeline overview}
+%
+Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, and arrows indicate the transformations between them. Type annotations are preserved through TAST, TIR, and DTAL, and are no longer needed after DTAL verification and final encoding to x86-64.
+%
+\begin{figure}[h]
+  \centering
+  \begin{tcolorbox}[colback=white, colframe=black, width=\textwidth, boxrule=0.5pt]
+    \begin{center}
+      \texttt{Source} $\xrightarrow{\text{lex}}$ \texttt{Tokens} $\xrightarrow{\text{parse}}$ \texttt{AST} $\xrightarrow{\text{typecheck}}$ \texttt{\textbf{TAST}} $\xrightarrow{\text{lower}}$ \texttt{\textbf{TIR}} $\xrightarrow{\text{codegen}}$ \texttt{\textbf{DTAL}} $\xrightarrow{\text{optimise}}$ \texttt{\textbf{DTAL}} $\xrightarrow{\text{regalloc}}$ \texttt{\textbf{DTAL}} $\xrightarrow{\text{lower}}$ \texttt{x86-64} $\xrightarrow{\text{encode}}$ \texttt{ELF}
+    \end{center}
+  \end{tcolorbox}
+  \caption{The Veritas compilation pipeline. Representations carrying type annotations are shown in bold.}
+  \label{fig:pipeline}
+\end{figure}
+%
+
 \section{The Veritas language}\label{sec:source-language}
 
 This section presents the syntax and formal typing rules of the Veritas source language. These define the contract that the compiler must uphold: any program accepted by the type checker satisfies the properties encoded in its types.
@@ -363,22 +454,6 @@ $$
 \noindent The taken edge to $L$ carries the refined constraint context $\Phi \wedge (e_1 \textit{ cond } e_2)$. This is used to verify bounds checks: a comparison followed by a branch-if-greater-or-equal exits the loop, and the fall-through path continues with the assumption that the index is within bounds.
 
 These rules are representative; the verifier handles all instruction variants listed in Section~\ref{sec:dtal-instr-set}. The complete set of DTAL typing rules is given in Appendix~\ref{app:dtal-rules}.
-
-\section{Pipeline overview}
-%
-Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, and arrows indicate the transformations between them. Type annotations are preserved through TAST, TIR, and DTAL, and are no longer needed after DTAL verification and final encoding to x86-64.
-%
-\begin{figure}[h]
-  \centering
-  \begin{tcolorbox}[colback=white, colframe=black, width=\textwidth, boxrule=0.5pt]
-    \begin{center}
-      \texttt{Source} $\xrightarrow{\text{lex}}$ \texttt{Tokens} $\xrightarrow{\text{parse}}$ \texttt{AST} $\xrightarrow{\text{typecheck}}$ \texttt{\textbf{TAST}} $\xrightarrow{\text{lower}}$ \texttt{\textbf{TIR}} $\xrightarrow{\text{codegen}}$ \texttt{\textbf{DTAL}} $\xrightarrow{\text{optimise}}$ \texttt{\textbf{DTAL}} $\xrightarrow{\text{regalloc}}$ \texttt{\textbf{DTAL}} $\xrightarrow{\text{lower}}$ \texttt{x86-64} $\xrightarrow{\text{encode}}$ \texttt{ELF}
-    \end{center}
-  \end{tcolorbox}
-  \caption{The Veritas compilation pipeline. Representations carrying type annotations are shown in bold.}
-  \label{fig:pipeline}
-\end{figure}
-%
 
 \section{Frontend}\label{sec:frontend}
 
@@ -984,77 +1059,3 @@ At the back edge, the updated values of \texttt{lo}, \texttt{hi}, and \texttt{re
 %   \item \textbf{Entry state constraints are verified at edges.} When bb6 jumps to bb1, the verifier checks that every constraint in bb1's entry state follows from bb6's exit state. This is how the loop invariant is verified inductively: bb0 establishes the base case (the initial values satisfy the invariant), and bb6 establishes the inductive step (the updated values preserve the invariant).
 %   \item \textbf{The trusted computing base is minimal.} The only components that must be correct are the verifier itself and the Z3 SMT solver. The entire compiler frontend --- lexer, parser, type checker, lowering, code generation, and optimisation --- is outside the trusted computing base.
 % \end{itemize}
-
-\section{Repository overview}\label{sec:repo-overview}
-%
-The source code is organised as a single Rust crate with the following top-level module structure:
-%
-\begin{table}[h]
-  \centering
-  \begin{tabular}{l r l}
-    \hline
-    \textbf{Directory}                         & \textbf{Lines}  & \textbf{Responsibility}                     \\
-    \hline
-    \texttt{src/common/}                       & 624             & Shared AST, typed AST, and type definitions \\
-    \texttt{src/frontend/}                     & 6,498           & Lexer, parser, and bidirectional type checker \\
-    \texttt{src/backend/tir/}                  & 689             & Typed intermediate representation (SSA)     \\
-    \texttt{src/backend/lower/}                & 1,548           & TAST to TIR lowering                        \\
-    \texttt{src/backend/dtal/}                 & 2,387           & DTAL syntax, constraints, and parser        \\
-    \texttt{src/backend/codegen/}              & 1,004           & TIR to DTAL code generation                 \\
-    \texttt{src/backend/optimise/}             & 935             & Copy propagation and dead code elimination  \\
-    \texttt{src/backend/regalloc/}             & 1,300           & Liveness analysis and allocators            \\
-    \texttt{src/backend/physalloc.rs}          & 1,171           & Physical allocation and spill insertion     \\
-    \texttt{src/backend/direct\_encode.rs}     & 309             & Direct physical-DTAL to x86-64 encoding     \\
-    \texttt{src/backend/x86\_64/}              & 2,699           & Legacy trusted x86-64 lowering backend      \\
-    \texttt{src/backend/elf/}                  & 601             & ELF generation, including bare-metal output \\
-    \texttt{src/backend/runtime.rs}            & 99              & Hand-written runtime intrinsics             \\
-    \texttt{src/backend/emit/}                 & 411             & DTAL text emitter                           \\
-    \texttt{src/verifier/}                     & 4,825           & Independent DTAL verifier                   \\
-    \texttt{src/main.rs}, \texttt{src/pipeline.rs} & 1,046       & CLI and pipeline orchestration              \\
-    \hline
-    \textbf{Total (excl.\ tests)}              & \textbf{26,017} &                                             \\
-    \hline
-  \end{tabular}
-  \caption{Repository structure and approximate line counts.}
-  \label{tab:repo}
-\end{table}
-
-
-\textbf{Original work.} The entire compiler, verifier, and test suite were written from scratch for this project. No existing compiler or tutorial was used as a starting point. The project's design draws on the DTAL paper by Xi and Harper~\cite{Xi2001DTAL} for the typed assembly language and on the Liquid Types paper by Rondon et al.~\cite{Rondon2008Liquid} for the refinement type checking approach, but the implementations are original.
-
-\textbf{External dependencies.} Four third-party Rust crates are used:
-\begin{itemize}
-  \item \texttt{z3} (v0.19, MIT): Rust bindings for the Z3 SMT solver~\cite{DeMoura2008Z3} (MIT-licensed), used for proof obligations in both the type checker and verifier. Z3 is a substantial external system; its correctness is assumed.
-  \item \texttt{chumsky} (v1.0.0-alpha.8, MIT): a parser combinator library used for the lexer and parser. It provides the parsing infrastructure, but all grammar rules are original.
-  \item \texttt{im} (v15.1, MPL-2.0+): persistent (structurally shared) data structures, used for efficient context cloning during type checking.
-  \item \texttt{ariadne} (v0.5, MIT): a diagnostic rendering library used for formatting error messages with source-location highlights. It handles the presentation layer only; all error detection and classification is original.
-\end{itemize}
-
-\subsection{Usage}\label{sec:usage}
-
-Veritas programs are written in \texttt{.veri} source files. The compiler is invoked from the command line:
-
-\begin{verbatim}
-  veritas <source.veri> [OPTIONS]
-\end{verbatim}
-
-By default, the compiler type-checks the source, lowers it through TIR and DTAL, and prints the DTAL output to stdout. The most common options are:
-
-\begin{itemize}
-  \item \texttt{-o <file>}: compile to a native ELF executable.
-  \item \texttt{--verify}: verify the DTAL output before code generation.
-  \item \texttt{--verify-only}: verify DTAL and exit without producing an executable.
-  \item \texttt{-O}: enable all optimisations (copy propagation and dead code elimination).
-  \item \texttt{-v}: verbose mode, showing each compilation stage.
-  \item \texttt{--tir}: print the TIR (SSA) intermediate representation.
-\end{itemize}
-
-For example, compiling and verifying a program end-to-end:
-
-\begin{verbatim}
-  veritas bubble_sort.veri --verify -O -o bubble_sort
-\end{verbatim}
-
-The resulting executable is a statically linked, freestanding ELF binary. The return value of \texttt{main} becomes the process exit code. The runtime provides five intrinsics overall: \texttt{print\_int(n)}, \texttt{print\_char(c)}, \texttt{read\_int()}, \texttt{port\_in(port)}, and \texttt{port\_out(port, val)}. On the bare-metal target, the type checker admits only the port-I/O intrinsics.
-
-A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source, demonstrating that the verifier operates independently of the compiler frontend. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU.
