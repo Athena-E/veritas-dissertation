@@ -274,7 +274,7 @@ Rather than emitting assembly text and invoking an external assembler (e.g., NAS
 
 The choice of x86-64 as the target architecture is a pragmatic one: the development machine runs x86-64 Linux, enabling direct execution and testing of compiled binaries without emulation. Targeting a different ISA (e.g., AArch64) would require replacing only the instruction mapping, byte encoder, and register definitions. The DTAL instruction set, type system, verifier, and everything upstream would remain unchanged.
 
-\subsection{Design challenges}
+\subsection{Design challenges}\label{sec:design-challenges}
 
 Combining refinement types with imperative features, SSA-based compilation, and an untrusted-compiler architecture raised several interacting design challenges that required extending or departing from the approaches in the literature.
 

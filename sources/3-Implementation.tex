@@ -171,7 +171,12 @@ The typing context is a tuple $(\phi, \Gamma, \Delta, \Sigma_F)$:
     \item $\Sigma_F$: A global function signature environment (read-only after an initial pass).
 \end{itemize}
 
-The master type $\tau_m$ is set at declaration and never changes; the current type $\tau_c$ may be refined through control flow but must remain a subtype of $\tau_m$. The interaction between master types and mutable variables is described in Section~\ref{sec:typechecker}.
+The master type $\tau_m$ is set at declaration and never changes; the current type $\tau_c$ may be refined through control flow but must remain a subtype of $\tau_m$. 
+
+% Mutable variables present a challenge for refinement types: an assignment \texttt{x = e} changes the value of \texttt{x}, potentially invalidating refinements that mention it. Veritas addresses this with \textit{master types}. 
+To demonstrate: when a mutable variable is declared as \texttt{let mut x: T = e}, the type $T$ is recorded as the variable's master type $T_m$. The variable's \textit{current type} $T_c$ may be narrowed through assignments and control flow (e.g., after \texttt{if x > 0}, the current type narrows to $\{v\!:\!\mathtt{int} \mid v > 0\}$), but every assignment must satisfy $\tau_e <: T_m$. At control-flow joins, current types from each branch are merged using the join operation, but the result must remain a subtype of the master type. This prevents the invalidation of refinements if \texttt{x} is reassigned.
+
+The interaction between master types and mutable variables is described in Section~\ref{sec:typechecker}.
 
 \subsection{Context joining}\label{sec:context-joining}
 
@@ -497,10 +502,6 @@ Statement checking (\texttt{check\_stmts}) updates the typing context according 
 When both operands of an arithmetic operation are singletons, the type checker performs constant folding at the type level: $\mathtt{int}(a) \oplus \mathtt{int}(b) = \mathtt{int}(a \oplus b)$. This avoids an SMT query entirely.
 
 When one or both operands are not singletons, the checker performs \textit{refinement synthesis}: it constructs a fresh refinement type $\{v\!:\!\mathtt{int} \mid v = e_L \oplus e_R\}$ that captures the exact arithmetic relationship between the result and its operands. The bound variable $v$ is given a fresh name (e.g., \texttt{\_synth\_0}) to avoid capture. This synthesised refinement enables downstream code to reason about the result precisely---for instance, to verify that an array index computed as \texttt{lo + (hi - lo) / 2} lies within bounds, given that $\mathtt{lo} \ge 0$ and $\mathtt{hi} < n$.
-
-\subsubsection{Mutable variables and master types}
-
-Mutable variables present a challenge for refinement types: an assignment \texttt{x = e} changes the value of \texttt{x}, potentially invalidating refinements that mention it. Veritas addresses this with \textit{master types}. When a mutable variable is declared as \texttt{let mut x: T = e}, the type $T$ is recorded as the variable's master type $T_m$. The variable's \textit{current type} $T_c$ may be narrowed through assignments and control flow (e.g., after \texttt{if x > 0}, the current type narrows to $\{v\!:\!\mathtt{int} \mid v > 0\}$), but every assignment must satisfy $\tau_e <: T_m$. At control-flow joins, current types from each branch are merged using the join operation, but the result must remain a subtype of the master type.
 
 % \subsubsection{Context joining}
 %
