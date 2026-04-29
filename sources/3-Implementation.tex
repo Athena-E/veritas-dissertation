@@ -171,6 +171,8 @@ The typing context is a tuple $(\phi, \Gamma, \Delta, \Sigma_F)$:
     \item $\Sigma_F$: A global function signature environment (read-only after an initial pass).
 \end{itemize}
 
+\subsubsection{Master types}
+
 The master type $\tau_m$ is set at declaration and never changes; the current type $\tau_c$ may be refined through control flow but must remain a subtype of $\tau_m$. 
 
 % Mutable variables present a challenge for refinement types: an assignment \texttt{x = e} changes the value of \texttt{x}, potentially invalidating refinements that mention it. Veritas addresses this with \textit{master types}. 
@@ -511,7 +513,7 @@ When one or both operands are not singletons, the checker performs \textit{refin
 
 The SMT oracle wraps Z3 and provides a single entry point: $\texttt{is\_provable}(\phi, P)$, which returns whether proposition $P$ is valid under assumptions $\phi$. Internally, it creates a fresh Z3 context, translates each proposition in $\phi$ to a Z3 expression, asserts them, asserts $\lnot P$, and checks for unsatisfiability.
 
-Translation requires mapping between the Veritas type system and Z3's sort system. Integer expressions map to Z3 integer sort; boolean expressions to Z3 boolean sort. Arrays are represented using Z3's built-in array sort (\texttt{Array(Int, Int)}), where \texttt{select} corresponds to array indexing. Bounded quantifiers such as $\mathbf{forall}\ x\ \mathbf{in}\ e_1..e_2\ \{P\}$ become $\forall x.\; (e_1 \le x \wedge x < e_2) \Rightarrow P$ using Z3's native quantifier support. While this moves outside the decidable quantifier-free fragment, Z3's E-matching heuristics handle the bounded quantifiers that arise in practice.
+This translation maps Veritas specification expressions and propositions into Z3 terms and formulae. Integer expressions map to the Z3 integer sort; boolean expressions map to the Z3 boolean sort. Arrays are represented using Z3's built-in array sort (\texttt{Array(Int, Int)}), where \texttt{select} corresponds to array indexing. Bounded quantifiers such as $\mathbf{forall}\ x\ \mathbf{in}\ e_1..e_2\ \{P\}$ become $\forall x.\; (e_1 \le x \wedge x < e_2) \Rightarrow P$ using Z3's native quantifier support. While this moves outside the decidable quantifier-free fragment, Z3's E-matching heuristics handle the bounded quantifiers that arise in practice.
 
 An important feature is \textit{refinement lifting}: when an array has a refined element type (e.g., $[\{v\!:\!\mathtt{int} \mid v \ge 0\}; n]$), the oracle extracts a universally quantified proposition ($\forall i \in [0, n).\; \mathit{arr}[i] \ge 0$) and adds it to the assumption set. This allows element-level refinements to be used in quantified reasoning without the programmer restating them.
 
