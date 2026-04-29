@@ -365,7 +365,7 @@ An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\
 
 \section{The DTAL target language}\label{sec:dtal-target-lang}
 
-As introduced in Section~\ref{sec:dtal-background}, Veritas targets targets a first-order subset of Xi and Harper's DTAL design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system. Veritas builds on this theoretical foundation: the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. This section describes the concrete instruction set and typing judgements of the Veritas DTAL.
+As introduced in Section~\ref{sec:dtal-background}, Veritas targets targets a first-order variant of Xi and Harper's DTAL design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system. Veritas builds on this theoretical foundation: the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. This section describes the concrete instruction set and typing judgements of the Veritas DTAL.
 
 \subsection{Instruction set}\label{sec:dtal-instr-set}
 
