@@ -274,26 +274,26 @@ An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\
 
 \section{The DTAL target language}\label{sec:dtal-target-lang}
 
-As introduced in Section~\ref{sec:dtal-background}, Veritas targets its own DTAL variant based on Xi and Harper's design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system. Veritas builds on this theoretical foundation: the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. This section describes the concrete instruction set and typing judgements of the Veritas DTAL.
+As introduced in Section~\ref{sec:dtal-background}, Veritas targets targets a first-order subset of Xi and Harper's DTAL design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system. Veritas builds on this theoretical foundation: the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. This section describes the concrete instruction set and typing judgements of the Veritas DTAL.
 
 \subsection{Instruction set}\label{sec:dtal-instr-set}
 
 The DTAL instruction set resembles a standard RISC assembly language but is augmented with type annotations and constraint assertions. It operates over a set of virtual registers (which are later allocated to x86-64 physical registers) and linear memory. Instructions fall into six categories:
 
 \begin{itemize}
-    \item \textbf{Data movement:} \texttt{mov $r_d$, $r_s$}, \texttt{mov $r_d$, $n$}, \texttt{load $r_d$, [$r_b$, $r_i$]}, \texttt{store [$r_b$, $r_i$], $r_s$}
-    \item \textbf{Arithmetic:} \texttt{binop $r_d$, $r_{s1}$, $r_{s2}$} (add, sub, mul, div, mod), \texttt{addimm $r_d$, $r_s$, $n$}, \texttt{not $r_d$, $r_s$}
-    \item \textbf{Comparison:} \texttt{cmp $r_1$, $r_2$}, \texttt{cmp $r_1$, $n$}, \texttt{setcc $r_d$, \textit{cond}} (materialise boolean from flags)
-    \item \textbf{Control flow:} \texttt{jmp $L$}, \texttt{branch \textit{cond} $L$}, \texttt{call $L$}, \texttt{ret}
-    \item \textbf{Stack:} \texttt{push $r_s$}, \texttt{pop $r_d$}, \texttt{alloca $r_d$, $n$} (stack-allocate an array of $n$ elements)
-    \item \textbf{Annotations:} \texttt{type $r$: $\tau$} (type annotation), \texttt{assert $C$} (constraint assertion)
+    \item \textbf{Data movement:} \texttt{mov $r_d$, $r_s$} | \texttt{mov $r_d$, $n$} | \texttt{load $r_d$, [$r_b$, $r_i$]} | \texttt{store [$r_b$, $r_i$], $r_s$}
+    \item \textbf{Arithmetic:} \texttt{binop $r_d$, $r_{s1}$ (add, sub, mul, div, mod) | $r_{s2}$} | \texttt{addimm $r_d$, $r_s$, $n$} | \texttt{not $r_d$, $r_s$}
+    \item \textbf{Comparison:} \texttt{cmp $r_1$, $r_2$} | \texttt{cmp $r_1$, $n$} | \texttt{setcc $r_d$, \textit{cond}} 
+    \item \textbf{Control flow:} \texttt{jmp $L$} | \texttt{branch \textit{cond} $L$} | \texttt{call $L$} | \texttt{ret}
+    \item \textbf{Stack:} \texttt{push $r_s$} | \texttt{pop $r_d$} | \texttt{alloca $r_d$, $n$} (stack-allocate an array of $n$ elements)
+    \item \textbf{Annotations:} \texttt{type $r$:$\tau$} (type annotation) | \texttt{assert $C$} (constraint assertion)
 \end{itemize}
 
 \noindent The annotation instructions are the distinguishing feature of DTAL. Every instruction carries a type annotation on its destination register, and \texttt{assert} instructions embed constraint assertions (e.g., bounds proofs, loop invariants) directly into the instruction stream. These annotations serve as verification evidence: the compiler emits them, and the verifier checks them independently.
 
 After register allocation, additional physical instructions are emitted (\texttt{prologue}, \texttt{epilogue}, spill loads/stores, \texttt{cqo}/\texttt{idiv} for division) which are verified but not relevant to the formal typing rules. Crucially, the independent verifier operates on this post-regalloc \textit{physical} DTAL rather than the virtual-register SSA form, meaning it also validates the correctness of register allocation and spilling. This strengthens the safety guarantee: the register allocator, like the rest of the compiler, is untrusted.
 
-The final step translates verified physical DTAL to x86-64 machine code and packages it as a freestanding ELF binary. Rather than emitting assembly text and invoking an external assembler (e.g., NASM or GAS), Veritas encodes x86-64 instructions directly as bytes. This is a deliberate design choice to minimise the trusted computing base: an external assembler would be a large, unverified component whose correctness must be assumed. The Veritas encoder comprises three small modules: a one-to-one mapping from physical DTAL instructions to x86-64 instructions, a byte encoder, and an ELF generator. The mapping is deliberately trivial---each DTAL instruction translates to exactly one x86-64 instruction (or a small fixed sequence for prologues/epilogues)---making the entire path amenable to manual audit.
+The final stages of the compilation pipeline translates verified physical DTAL to x86-64 machine code and packages it as a freestanding ELF binary. Rather than emitting assembly text and invoking an external assembler (e.g., NASM or GAS), Veritas encodes x86-64 instructions directly as bytes. This is a deliberate design choice to minimise the trusted computing base: an external assembler would be a large, unverified component whose correctness must be assumed. The Veritas encoder comprises three small modules: a one-to-one mapping from physical DTAL instructions to x86-64 instructions, a byte encoder, and an ELF generator. The mapping is deliberately trivial---each DTAL instruction translates to exactly one x86-64 instruction (or a small fixed sequence for prologues/epilogues)---making the entire path amenable to manual audit.
 
 The choice of x86-64 as the target architecture is a pragmatic one: the development machine runs x86-64 Linux, enabling direct execution and testing of compiled binaries without emulation. Targeting a different ISA (e.g., AArch64) would require replacing only the instruction mapping, byte encoder, and register definitions. The DTAL instruction set, type system, verifier, and everything upstream would remain unchanged.
 
