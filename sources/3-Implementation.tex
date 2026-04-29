@@ -75,7 +75,7 @@ For example, compiling and verifying a program end-to-end:
 
 The resulting executable is a statically linked, freestanding ELF binary. The return value of \texttt{main} becomes the process exit code. The runtime provides five intrinsics overall: \texttt{print\_int(n)}, \texttt{print\_char(c)}, \texttt{read\_int()}, \texttt{port\_in(port)}, and \texttt{port\_out(port, val)}. On the bare-metal target, the type checker admits only the port-I/O intrinsics.
 
-A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source, demonstrating that the verifier operates independently of the compiler frontend. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU.
+A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source, demonstrating that the verifier operates independently of the compiler frontend. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.}.
 
 \section{Pipeline overview}
 %
@@ -395,8 +395,7 @@ The most important addition is the use of \textit{existential types} to represen
 To make this precise, DTAL index expressions are given by:
 \[
 \begin{aligned}
-  e_i ::=\, & n \,|\, r \,|\, e_i + e_i \,|\, e_i - e_i \,|\, e_i \times e_i \,|\, e_i \div e_i \,|\, e_i \bmod e_i \,|\, {}\\
-            & \textsf{select}(\mathit{arr}, e_i)
+  e_i ::=\, & n \,|\, r \,|\, e_i + e_i \,|\, e_i - e_i \,|\, e_i \times e_i \,|\, e_i \div e_i \,|\, e_i \bmod e_i \,|\, \textsf{select}(\mathit{arr}, e_i)
 \end{aligned}
 \]
 
