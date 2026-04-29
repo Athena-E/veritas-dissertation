@@ -268,6 +268,12 @@ The target language is a variant of Xi and Harper's Dependently Typed Assembly L
 
 A key design decision was to define DTAL with its own \textit{physical register model} (registers \texttt{r0}--\texttt{r12}, \texttt{sp}, \texttt{fp}, \texttt{lr}) that maps directly to x86-64 registers. This allows verification to occur \textit{after} register allocation: the register allocator is untrusted, and its output is verified before the final (trivial) encoding to x86-64.
 
+\subsection{Machine code encoding and ELF generation}
+% The final stages of the compilation pipeline translates verified physical DTAL to x86-64 machine code and packages it as a freestanding ELF binary. 
+Rather than emitting assembly text and invoking an external assembler (e.g., NASM or GAS), Veritas encodes x86-64 instructions directly as bytes. This is a deliberate design choice to minimise the trusted computing base: an external assembler would be a large, unverified component whose correctness must be assumed. The Veritas encoder comprises three small modules: a one-to-one mapping from physical DTAL instructions to x86-64 instructions, a byte encoder, and an ELF generator. The mapping is deliberately trivial---each DTAL instruction translates to exactly one x86-64 instruction (or a small fixed sequence for prologues/epilogues)---making the entire path amenable to manual audit.
+
+The choice of x86-64 as the target architecture is a pragmatic one: the development machine runs x86-64 Linux, enabling direct execution and testing of compiled binaries without emulation. Targeting a different ISA (e.g., AArch64) would require replacing only the instruction mapping, byte encoder, and register definitions. The DTAL instruction set, type system, verifier, and everything upstream would remain unchanged.
+
 \subsection{Design challenges}
 
 Combining refinement types with imperative features, SSA-based compilation, and an untrusted-compiler architecture raised several interacting design challenges that required extending or departing from the approaches in the literature.
@@ -485,7 +491,7 @@ Combining refinement types with imperative features, SSA-based compilation, and 
   $$
     \frac{
       \begin{array}{c}
-        (x: \tau_m) \in \Delta_0                                   \\
+        (x: \tau_m) \in \Delta_0                                                 \\
         \phi_0; \Delta_0; \Gamma \vdash e \Rightarrow (\phi_1; \Delta_1; \tau_e) \\
         \phi_1 \vdash \tau_e <: \tau_m
       \end{array}
