@@ -554,13 +554,13 @@ Branch conditions are translated into the TIR's constraint language, which suppo
 
 The source-to-register shift is implemented by a variable-to-register substitution pass: constraints in the TAST refer to source-level variable names, but the TIR and DTAL operate on virtual register names. During lowering, the context maintains a substitution map from variable names to register names (e.g., \texttt{"lo"} $\mapsto$ \texttt{"v11"}), and all emitted constraints are rewritten accordingly. This ensures constraints remain valid through register allocation and DTAL verification.
 
-Loop invariants are emitted as \texttt{AssertConstraint} instructions at the start of the loop body, after applying the variable-to-register substitution. These assertions are the TIR counterpart of the invariant verification in the type checker: the type checker proves the invariant holds; the TIR records it as an assertion that the verifier will independently re-check.
+Loop invariants are emitted in TIR as \texttt{AssertConstraint} instructions at the start of the loop body, after applying the variable-to-register substitution. During code generation, these become DTAL \texttt{assert} instructions. They are the TIR counterpart of invariant verification in the type checker: the type checker proves that the invariant holds, and the lower stages record it as an assertion for the verifier to re-check independently.
 
 \section{Backend}\label{sec:backend}
 
 \subsection{DTAL code generation}
 
-The code generator translates TIR to DTAL, the dependently typed assembly language described in Section~\ref{sec:dtal-background}. At this stage DTAL still uses virtual registers, but each basic block is annotated with a \textit{type state}: a mapping from registers to types together with the constraints known to hold at that program point. These annotations are the core of the type-preserving design, because they give the standalone verifier enough information to re-check the program without access to the source.
+The code generator translates TIR to DTAL, the dependently typed assembly language described in Section~\ref{sec:dtal-target-lang}. At this stage DTAL still uses virtual registers, but each basic block is annotated with a \textit{type state}: a mapping from registers to types together with the constraints known to hold at that program point. These annotations are the core of the type-preserving design, because they give the standalone verifier enough information to re-check the program without access to the source.
 
 Most TIR instructions lower directly to DTAL. Phi nodes are implemented as parallel copies on predecessor edges, and array operations become address computations plus loads or stores with the relevant bounds constraints attached.
 
