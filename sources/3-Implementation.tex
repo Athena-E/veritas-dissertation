@@ -214,7 +214,7 @@ $$\frac{\phi \vdash P[N/x]}{\phi \vdash \textsf{int}(N) <: \{x: \textsf{int} \mi
 
 $$\frac{\phi \wedge P_1 \vdash P_2}{\phi \vdash \{x: \textsf{int} \mid P_1\} <: \{x: \textsf{int} \mid P_2\}} \quad (\textsc{Sub-Refine-Refine})$$
 
-\subsection{Expression typing rules}
+\subsection{Expression typing rules}\label{sec:expr-typing-rules}
 
 The expression typing rules use two auxiliary functions on integer-like types. The partial function $\textsf{val}$ extracts the value representative of a singleton or refined integer type, while $\textsf{prop}$ extracts the logical proposition carried by a type:
 
@@ -477,7 +477,7 @@ The type checker operates in two passes. The first collects all function signatu
 
 \subsubsection{Bidirectional checking}
 
-The implementation provides an explicit synthesis combinator, \texttt{synth\_expr}, which takes a typing context and an expression as input and returns either a type error or, on success, a typed expression together with its synthesised type. Integer literals produce singleton types ($\mathtt{int}(n)$), variable lookups return the type from $\Gamma$ or $\Delta$, and arithmetic operations use the \texttt{join\_op} function described below. The checking judgement is realised operationally by first synthesising a type for the expression and then verifying, via the SMT-backed subtyping check, that the synthesised type conforms to the expected one.
+The implementation provides an explicit synthesis combinator, \texttt{synth\_expr}, which takes a typing context and an expression as input and returns either a type error or, on success, a typed expression together with its synthesised type. Integer literals produce singleton types ($\mathtt{int}(n)$), variable lookups return the type from $\Gamma$ or $\Delta$, and arithmetic operations use the \texttt{join\_op} helper introduced in Section~\ref{sec:expr-typing-rules}. The checking judgement is realised operationally by first synthesising a type for the expression and then verifying, via the SMT-backed subtyping check, that the synthesised type conforms to the expected one.
 
 Statement checking (\texttt{check\_stmts}) updates the typing context according to each statement's effect: \texttt{let} bindings extend $\Gamma$ or $\Delta$, assignments update the current type in $\Delta$, and loops are checked by proving that their invariants hold on entry and are preserved by the body, as described in the statement typing rules for loops in Section~\ref{sec:stmt-typing-rules}.
 
