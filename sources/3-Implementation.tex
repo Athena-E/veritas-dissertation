@@ -560,7 +560,7 @@ Loop invariants are emitted in TIR as \texttt{AssertConstraint} instructions at 
 
 \subsection{DTAL code generation}
 
-The code generator translates TIR to DTAL, the dependently typed assembly language described in Section~\ref{sec:dtal-background}. At this stage DTAL still uses virtual registers, but each basic block is annotated with a \textit{type state}: a mapping from registers to types together with the constraints known to hold at that program point. These annotations are the core of the type-preserving design, because they give the standalone verifier enough information to re-check the program without access to the source.
+The code generator translates TIR to DTAL, the dependently typed assembly language described in Section~\ref{sec:dtal-target-lang}. At this stage DTAL still uses virtual registers, but each basic block is annotated with a \textit{type state}: a mapping from registers to types together with the constraints known to hold at that program point. These annotations are the core of the type-preserving design, because they give the standalone verifier enough information to re-check the program without access to the source.
 
 Most TIR instructions lower directly to DTAL. Phi nodes are implemented as parallel copies on predecessor edges, and array operations become address computations plus loads or stores with the relevant bounds constraints attached.
 
@@ -619,124 +619,11 @@ Beyond simple register renaming, the physical allocation pass performs several x
 
 The \textit{direct encoder} translates physically-allocated DTAL to x86-64 machine code. Because the physical allocation pass has already performed all x86-specific expansions (division, calling convention, prologues), the encoder is a near-trivial 1:1 mapping: each DTAL instruction maps to exactly one x86-64 instruction (or a short fixed sequence for prologues and epilogues). The entire module is 309 lines in the current implementation.
 
-This simplicity is deliberate and architecturally significant. The initial implementation used a monolithic x86-64 lowering pass that performed register allocation, instruction selection, and encoding in a single trusted step. By splitting this into an untrusted physical allocation pass (verified by the DTAL verifier) and a trivial encoder, the trusted code for the final translation was reduced from $\sim$1,100 lines to $\sim$300 lines. The encoder is small enough to audit by inspection, which is important because it is the only backend component that remains in the trusted computing base.
+This simplicity is deliberate and architecturally significant. An initial phase of the implementation used a monolithic x86-64 lowering pass that performed register allocation, instruction selection, and encoding in a single trusted step. By splitting this into an untrusted physical allocation pass (verified by the DTAL verifier) and a trivial encoder, the trusted code for the final translation was reduced from $\sim$1,100 lines to a $\sim$300-line encoder. This is small enough to audit by inspection, which is important as it is one of the few backend components that remains in the trusted computing base (alongside the ELF generator).
 
 \subsection{Binary encoding and ELF generation}
 
 The direct encoder emits x86-64 machine code from physical DTAL, using a two-pass scheme to resolve label offsets. The resulting byte stream is then wrapped in a minimal ELF executable with entry point \texttt{main}; for the Linux target this is an ELF64 binary, while the bare-metal target uses a separate Multiboot-compatible layout described below.
-
-\section{Runtime}\label{sec:runtime}
-
-The compiler provides a small set of runtime intrinsics that are linked into every executable. These are implemented as hand-assembled x86-64 machine code totalling approximately 210 bytes, prepended to the user's compiled code in the ELF output.
-
-Five intrinsics are provided:
-
-\begin{itemize}
-  \item \texttt{print\_int(n: int)}: converts a signed 64-bit integer to its decimal string representation and writes it to stdout followed by a newline, using the Linux \texttt{write} syscall.
-  \item \texttt{print\_char(c: int)}: writes a single byte to stdout.
-  \item \texttt{read\_int() -> int}: reads a decimal integer from stdin using the Linux \texttt{read} syscall, handling an optional leading minus sign.
-  \item \texttt{port\_in(port: int) -> int}: reads a byte from an x86 I/O port using the \texttt{in} instruction.
-  \item \texttt{port\_out(port: int, val: int)}: writes a byte to an x86 I/O port using the \texttt{out} instruction.
-\end{itemize}
-
-The first three intrinsics use Linux syscalls and are available only when compiling for the Linux target. The port I/O intrinsics use hardware instructions directly and are available on both Linux and bare-metal targets. The type checker enforces this distinction: a bare-metal program that calls \texttt{print\_int} is rejected at compile time rather than failing at runtime.
-
-All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so they are callable from compiled Veritas code without any marshalling. Because the runtime is hand-assembled and part of the trusted computing base, its correctness is verified by inspection rather than by the DTAL verifier.
-
-\section{Bare-metal target and unikernel}\label{sec:unikernel}
-
-The \texttt{--target-bare-metal} flag produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU without an operating system. This extends the trust model by removing the OS from the trusted computing base: the only software running on the machine is the verified Veritas program and the small runtime.
-
-\subsection{Bootstrap}
-
-The bare-metal binary begins with a bootstrap blob of approximately 200 bytes that performs the transition from the Multiboot entry point (32-bit protected mode) to 64-bit long mode:
-
-\begin{enumerate}
-  \item A Multiboot header allows GRUB or QEMU's \texttt{-kernel} flag to load the binary.
-  \item The bootstrap sets up a minimal page table (identity-mapping the first 8\,MB using four 2\,MB huge pages), enables PAE and long mode via the appropriate control register writes, and performs a far jump into 64-bit code.
-  \item A GDT (Global Descriptor Table) with 64-bit code and data segments is loaded.
-  \item The stack pointer is set to a fixed address (\texttt{0x200000}) and \texttt{main} is called.
-  \item After \texttt{main} returns, the bootstrap enters a \texttt{hlt} loop.
-\end{enumerate}
-
-The bootstrap is hand-assembled and part of the trusted computing base, but at $\sim$200 bytes it is small enough to audit line by line.
-
-\subsection{Verified serial driver}
-
-To demonstrate end-to-end verified I/O on bare metal, the project includes a serial driver written entirely in Veritas. The driver programs the UART 16550 controller (the standard PC serial port at I/O base \texttt{0x3F8}) using the \texttt{port\_in} and \texttt{port\_out} intrinsics:
-
-\begin{itemize}
-  \item \texttt{serial\_init()} configures the baud rate (38400), line format (8N1), and FIFO.
-  \item \texttt{serial\_write(c: int)} spins on the Line Status Register until the transmit buffer is empty, then writes a byte to the data register.
-  \item \texttt{serial\_print\_int(n: int)} recursively prints a signed integer to the serial port.
-\end{itemize}
-
-The entire driver is type-checked and compiled through the verified DTAL pipeline. When compiled with \texttt{--target-bare-metal --verify -o serial}, the resulting binary boots in QEMU and outputs to the serial console:
-
-\begin{verbatim}
-  qemu-system-x86_64 -kernel serial -serial stdio -display none
-\end{verbatim}
-
-This demonstrates the project's long-term direction: a verified unikernel where the application, driver, and boot code are all compiled from a single verified source, with the OS removed from the trusted computing base entirely. Figure~\ref{fig:unikernel-arch} illustrates the architecture of a bare-metal Veritas binary.
-
-\begin{figure}[ht]
-  \centering
-  \begin{tikzpicture}[
-      font=\small,
-      scale=0.9
-    ]
-    % Hardware
-    \draw[thick] (0,11.0) rectangle (13.4,12.35);
-    \node[font=\small\bfseries] at (6.7,11.88) {Hardware (x86-64)};
-    \node[font=\scriptsize] at (6.7,11.35) {CPU \hspace{0.4cm} RAM \hspace{0.4cm} Serial (COM1 @ 0x3F8) \hspace{0.4cm} VGA \hspace{0.4cm} Disk \hspace{0.4cm} NIC};
-
-    \draw[-Latex, thick] (6.7,11.0) -- (6.7,10.3);
-    \node[font=\scriptsize, align=center, fill=white, inner sep=1pt] at (9.0,10.65) {port I/O / memory-mapped I/O};
-
-    % Outer unikernel binary
-    \draw[thick] (0,0.8) rectangle (13.4,10.2);
-    \node[font=\small\bfseries] at (6.7,9.8) {Veritas Unikernel ELF};
-
-    % Bootstrap
-    \draw[thick] (0.7,8.2) rectangle (12.7,9.3);
-    \node[anchor=west] at (1.0,8.82) {Bootstrap};
-    \node[anchor=west, font=\scriptsize] at (1.0,8.45) {Multiboot header $\rightarrow$ 32$\rightarrow$64 bit $\rightarrow$ PAE/paging $\rightarrow$ GDT $\rightarrow$ \texttt{main}};
-
-    \draw[-Latex, thick] (6.7,8.2) -- (6.7,7.6);
-
-    % Runtime intrinsics
-    \draw[thick] (0.7,5.0) rectangle (12.7,7.5);
-    \node[anchor=west] at (1.0,7.1) {Runtime Intrinsics};
-    \node[anchor=west, font=\scriptsize] at (1.0,6.6) {\texttt{port\_in(port) -> int}};
-    \node[anchor=west, font=\scriptsize] at (7.2,6.6) {\texttt{port\_out(port, val)}};
-
-    \draw[thick] (1.15,5.23) rectangle (5.5,6.29);
-    \node[anchor=west, font=\scriptsize] at (1.35,6.12) {\texttt{mov dx, di}};
-    \node[anchor=west, font=\scriptsize] at (1.35,5.92) {\texttt{in  al, dx}};
-    \node[anchor=west, font=\scriptsize] at (1.35,5.72) {\texttt{movzx rax, al}};
-    \node[anchor=west, font=\scriptsize] at (1.35,5.52) {\texttt{ret}};
-
-    \draw[thick] (7.2,5.23) rectangle (11.95,6.29);
-    \node[anchor=west, font=\scriptsize] at (7.4,6.12) {\texttt{mov dx, di}};
-    \node[anchor=west, font=\scriptsize] at (7.4,5.92) {\texttt{mov al, sil}};
-    \node[anchor=west, font=\scriptsize] at (7.4,5.72) {\texttt{out dx, al}};
-    \node[anchor=west, font=\scriptsize] at (7.4,5.52) {\texttt{ret}};
-
-    \draw[-Latex, thick] (6.7,5.0) -- (6.7,4.45);
-
-    % Verified application code
-    \draw[thick] (0.7,1.5) rectangle (12.7,4.35);
-    \node[anchor=west] at (1.0,4.0) {Verified Application Code};
-
-    \draw[thick] (1.15,2.15) rectangle (12.0,3.7);
-    \node[anchor=west, font=\scriptsize\bfseries] at (1.4,3.45) {\texttt{serial\_driver.veri}};
-    \node[anchor=west, font=\scriptsize] at (1.4,3.08) {\texttt{serial\_init()}: configure UART 16550 (8N1, 38400 baud, FIFO enabled)};
-    \node[anchor=west, font=\scriptsize] at (1.4,2.73) {\texttt{serial\_write(c)}: poll LSR bit 5, then \texttt{port\_out(COM1, c)}};
-    \node[anchor=west, font=\scriptsize] at (1.4,2.38) {\texttt{main()}: initialise serial, print integers, halt};
-  \end{tikzpicture}
-  \caption{Architecture of a bare-metal Veritas unikernel. The binary contains a Multiboot bootstrap, a small set of hand-assembled runtime intrinsics, and verified application code compiled through the DTAL pipeline.}
-  \label{fig:unikernel-arch}
-\end{figure}
 
 \section{Independent verifier}\label{sec:verifier}
 
@@ -806,6 +693,120 @@ This is a deliberate architectural choice. Register allocation is one of the mos
 \subsection{Trust model}
 
 The trust model and TCB reduction phases are described in Section~\ref{sec:design-decisions}. In summary, the verification architecture places the trust boundary between the physical DTAL verifier and the direct encoder: the entire compiler (frontend, middle end, backend, register allocator) is untrusted, and any bug in these components manifests as a verification failure rather than a safety violation.
+
+\section{Runtime}\label{sec:runtime}
+
+The compiler provides a small set of runtime intrinsics that are linked into every executable. These are implemented as hand-assembled x86-64 machine code totalling approximately 210 bytes, prepended to the user's compiled code in the ELF output.
+
+Five intrinsics are provided:
+
+\begin{itemize}
+  \item \texttt{print\_int(n: int)}: converts a signed 64-bit integer to its decimal string representation and writes it to stdout followed by a newline, using the Linux \texttt{write} syscall.
+  \item \texttt{print\_char(c: int)}: writes a single byte to stdout.
+  \item \texttt{read\_int() -> int}: reads a decimal integer from stdin using the Linux \texttt{read} syscall, handling an optional leading minus sign.
+  \item \texttt{port\_in(port: int) -> int}: reads a byte from an x86 I/O port using the \texttt{in} instruction.
+  \item \texttt{port\_out(port: int, val: int)}: writes a byte to an x86 I/O port using the \texttt{out} instruction.
+\end{itemize}
+
+The first three intrinsics use Linux syscalls and are available only when compiling for the Linux target. The port I/O intrinsics use hardware instructions directly and are available on both Linux and bare-metal targets. The type checker enforces this distinction: a bare-metal program that calls \texttt{print\_int} is rejected at compile time rather than failing at runtime.
+
+All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so they are callable from compiled Veritas code without any marshalling. Because the runtime is hand-assembled and part of the trusted computing base, its correctness is verified by inspection rather than by the DTAL verifier.
+
+\section{Bare-metal target and unikernel}\label{sec:unikernel}
+% TODO: elaborate more on implementation; highlight as extension and purpose to support I/O functionality
+
+The \texttt{--target-bare-metal} flag produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU without an operating system. This extends the trust model by removing the OS from the trusted computing base: the only software running on the machine is the verified Veritas program and the small runtime.
+
+\subsection{Bootstrap}
+
+The bare-metal binary begins with a bootstrap blob of approximately 200 bytes that performs the transition from the Multiboot entry point (32-bit protected mode) to 64-bit long mode:
+
+\begin{enumerate}
+  \item A Multiboot header allows GRUB or QEMU's \texttt{-kernel} flag to load the binary.
+  \item The bootstrap sets up a minimal page table (identity-mapping the first 8\,MB using four 2\,MB huge pages), enables PAE and long mode via the appropriate control register writes, and performs a far jump into 64-bit code.
+  \item A GDT (Global Descriptor Table) with 64-bit code and data segments is loaded.
+  \item The stack pointer is set to a fixed address (\texttt{0x200000}) and \texttt{main} is called.
+  \item After \texttt{main} returns, the bootstrap enters a \texttt{hlt} loop.
+\end{enumerate}
+
+The bootstrap is hand-assembled and part of the trusted computing base, but at $\sim$200 bytes it is small enough to audit line by line.
+
+\subsection{Verified serial driver}
+
+To demonstrate end-to-end verified I/O on bare metal, the project includes a serial driver written entirely in Veritas. The driver programs the UART 16550 controller (the standard PC serial port at I/O base \texttt{0x3F8}) using the \texttt{port\_in} and \texttt{port\_out} intrinsics:
+
+\begin{itemize}
+  \item \texttt{serial\_init()} configures the baud rate (38400), line format (8N1), and FIFO.
+  \item \texttt{serial\_write(c: int)} spins on the Line Status Register until the transmit buffer is empty, then writes a byte to the data register.
+  \item \texttt{serial\_print\_int(n: int)} recursively prints a signed integer to the serial port.
+\end{itemize}
+
+The entire driver is type-checked and compiled through the verified DTAL pipeline. When compiled with \texttt{--target-bare-metal --verify -o serial}, the resulting binary boots in QEMU and outputs to the serial console:
+
+\begin{verbatim}
+  qemu-system-x86_64 -kernel serial -serial stdio -display none
+\end{verbatim}
+
+This demonstrates the project's long-term direction: a verified unikernel where the application, driver, and boot code are all compiled from a single verified source, with the OS removed from the trusted computing base entirely. Figure~\ref{fig:unikernel-arch} illustrates the architecture of a bare-metal Veritas binary.
+
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}[
+      font=\small,
+      scale=0.8
+    ]
+    % Hardware
+    \draw[thick] (0,11.0) rectangle (13.4,12.35);
+    \node[font=\small\bfseries] at (6.7,11.88) {Hardware (x86-64)};
+    \node[font=\scriptsize] at (6.7,11.35) {CPU \hspace{0.4cm} RAM \hspace{0.4cm} Serial (COM1 @ 0x3F8) \hspace{0.4cm} VGA \hspace{0.4cm} Disk \hspace{0.4cm} NIC};
+
+    \draw[-Latex, thick] (6.7,11.0) -- (6.7,10.3);
+    \node[font=\scriptsize, align=center, fill=white, inner sep=1pt] at (9.0,10.65) {port I/O / memory-mapped I/O};
+
+    % Outer unikernel binary
+    \draw[thick] (0,0.8) rectangle (13.4,10.2);
+    \node[font=\small\bfseries] at (6.7,9.8) {Veritas Unikernel ELF};
+
+    % Bootstrap
+    \draw[thick] (0.7,8.2) rectangle (12.7,9.3);
+    \node[anchor=west] at (1.0,8.82) {Bootstrap};
+    \node[anchor=west, font=\scriptsize] at (1.0,8.45) {Multiboot header $\rightarrow$ 32$\rightarrow$64 bit $\rightarrow$ PAE/paging $\rightarrow$ GDT $\rightarrow$ \texttt{main}};
+
+    \draw[-Latex, thick] (6.7,8.2) -- (6.7,7.6);
+
+    % Runtime intrinsics
+    \draw[thick] (0.7,5.0) rectangle (12.7,7.5);
+    \node[anchor=west] at (1.0,7.1) {Runtime Intrinsics};
+    \node[anchor=west, font=\scriptsize] at (1.0,6.6) {\texttt{port\_in(port) -> int}};
+    \node[anchor=west, font=\scriptsize] at (7.2,6.6) {\texttt{port\_out(port, val)}};
+
+    \draw[thick] (1.15,5.23) rectangle (5.5,6.29);
+    \node[anchor=west, font=\scriptsize] at (1.35,6.12) {\texttt{mov dx, di}};
+    \node[anchor=west, font=\scriptsize] at (1.35,5.92) {\texttt{in  al, dx}};
+    \node[anchor=west, font=\scriptsize] at (1.35,5.72) {\texttt{movzx rax, al}};
+    \node[anchor=west, font=\scriptsize] at (1.35,5.52) {\texttt{ret}};
+
+    \draw[thick] (7.2,5.23) rectangle (11.95,6.29);
+    \node[anchor=west, font=\scriptsize] at (7.4,6.12) {\texttt{mov dx, di}};
+    \node[anchor=west, font=\scriptsize] at (7.4,5.92) {\texttt{mov al, sil}};
+    \node[anchor=west, font=\scriptsize] at (7.4,5.72) {\texttt{out dx, al}};
+    \node[anchor=west, font=\scriptsize] at (7.4,5.52) {\texttt{ret}};
+
+    \draw[-Latex, thick] (6.7,5.0) -- (6.7,4.45);
+
+    % Verified application code
+    \draw[thick] (0.7,1.5) rectangle (12.7,4.35);
+    \node[anchor=west] at (1.0,4.0) {Verified Application Code};
+
+    \draw[thick] (1.15,2.15) rectangle (12.0,3.7);
+    \node[anchor=west, font=\scriptsize\bfseries] at (1.4,3.45) {\texttt{serial\_driver.veri}};
+    \node[anchor=west, font=\scriptsize] at (1.4,3.08) {\texttt{serial\_init()}: configure UART 16550 (8N1, 38400 baud, FIFO enabled)};
+    \node[anchor=west, font=\scriptsize] at (1.4,2.73) {\texttt{serial\_write(c)}: poll LSR bit 5, then \texttt{port\_out(COM1, c)}};
+    \node[anchor=west, font=\scriptsize] at (1.4,2.38) {\texttt{main()}: initialise serial, print integers, halt};
+  \end{tikzpicture}
+  \caption{Architecture of a bare-metal Veritas unikernel. The binary contains a Multiboot bootstrap, a small set of hand-assembled runtime intrinsics, and verified application code compiled through the DTAL pipeline.}
+  \label{fig:unikernel-arch}
+\end{figure}
 
 \section{Worked example: binary search}\label{sec:worked-example}
 %
