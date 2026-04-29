@@ -460,7 +460,7 @@ These rules are representative; the verifier handles all instruction variants li
 
 \subsection{Lexing and parsing}
 
-The lexer and parser are built using the \texttt{chumsky} parser combinator library. The lexer converts source text into a stream of tokens annotated with source spans; the parser transforms this stream into an untyped AST.
+The lexer and parser are built using the \texttt{chumsky} parser combinator library. 
 
 The frontend makes use of \textit{two expression parsers}: a full parser (\texttt{expr\_parser}) that includes if-expressions and function calls, and a restricted variant (\texttt{expr\_parser\_for\_types}) used inside refinement type annotations. The restricted parser excludes constructs that would be ambiguous or meaningless in a type position, while supporting the arithmetic and comparison operators needed for refinement predicates. This separation avoids ambiguity in the grammar without requiring a separate expression language for types.
 
