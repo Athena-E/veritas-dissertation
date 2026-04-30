@@ -490,12 +490,12 @@ Statement checking (\texttt{check\_stmts}) updates the typing context according 
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!60!black,title=\textsc{Core checker interfaces}]
 \begin{center}
-\begin{tabular}{l}
-\texttt{synth\_expr(ctx, expr) -> Result<(typed\_expr, ty), TypeError>} \\
-\texttt{check\_stmt(ctx, stmt) -> Result<(typed\_stmt, ctx'), TypeError>} \\
-\texttt{check\_stmts(ctx, stmts) -> Result<(typed\_stmts, ctx'), TypeError>} \\
-\texttt{check\_program(program) -> Result<typed\_program, TypeError>}
-\end{tabular}
+\begin{cminted}{rust}
+synth_expr(ctx, expr) -> Result<(typed_expr, ty), TypeError>
+check_stmt(ctx, stmt) -> Result<(typed_stmt, ctx'), TypeError>
+check_stmts(ctx, stmts) -> Result<(typed_stmts, ctx'), TypeError>
+check_program(program) -> Result<typed_program, TypeError>
+\end{cminted}
 \end{center}
 \end{tcolorbox}
 
@@ -536,9 +536,51 @@ The choice of SSA was motivated by three properties: liveness analysis (required
 
 A key extension beyond standard SSA is \textit{existential constraints on phi nodes}. Each phi node may carry an optional existential constraint of the form $\exists v.\; \mathtt{int}(v) \;\mathbf{where}\; C(v)$, which encodes that the phi's value satisfies constraint $C$ without fixing a concrete value. For loop induction variables, this captures the loop bounds: $\exists v.\; \mathtt{int}(v) \;\mathbf{where}\; (v \ge \mathit{start} \wedge v < \mathit{end})$. For mutable variables with refined types, it preserves the refinement predicate across iterations. This mechanism avoids the information loss that would occur if phi nodes were simply widened to the base type.
 
+\subsubsection{Representative instruction forms}
+
+TIR is designed to sit close to both the typed source language and the DTAL backend. The implementation's instruction set includes ownership and region operations, but the core forms relevant to the compilation pipeline are summarised in Figure~\ref{fig:tir-syntax}.
+
+\begin{figure}[h]
+\centering
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!60!black,title=\textsc{TIR syntax}]
+\begin{center}
+\begin{cminted}{text}
+block       ::= phi_node* instruction* terminator
+
+phi_node    ::= PhiNode { dst, ty, incoming, existential_constraint? }
+
+instruction ::= LoadImm { dst, value, ty }
+              | Copy { dst, src, ty }
+              | BinOp { dst, op, lhs, rhs, ty }
+              | UnaryOp { dst, op, operand, ty }
+              | ArrayLoad { dst, base, index, element_ty, bounds_constraint }
+              | ArrayStore { base, index, value, bounds_constraint }
+              | Call { dst?, func, args, arg_types, arg_kinds, ownership, result_ty }
+              | AssumeConstraint { constraint }
+              | AssertConstraint { constraint }
+
+terminator  ::= Jump { target }
+              | Branch { cond, true_target, false_target,
+                         true_constraint, false_constraint }
+              | Return { value?, ownership }
+\end{cminted}
+\end{center}
+\end{tcolorbox}
+\caption{Representative TIR forms using the implementation's instruction names. The full implementation also includes ownership-transfer, borrowing, region, and allocation instructions.}
+\label{fig:tir-syntax}
+\end{figure}
+
+In concrete terms, a TIR function stores its parameters, pre/postconditions, and a map of basic blocks; each block contains entry phi nodes, ordinary instructions, a terminator, and an entry register state. This makes the representation explicit enough for code generation to be largely structural, while still retaining the source-level type information needed for later verification.
+
 \subsection{Lowering from TAST to TIR}
 
 The lowering pass translates the typed AST to TIR. A \texttt{LoweringContext} maintains a mapping from source-level variable names to virtual registers and tracks the current basic block under construction.
+
+\subsubsection{Syntax-directed translation}
+
+Lowering is syntax-directed: each typed source construct becomes a small fragment of SSA code while threading the current variable-to-register map. Variable uses read the register currently associated with that source variable. A \texttt{let} binding lowers its right-hand side to a fresh virtual register and then extends the map with the new binding. For mutable variables, assignment lowers the right-hand side and updates the map so subsequent uses of the variable refer to the newly produced register; because TIR is in SSA form, the old register is never overwritten.
+
+Expression forms lower similarly. Integer literals become \texttt{LoadImm}; arithmetic and comparisons become \texttt{BinOp} or \texttt{UnaryOp}; array reads and writes become \texttt{ArrayLoad} and \texttt{ArrayStore} with an explicit bounds constraint; and function calls become \texttt{Call} instructions carrying the argument registers, parameter-passing modes, and result type. Control-flow constructs introduce new basic blocks and terminators: an \texttt{if} expression lowers to a branch, two successor blocks, and a merge block with phi nodes for values and mutable variables that differ across the two paths; loops lower to entry/header/body/exit blocks with header phi nodes for loop-carried values.
 
 \subsubsection{Control flow}
 
@@ -560,7 +602,7 @@ Loop invariants are emitted in TIR as \texttt{AssertConstraint} instructions at 
 
 \subsection{DTAL code generation}
 
-The code generator translates TIR to DTAL, the dependently typed assembly language described in Section~\ref{sec:dtal-target-lang}. At this stage DTAL still uses virtual registers, but each basic block is annotated with a \textit{type state}: a mapping from registers to types together with the constraints known to hold at that program point. These annotations are the core of the type-preserving design, because they give the standalone verifier enough information to re-check the program without access to the source.
+The code generator translates the TIR forms of Figure~\ref{fig:tir-syntax} to DTAL, the dependently typed assembly language described in Section~\ref{sec:dtal-target-lang}. At this stage DTAL still uses virtual registers, but each basic block is annotated with a \textit{type state}: a mapping from registers to types together with the constraints known to hold at that program point. These annotations are the core of the type-preserving design, because they give the standalone verifier enough information to re-check the program without access to the source.
 
 Most TIR instructions lower directly to DTAL. Phi nodes are implemented as parallel copies on predecessor edges, and array operations become address computations plus loads or stores with the relevant bounds constraints attached.
 

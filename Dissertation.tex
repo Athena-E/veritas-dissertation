@@ -33,6 +33,14 @@
     fit
 }
 
+\usepackage{minted}
+\usepackage{etoolbox}
+\usepackage{xpatch,letltxmacro}
+
+\LetLtxMacro{\cminted}{\minted}
+\let\endcminted\endminted
+\xpretocmd{\cminted}{\RecustomVerbatimEnvironment{Verbatim}{BVerbatim}{}}{}{}
+
 \title{A type-preserving compiler from a systems language to a dependently typed assembly language}
 \author{9615Q}
 \date{2025-2026}
