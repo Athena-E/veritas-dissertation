@@ -540,7 +540,24 @@ A key extension beyond standard SSA is \textit{existential constraints on phi no
 
 TIR is designed to sit close to both the typed source language and the DTAL backend. The implementation's instruction set includes ownership and region operations, but the core forms relevant to the compilation pipeline are summarised in Figure~\ref{fig:tir-syntax}.
 
-\begin{figure}[h]
+In concrete terms, a TIR function stores its parameters, pre/postconditions, and a map of basic blocks; each block contains entry phi nodes, ordinary instructions, a terminator, and an entry register state. This makes the representation explicit enough for code generation to be largely structural, while still retaining the source-level type information needed for later verification.
+
+\subsection{Lowering from TAST to TIR}
+
+The lowering pass translates the typed AST to TIR. A \texttt{LoweringContext} maintains a mapping from source-level variable names to virtual registers and tracks the current basic block under construction.
+
+Lowering begins from the typed AST: each function arrives with typed parameters, a typed statement list, and an optional typed trailing expression. For each function, the lowerer:
+
+\begin{enumerate}
+  \item creates an entry block and initialise a fresh \texttt{LoweringContext};
+  \item allocates a fresh virtual register for each parameter and record the corresponding source-variable binding;
+  \item lowers the body statements in order, threading the context through the traversal;
+  \item lowers the trailing expression, if present, to obtain the function's result register;
+  \item closes the current block with a \texttt{Return} terminator;
+  \item packages the accumulated basic blocks, phi nodes, entry states, and translated pre/postconditions into a \texttt{TirFunction}.
+\end{enumerate}
+
+\begin{figure}[H]
 \centering
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!60!black,title=\textsc{TIR syntax}]
 \begin{center}
@@ -553,9 +570,12 @@ instruction ::= LoadImm { dst, value, ty }
               | Copy { dst, src, ty }
               | BinOp { dst, op, lhs, rhs, ty }
               | UnaryOp { dst, op, operand, ty }
-              | ArrayLoad { dst, base, index, element_ty, bounds_constraint }
-              | ArrayStore { base, index, value, bounds_constraint }
-              | Call { dst?, func, args, arg_types, arg_kinds, ownership, result_ty }
+              | ArrayLoad { dst, base, index, element_ty, 
+                            bounds_constraint }
+              | ArrayStore { base, index, value,
+                             bounds_constraint }
+              | Call { dst?, func, args, arg_types, arg_kinds, 
+                       ownership, result_ty }
               | AssumeConstraint { constraint }
               | AssertConstraint { constraint }
 
@@ -566,15 +586,9 @@ terminator  ::= Jump { target }
 \end{cminted}
 \end{center}
 \end{tcolorbox}
-\caption{Representative TIR forms using the implementation's instruction names. The full implementation also includes ownership-transfer, borrowing, region, and allocation instructions.}
+\caption{Representative TIR forms as defined in the implementation. See Appendix~[TODO] for the full definition, which includes ownership-transfer, borrowing, region, and allocation instructions.}
 \label{fig:tir-syntax}
 \end{figure}
-
-In concrete terms, a TIR function stores its parameters, pre/postconditions, and a map of basic blocks; each block contains entry phi nodes, ordinary instructions, a terminator, and an entry register state. This makes the representation explicit enough for code generation to be largely structural, while still retaining the source-level type information needed for later verification.
-
-\subsection{Lowering from TAST to TIR}
-
-The lowering pass translates the typed AST to TIR. A \texttt{LoweringContext} maintains a mapping from source-level variable names to virtual registers and tracks the current basic block under construction.
 
 \subsubsection{Syntax-directed translation}
 
@@ -791,7 +805,7 @@ The entire driver is type-checked and compiled through the verified DTAL pipelin
 
 This demonstrates the project's long-term direction: a verified unikernel where the application, driver, and boot code are all compiled from a single verified source, with the OS removed from the trusted computing base entirely. Figure~\ref{fig:unikernel-arch} illustrates the architecture of a bare-metal Veritas binary.
 
-\begin{figure}[ht]
+\begin{figure}[H]
   \centering
   \begin{tikzpicture}[
       font=\small,
