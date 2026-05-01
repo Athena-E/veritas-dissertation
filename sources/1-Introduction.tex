@@ -22,9 +22,7 @@ This dissertation presents \textbf{Veritas}, a toolchain that attempts to addres
 
 \section{Technical Approach: the trust model and refinement types}
 
-% TODO: Veritas presents a type-preserving compiler; the toolchain aims to develop a compiler that is correct by construction; but in the trust model, the compiler can be untrusted.
-% The compiler was developed in order to explore potential optimisations enabled by the refinement type system, demonstrate how type-preservation in lowering is implemented 
-% TODO: introduce components here. Talk about the trust in each component.
+% TODO: The compiler was developed in order to explore potential optimisations enabled by the refinement type system, demonstrate how type-preservation in lowering is implemented 
 
 Veritas consists of four core components: a refinement-typed source language, a first-order variant of Xi and Harper's DTAL, a type-preserving compiler pipeline that lowers typed source programs through intermediate representations to the target DTAL, and a standalone verifier that re-checks the generated low-level program.
 % In this architecture, the compiler is treated as untrusted: it is free to optimise, lower, and annotate programs, but its output is independently checked by a verifier to establish whether the resulting DTAL code obeys the required structural safety policies.
@@ -32,7 +30,8 @@ Veritas consists of four core components: a refinement-typed source language, a 
 % The compiler propagates this information into low-level type states and constraints, while the verifier independently checks that the final DTAL program satisfies the structural safety properties encoded by those annotations.
 
 
-The central trust-model claim of Veritas is not that the compiler is correct, but that an untrusted compiler can still produce code whose structural safety is checked independently before execution. The compiler is free to optimise, lower, and annotate programs, but the acceptance of its output is dependent on the verifier establishing whether the annotations and instructions in the resulting DTAL code are consistent with the intended safety policy. Thus, the guarantee of memory safety relies on trusting the verifier. However, the verifier's smaller size and relatively static codebase would make its correctness much easier to prove compared to a compiler which may be extended to support new hardware architectures, additional optimisation passes etc.
+The central trust-model claim of Veritas is not that the compiler is correct, but that an untrusted compiler can still produce code whose structural safety is checked independently before execution. The compiler is free to optimise, lower, and annotate programs, but the acceptance of its output is dependent on the verifier establishing whether the annotations and instructions in the resulting DTAL code are consistent with the intended safety policy. Thus, the guarantee of memory safety relies on trusting the verifier. However, the verifier's smaller size and relatively static codebase would make its correctness much easier to prove compared to a compiler.
+% which may be extended to support new hardware architectures, additional optimisation passes etc.
 % While the compiler may be extended to support new hardware architectures, additional optimisation passes etc., the verifier's size and relatively static codebase would make its correctness much easier to prove.
 
 Veritas focuses on structural guarantees rather than full semantic correctness: a program may still compute the wrong result, but it should not violate the memory and control-flow invariants captured by its types.
@@ -41,17 +40,27 @@ To express and discharge these guarantees, Veritas uses refinement types \cite{R
 \section{Aims and Contributions}
 
 % TODO: success criteria: in/out of scope, what is verified, changes to dev's build env, algorithmic decidability 
-The aim of this project is to deliver a type-preserving compilation pipeline that supports independent verification of code for a small systems language. The key contributions are:
-
+The core aim of this project is to deliver a type-preserving compilation pipeline that supports independent verification of code for a small systems language. The key contributions to achieve this are:
 % TODO: add runtime and unikernel?
 \begin{itemize}
   \item \textbf{The Veritas Language:} a systems language featuring refinement types, loop invariants, and function contracts.
-  \item \textbf{Type-Preserving Backend:} a pipeline that lowers high-level types to a typed SSA (Static Single Assignment) intermediate representation, preserving all defined safety invariants.
-  \item \textbf{x86 runtime generation:} an assembler that maps DTAL instructions to x86 and generates an executable ELF.
   \item \textbf{Dependently Typed Assembly Language (DTAL):} a target language based on Xi and Harper \cite{Xi2001DTAL} that embeds type states and constraints directly into the instruction stream.
+  \item \textbf{Type-Preserving Compiler Pipeline:} a pipeline that lowers high-level types to a typed SSA (Static Single Assignment) typed intermediate representation to DTAL, preserving all defined safety invariants.
   \item \textbf{Independent Verifier:} a tool that re-verifies DTAL programs without access to the source code, reducing the trusted computing base to the verifier and the SMT solver.
-  \item \textbf{Formal Evaluation:} a suite of programs used to measure the overhead and expressiveness of the architecture.
+  \item \textbf{Formal Evaluation:} an evaluation and benchmarking suite to measure the expressiveness, overhead, and practical limits of the architecture.
 \end{itemize}
+% \item \textbf{x86 runtime generation:} an assembler that maps DTAL instructions to x86 and generates an executable ELF.
+% memory-safety, control-flow safety properties; full functional correctness, complete automation of specification inference, compatibility with existing industrial build systems, and proving decidability or competitive performance for all verification tasks
+
+% \noindent The memory-safety and control-flow safety properties covered by verification include: array bounds checking, control-flow/state consistency at joins and branches, function contract checking and loop-invariant preservation. Arithmetic safety properties such as division/modulo safety and integer overflow checking are also supported. While a formal proof of decidability for verification is beyond the scope of this project, the design aims to remain within SMT-friendly logical fragments so that verification succeeds automatically for a broad class of realistic programs. Formally proving the correctness of the verifier is also beyond scope, but its reliability should be supported through extensive testing and program suites.
+
+% TODO: move to requirements analysis?
+% \begin{itemize}
+%   \item Memory-safety and control-flow safety properties that are covered by verification include: array bounds checking, control-flow/state consistency at joins and branches, function contract checking and loop-invariant preservation. Arithmetic safety properties such as division/modulo safety and integer overflow checking are also supported.
+%   \item Formally proving the correctness of the verifier is beyond the scope. Confidence in the verifier is supported through extensive testing over both unit tests and end-to-end program suites, which provide comprehensive coverage of the features of the small source language.
+%   \item A formal proof of decidability for the full verification problem is beyond the scope of this project. Instead, the design aims to remain within SMT-friendly logical fragments wherever practical, so that verification succeeds automatically for a broad class of realistic programs and specifications.
+% \end{itemize}
+
 
 \section{Dissertation Roadmap}
 
