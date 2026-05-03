@@ -94,8 +94,7 @@ Xi and Harper introduced DTAL as a target for type-preserving compilation from D
 
 \begin{verbatim}
   loop:  {m:nat, n:nat | m <= n, i:nat}
-         [r1: int array(m), r2: int array(n),
-          r3: int(m), r4: int(i)]
+         [r1: int array(m), r2: int array(n), r3: int(m), r4: int(i)]
          sub   r5, r4, r3       // r5 <- i - m
          bgte  r5, finish       // if i >= m, exit
          load  r5, r1(r4)       // safe: i < m

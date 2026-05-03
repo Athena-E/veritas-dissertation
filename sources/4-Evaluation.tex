@@ -1,6 +1,6 @@
 \chapter{Evaluation}\label{ch:eval}
 
-This chapter evaluates Veritas against its goals and success criteria. It begins by assessing the design and implementation of Veritas' DTAL in relation to Xi and Harper's DTAL (Section~\ref{sec:dtal-eval}). It then assesses the Veritas source language and compiler as a systems-language toolchain (Section~\ref{sec:source-lang-eval}), followed by an evaluation of the source language along a separate axis of expressiveness for a verification-oriented system (Section~\ref{sec:source-lang-eval}). Section~\ref{sec:verification-perf} and Section~\ref{sec:verifier-correctness} evaluates the verifier: the cost and performance of performing verification and the functional correctness of its implementation. Finally, Section~\ref{sec:tcb-eval} evaluates the overall trust architecture and size of the TCB.
+This chapter evaluates Veritas against its goals and success criteria. It begins by assessing the design and implementation of Veritas' DTAL in relation to Xi and Harper's DTAL (Section~\ref{sec:dtal-eval}). It then assesses the Veritas source language and compiler as a systems-language toolchain (Section~\ref{sec:source-lang-eval}), followed by an evaluation of the source language along a separate axis of expressiveness as a verification-oriented system (Section~\ref{sec:source-lang-eval}). Section~\ref{sec:verification-perf} and Section~\ref{sec:verifier-correctness} evaluates the verifier: the cost and performance of performing verification and the functional correctness of its implementation. Finally, Section~\ref{sec:tcb-eval} evaluates the overall trust architecture and size of the TCB.
 
 \section{Evaluation goals and methodology}
 % no formalisation/proof of DTAL; does it successfully build on the foundation of xi and harper's DTAL (can their proofs be used as evidence/support here)?
@@ -98,53 +98,43 @@ A central claim of Veritas' architecture is that low-level artifacts can be inde
 
 \section{DTAL design and implementation}\label{sec:dtal-eval}
 
-In the Veritas trust architecture, the target DTAL must be expressive enough to enable verification of the required safety properties. Xi and Harper's DTAL design provided a suitable foundation to draw inspiration from; the Veritas DTAL implementation includes a subset of its features for a narrower language but also extends the design in different directions, exploring ownership-aware memory operations, SMT-oriented refinement constraints, and verification of physically allocated code. The evaluation considers to what extent the DTAL implementation supports the intended trust architecture, rather than assessing it as fully faithful formal engineering realisation of Xi and Harper's design.
+In the Veritas architecture, the target DTAL must be expressive enough to enable verification of the required safety properties. Xi and Harper's DTAL design provided a suitable foundation to draw inspiration from; the Veritas DTAL implementation includes a subset of its features for a narrower language but also extends the design in different directions, exploring ownership-aware memory operations, SMT-oriented refinement constraints, and verification of physically allocated code. The evaluation considers to what extent the DTAL implementation supports the intended trust architecture, rather than assessing it as fully faithful formal engineering realisation of Xi and Harper's design.
 % label sigs, reg types
-
-% The DTAL layer is central to the dissertation's trust argument, so it needs to
-% be evaluated as a contribution in its own right rather than treated only as an
-% implementation detail of the backend. The relevant question is not whether
-% Veritas reproduces Xi and Harper's DTAL exactly, but whether it preserves the
-% key purpose of DTAL: to place a small, independently checkable typed assembly
-% language between an untrusted compiler and executable machine code. The answer
-% is broadly positive. Veritas retains the essential architecture of
-% type-preserving compilation to a low-level representation with explicit type
-% states and proof-relevant annotations, while adapting the language to the needs
-% of a practical compiler for arrays, refinement-carrying arithmetic, and a
-% borrow-aware systems language. At the same time, the implemented DTAL is
-% best understood as an engineering realisation influenced by Xi and Harper,
-% rather than as a fully faithful formal port of the 2001 system.
 
 \subsection{Relationship to Xi and Harper's DTAL}
 
-The strongest continuity with Xi and Harper's DTAL lies in the verification
-model. As in the original design, low-level code is not trusted merely because
-it was emitted by the compiler. Instead, each basic block carries a type state,
-instructions are checked by re-deriving their types from their operational
-meaning, and control-flow joins are validated by checking compatibility of the
-incoming states. This is the crucial property that distinguishes DTAL from
-ordinary compiler IR annotation schemes: the low-level artifact is not only
-typed, but independently checkable using only the information embedded in the
-assembly itself. Veritas follows this design directly, and the independent
-verifier is therefore not an auxiliary debugging tool but an intended consumer
-of the DTAL output.
+Veritas is inspired directly by Xi and Harper's DTAL and preserves many of its central features and ideas most relevant for independent low-level verification. Shared features include:
+% The shared structure is most clearly seen as a set of concrete mechanisms, each of which supports a corresponding safety property:
+\begin{itemize}
+  \item \textbf{Dependent block or label state.} Logical state attached to control-flow entry points record assumptions about registers, stack contents, and index variables at the start of a block. This supports control-flow safety by ensuring that jumps and joins are only valid when the incoming machine state matches the target's expected typing context.
+  \item \textbf{Singleton integer typing.} Registers can carry exact symbolic integer facts rather than only broad machine types. This supports arithmetic and indexing safety, since later instructions can rely on those symbolic facts when proving side conditions.
+  \item \textbf{Size-indexed arrays.} Both systems track array sizes at the type level, so that an array value carries its logical extent alongside its element type. This supports memory safety by making out-of-bounds reads and writes statically checkable.
+  \item \textbf{Typed stack discipline.} Both DTALs model stack state rather than treating stack manipulation as untyped raw memory. This supports structural safety by preventing ill-typed stack use across calls, returns, and local temporaries.
+  \item \textbf{Proof-relevant typed memory access.} In both systems \texttt{load} and \texttt{store} are checked against the surrounding type and constraint context rather than treated as unchecked primitive operations. This supports static memory-safety guarantees such as array-bound-check elimination.
+\end{itemize}
 
-This continuity can be seen directly in the instruction style. Xi and Harper's
-DTAL presents a copy loop using typed labels and register-indexed array access:
+It should be noted that Veritas narrows Xi and Harper's design in some directions. Xi and Harper's DTAL includes general tuple and array allocation primitives, existential dependent types in a broader form, and an extension for sum and tag reasoning. Veritas does not currently expose all of these as first-class DTAL features. Instead, it is more tightly focused on the subset of low-level facts needed for fixed-size arrays, arithmetic side conditions, contracts, and
+borrow-aware source-language compilation. The logical fragment is chosen to match SMT-backed refinement checking, array bounds reasoning, and simple arithmetic safety properties rather than arbitrary proof terms.
+% Safety evidence is represented operationally
+%through constraints, singleton types, block entry states, assertions, and preconditions/postconditions, 
+% rather than through the full richness of a foundational typed assembly formalism. 
+This is a tradeoff where the implemented system sacrifices some theoretical generality in exchange for automation and a verification model that fits the rest of the toolchain. Given that the project's goal was not to recreate the full metatheory of Xi and Harper's DTAL, this is an appropriate restriction.
+% Instead, the aim was to show the DTAL architecture could be used to move the trust boundary downwards and allow source-language facts to survive compilation in a form that is still checkable.
 
-\begin{quote}
-  \begin{verbatim}
-loop: {m:nat, n:nat | m <= n, i:nat}
-[r1: int array(m), r2: int array(n), r3: int(m), r4: int(i)]
-sub r5, r4, r3
-bgte r5, finish
-load r5, r1(r4)
-store r2(r4), r5
-\end{verbatim}
-\end{quote}
-
-Veritas preserves the same basic idea, although the surface syntax is adapted
-to its implementation:
+The most important continuity with Xi and Harper's DTAL lies in the independent low-level verification model, which is enabled through the design of Veritas' DTAL. To demonstrate, below shows the Veritas version of the copy loop from Section~\ref{sec:dtal-background},
+% This continuity can be seen directly in the instruction style. Xi and Harper's DTAL presents a copy loop using typed labels and register-indexed array access:
+%
+% \begin{quote}
+%   \begin{verbatim}
+% loop: {m:nat, n:nat | m <= n, i:nat}
+% [r1: int array(m), r2: int array(n), r3: int(m), r4: int(i)]
+% sub r5, r4, r3
+% bgte r5, finish
+% load r5, r1(r4)
+% store r2(r4), r5
+% \end{verbatim}
+% \end{quote}
+which preserves the same basic idea of typed labels and register-indexed array access, although the surface syntax is adapted to its implementation:
 
 \begin{quote}
   \begin{verbatim}
@@ -156,107 +146,44 @@ load v10, [v1 + v9]    : int(7)
 \end{verbatim}
 \end{quote}
 
-In both cases, the low-level program records enough information for the
-verifier to justify array access from the surrounding type and constraint
-context rather than relying on a hidden dynamic bounds check.
+The low-level program records sufficient information for the verifier to justify array access from the surrounding type and constraint context rather than relying on a dynamic bounds check.
 
-% can call them 'proofs'?
-It should be noted that several aspects of the original DTAL are simplified or adapted. Veritas works with a much narrower language and proof domain than a general dependently typed assembly language: the logical fragment is chosen to match SMT-backed refinement checking, array bounds reasoning, and simple arithmetic safety properties rather than arbitrary proof terms. Safety evidence is represented operationally through constraints, singleton types, block entry states, assertions, and preconditions/postconditions, rather than through the full richness of a foundational typed assembly formalism. This is a tradeoff where the implemented system sacrifices some theoretical generality in exchange for automation and a verification model that fits the rest of the toolchain. Given that goal was not to replace a foundational proof-carrying assembly framework, nor implement the full metatheory of Xi and Harper's DTAL, this tradeoff is appropriate for the project's aims. % Instead, the aim was to show the DTAL architecture could be used to move the trust boundary downwards and allow source-language facts to survive compilation in a form that is still checkable.
+\subsection{Extensions and deviations}
 
-% This tradeoff is appropriate for the dissertation's aims. The project is not
-% trying to replace a foundational proof-carrying assembly framework, nor to
-% rebuild the full metatheory of the original DTAL. Instead, it uses the DTAL
-% architecture as a way to move the trust boundary downward, allowing
-% source-language facts to survive compilation in a form that is still checkable
-% after register allocation and backend lowering. Evaluated against that goal,
-% Veritas's DTAL is faithful in the most important sense: it preserves the idea
-% that low-level safety should be re-established independently of the compiler.
+% Veritas also extends the design along axes that Xi and Harper's DTAL did not target.
+% Notably, it adds ownership and borrowing operations,distinguishing shared borrows, mutable borrows, ownership transfer, and borrow termination. It also introduces a physical-DTAL layer, so that the verifier can operate after register allocation and instruction expansion rather than only on an idealised virtual assembly. 
 
-\begin{table}[H]
-  \centering
-  \small
-  \begin{tabular}{p{0.33\textwidth} c c p{0.28\textwidth}}
-    \hline
-    \textbf{Feature} & \textbf{Xi--Harper} & \textbf{Veritas} & \textbf{Notes} \\
-    \hline
-    Independent low-level verification & Yes & Yes & Core architectural idea shared by both systems. \\
-    Dependent block / label state types & Yes & Yes & Xi--Harper uses typed labels; Veritas uses \texttt{.entry} plus \texttt{.assume}. \\
-    Singleton integer types \texttt{int(x)} & Yes & Yes & Present in both; Veritas derives symbolic index expressions similarly. \\
-    Size-indexed array types & Yes & Yes & Xi--Harper uses \texttt{int array(m)}; Veritas uses array types indexed by \texttt{IndexExpr}. \\
-    Array-bound-check elimination support & Yes & Yes & Central purpose in Xi--Harper; preserved in Veritas's array reasoning. \\
-    Typed stack discipline & Yes & Yes & Present in both, though exposed differently in the concrete syntax. \\
-    Existential dependent types & Yes & Partial & Xi--Harper uses them centrally; Veritas currently supports existential integers, but not the broader original style. \\
-    Tuple / product heap objects & Yes & No & Xi--Harper has \texttt{prod(...)} and \texttt{newtuple}; Veritas does not currently expose general tuple allocation in DTAL. \\
-    Sum / tag reasoning & Yes & No & Xi--Harper extends DTAL for sums and tag-check elimination; Veritas does not currently have this DTAL feature. \\
-    Explicit array allocation primitives & Yes & No & Xi--Harper has \texttt{newarray} and \texttt{arraysize}; Veritas uses a different allocation story. \\
-    Ownership / borrow operations & No & Yes & Veritas adds \texttt{move\_owned}, \texttt{alias\_borrow}, \texttt{borrow\_mut}, \texttt{borrow\_end}, \texttt{drop\_owned}. \\
-    Mutable vs shared alias discipline & No & Yes & Not present in Xi--Harper; central extension in Veritas. \\
-    Physical post-regalloc verification target & No & Yes & Veritas verifies physically allocated DTAL after register allocation. \\
-    ABI / calling-convention instructions & No & Yes & Veritas includes \texttt{spill\_store}, \texttt{spill\_load}, \texttt{.prologue}, \texttt{.epilogue}. \\
-    Machine-level division expansion & No & Yes & Veritas includes physical instructions such as \texttt{cqo} and \texttt{idiv}. \\
-    \hline
-  \end{tabular}
-  \caption{Feature comparison between Xi and Harper's DTAL and the DTAL
-    implemented in Veritas.}
-  \label{tab:dtal-xi-harper-comparison}
-\end{table}
-
-\subsection{Feature parity, extensions, and deviations}
-
-The implemented DTAL also differs from the original design in ways that are
-substantively useful for this project. The most important extension is support
-for the proof obligations that arise naturally from the Veritas source
-language: fixed-size arrays, indexed loads and stores with explicit bounds
-proofs, refinement-carrying arithmetic values, function contracts, quantified
-constraints, and symbolic facts introduced by control flow. These are not
-incidental annotations. They are precisely the information needed for the
-standalone verifier to re-check the safety of array accesses, the preservation
-of arithmetic facts, and the soundness of contract-guided calls after
-compilation.
-
-Veritas preserves the same basic typed-access idea, but enriches it with
-explicit refinement-carrying annotations that originate in source-level proof
-obligations, for example:
-
+Veritas preserves the same basic typed memory access idea, but also extends it with explicit refinement-carrying annotations that originate in source-level proof obligations, for example:
 \begin{quote}
   \begin{verbatim}
 div v2, v0, v1    : {_synth_0: int | _synth_0 == (a / b) }
 load v10, [v1 + v9]    : int(7)
   \end{verbatim}
 \end{quote}
+This illustrates that memory accesses are still justified by visible low-level constraints, but an arithmetic fact derived at the source-level has been preserved through lowering in symbolic SMT-friendly form. These carried obligations are re-checked by the verifier against the low-level code. This provides a broader source-to-low-level continuity for the particular fragment Veritas supports, including not just bounds facts but also contract-style and borrow-related safety obligations. Preserving additional proof-relevant annotations does increase the surface on which an untrusted compiler can introduce inconsistencies, and therefore may increase the risk of false rejection. However the added annotations also make backend mistakes visible to the independent verifier, and this only expands the rejection surface rather than the acceptance surface.
 
-This illustrates two of the most important extensions relative to the original
-presentation: arithmetic facts survive lowering in symbolic form, and memory
-accesses are justified by constraints that remain visible to the low-level
-verifier.
+Another notable extension is the introduction of explicit ownership and borrow-aware operations. Xi and Harper's DTAL was not designed around a Rust-like ownership discipline, whereas Veritas carries object ownership, shared borrows, mutable borrows, and borrow termination through DTAL as first-class phenomena. This extension pushes alias-control properties below the frontend where the relevant low-level operations are represented and re-checked in DTAL. This is a significant divergence from Xi and Harper's DTAL in order to serve a systems-language setting.
 
-A second important deviation is the introduction of explicit ownership and
-borrow-aware operations. Xi and Harper's DTAL was not designed around a
-Rust-like ownership discipline, whereas Veritas carries object ownership,
-shared borrows, mutable borrows, and borrow termination through DTAL as
-first-class phenomena. This extension is evaluatively significant because it
-pushes alias-control properties below the frontend. In other words, the project
-does not merely check borrow discipline before lowering and then hope the
-backend preserves it; the relevant low-level operations are represented and
-re-checked in DTAL. This is one of the clearest places where Veritas diverges
-from the original DTAL design in order to serve its systems-language setting.
+\begin{quote}
+  \begin{verbatim}
+alias_borrow v3, v1    : &[int(7); 1]
+load v5, [v3 + v4]     : int
+borrow_end v3          : &[int(7); 1]
+  \end{verbatim}
+\end{quote}
 
-There is no analogue to this ownership-aware low-level operation set in the
-original DTAL presentation. Instructions such as \texttt{move\_owned},
-\texttt{alias\_borrow}, \texttt{borrow\_mut}, and \texttt{borrow\_end} are
-therefore genuine extensions rather than mere syntactic reformulations.
+Here the borrow itself is represented explicitly in DTAL rather than being an
+erased frontend-side fact. This allows the verifier to check that a borrowed
+view is created, used, and terminated in a way consistent with the ownership
+discipline of the source language.
 
-The physical-DTAL pipeline introduces a further pragmatic deviation. The
-default backend does not verify only the virtual-register typed assembly.
-Instead, it uses an untrusted physical allocation pass to map virtual DTAL to a
-physically allocated DTAL with explicit scratch-register use, spills,
-prologues/epilogues, and instruction expansions such as division. The verifier
-then checks this physical DTAL before direct encoding. This is not present in
-Xi and Harper's original presentation, but it is one of the most important
-engineering decisions in Veritas because it shrinks the trusted backend and
-makes register allocation and instruction expansion part of the untrusted
-compiler. The resulting DTAL is therefore less abstract than the original
-idealised typed assembly, but more useful for the project's trust model.
+% There is no analogue to this ownership-aware low-level operation set in the original DTAL presentation. Instructions such as \texttt{move\_owned}, \texttt{alias\_borrow}, \texttt{borrow\_mut}, and \texttt{borrow\_end} are therefore genuine extensions rather than mere syntactic reformulations.
+
+Due to the architectural decision to perform verification after physical register allocation, Veritas defines a `physical DTAL' (the post-regalloc form of `virtual DTAL') with explicit scratch-register use, spills, prologues/epilogues, and instruction expansions. Xi and Harper's DTAL is most akin to Veritas' virtual DTAL as its semantics are given over an abstract machine, and register allocation and spill is explicitly not modelled in the language.
+% The resulting DTAL is therefore less abstract than the original idealised typed assembly, but more useful for the project's trust model.
+% However, this tradeoff is justified by the trust-model benefit: the more of the backend that is represented in DTAL, the less of the backend has to remain trusted. The implementation therefore prefers a somewhat heavier low-level artifact in exchange for a smaller and more auditable trusted path.
+
+% The physical-DTAL pipeline introduces a further pragmatic deviation. The backend uses an untrusted physical allocation pass to map virtual DTAL to a physically allocated DTAL with explicit scratch-register use, spills, prologues/epilogues, and instruction expansions such as division. The verifier then checks this physical DTAL before direct encoding. This is not present in Xi and Harper's original presentation, but it is one of the most important engineering decisions in Veritas because it shrinks the trusted backend and makes register allocation and instruction expansion part of the untrusted compiler. The resulting DTAL is therefore less abstract than the original idealised typed assembly, but more useful for the project's trust model.
 
 The difference is visible in instructions such as:
 
@@ -271,69 +198,41 @@ mov r0, lr    : int
 
 or in explicit stack and calling-convention machinery such as
 \texttt{spill\_store}, \texttt{spill\_load}, \texttt{.prologue}, and
-\texttt{.epilogue}. These do not make the language closer to the original
-paper's abstract presentation, but they do make it a stronger intermediate
-artifact for verifying the real backend pipeline that Veritas actually uses.
+\texttt{.epilogue}.
+% These do not make the language closer to the original paper's abstract presentation, but they do make it a stronger intermediate artifact for verifying the real backend pipeline that Veritas actually uses.
+The main tradeoff of Veritas' architecture to support physical DTAL is complexity at the low level. Physical DTAL necessarily exposes register assignments, spill slots, calling-convention details, and instruction expansion that are absent from the source language. This makes the representation less elegant than an idealised typed assembly and increases the burden on the verifier. However, this design makes register allocation and instruction expansion part of the untrusted compiler, which is more useful for the project's trust model.
 
-There are, however, deliberate restrictions. The current DTAL fragment is
-geared toward sequential control flow, fixed-size arrays, lexical borrow
-discipline, and a hosted or bare-metal runtime model with a small set of
-intrinsics. It does not aim to model arbitrary heap structures, unrestricted
-pointers, concurrency, or the full range of low-level effects found in general
-systems code. These are not accidental omissions; they are part of the chosen
-scope that keeps the low-level verification story coherent and mechanically
-checkable.
+% There are, however, deliberate restrictions.
+% The current DTAL fragment is geared toward sequential control flow, fixed-size arrays, lexical borrow discipline, and a hosted or bare-metal runtime model with a small set of intrinsics. It does not model arbitrary heap structures, unrestricted pointers, concurrency, or the full range of low-level effects found in general systems code.
+% These are not accidental omissions; they are part of the chosen scope that keeps the low-level verification story coherent and mechanically checkable.
 
-\subsection{Evaluation of the DTAL design}
+% Veritas keeps the core low-level verification model, omits some of the original DTAL's more general dependent-language machinery, and extends the design toward ownership-aware and backend-realistic checking.
 
-From an evaluation perspective, the most important result is that the DTAL
-design enables forms of checking that a source-only verifier cannot provide on
-its own. Because contracts, bounds facts, ownership-transfer operations, and
-block-entry states are preserved into DTAL, the verifier can reject not only
-ill-typed source programs but also malformed low-level programs produced by an
-incorrect backend. The dedicated DTAL-tampering corpus demonstrates this
-directly: when valid compiled programs are modified so that they violate return
-contracts, bounds obligations, ownership rules, arithmetic safety conditions,
-or structural typing constraints, standalone DTAL verification rejects them.
-This is exactly the kind of evidence that the DTAL layer is supposed to make
-possible.
-
-The design is also expressive enough for the intended low-level checks within
-the supported fragment. The feature suite and verifier-agreement results show
-that the DTAL representation can carry enough information for independent
-re-checking of non-trivial source programs involving arrays, quantified facts,
-loop invariants, sortedness properties, safe division, overflow-aware
-arithmetic, and borrow-oriented examples. In this sense, the implemented DTAL
-is not merely a logging format for the frontend's proof results; it is a usable
-verification target with enough structure to support the chapter's trust and
-correctness claims.
-
-The main tradeoff is complexity at the low level. Physical DTAL necessarily
-exposes register assignments, spill slots, calling-convention details, and
-instruction expansion that are absent from the source language. This makes the
-representation less elegant than an idealised typed assembly and increases the
-burden on the verifier. However, this tradeoff is justified by the trust-model
-benefit: the more of the backend that is represented in DTAL, the less of the
-backend has to remain trusted. The implementation therefore prefers a somewhat
-heavier low-level artifact in exchange for a smaller and more auditable trusted
-path.
-
-Overall, the DTAL design should be judged a success relative to the dissertation's
-goals. It does not provide the full generality of a foundational typed assembly
-framework, but it does achieve the essential architectural purpose of DTAL in a
-practical compiler setting: the compiler remains untrusted, proof-relevant
-information is preserved below the frontend, and the final low-level program is
-substantial enough to be independently re-checked before code generation
-completes.
+% \subsection{Evaluation of the DTAL design}
+%
+% From an evaluation perspective, the most important result is that the DTAL design enables forms of checking that a source-only verifier cannot provide on its own. Because contracts, bounds facts, ownership-transfer operations, and block-entry states are preserved into DTAL, the verifier can reject not only ill-typed source programs but also malformed low-level programs produced by an incorrect backend. The dedicated DTAL-tampering corpus demonstrates this directly: when valid compiled programs are modified so that they violate return
+% contracts, bounds obligations, ownership rules, arithmetic safety conditions, or structural typing constraints, standalone DTAL verification rejects them. This is exactly the kind of evidence that the DTAL layer is supposed to make possible.
+%
+% The design is also expressive enough for the intended low-level checks within the supported fragment. The feature suite and verifier-agreement results show that the DTAL representation can carry enough information for independent re-checking of non-trivial source programs involving arrays, quantified facts,
+% loop invariants, sortedness properties, safe division, overflow-aware
+% arithmetic, and borrow-oriented examples. In this sense, the implemented DTAL
+% is not merely a logging format for the frontend's proof results; it is a usable
+% verification target with enough structure to support the chapter's trust and
+% correctness claims.
+%
+% Overall, the DTAL design should be judged a success relative to the dissertation's
+% goals. It does not provide the full generality of a foundational typed assembly
+% framework, but it does achieve the essential architectural purpose of DTAL in a
+% practical compiler setting: the compiler remains untrusted, proof-relevant
+% information is preserved below the frontend, and the final low-level program is
+% substantial enough to be independently re-checked before code generation
+% completes.
 
 \section{Veritas as a systems-language toolchain}\label{sec:veritas-sys-eval}
 
-The previous section evaluated DTAL as the mechanism that supports the trust
-architecture. This section evaluates Veritas from a different angle: as a
-systems-language toolchain that happens to incorporate verification, rather
-than as a verification system that happens to emit code. This distinction
-matters because the project claims more than source-level proof automation. It
-claims to provide a small systems-oriented language that can compile to
+The previous section evaluated DTAL as a mechanism that supports the trust architecture. This section evaluates Veritas from the angle of a systems-language toolchain
+
+The previous section evaluated DTAL as a mechanism that supports the trust architecture. This section evaluates Veritas from the angle of a systems-language toolchain that happens to incorporate verification, rather than as a verification system that happens to emit code. This distinction matters because the project claims more than source-level proof automation. It claims to provide a small systems-oriented language that can compile to
 executable programs, support structured numeric kernels, and preserve safety
 relevant information through the backend. The evaluation therefore considers
 language-level systems features, compiler functional correctness, and the
@@ -1437,6 +1336,35 @@ successful, credible, and practically implemented.
 
 This section retains supporting tables that are useful for reference but not
 essential to the main flow of the chapter.
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabular}{p{0.33\textwidth} c c p{0.4\textwidth}}
+    \hline
+    \textbf{Feature}                           & \textbf{Xi--Harper} & \textbf{Veritas} & \textbf{Notes}                                                                                                               \\
+    \hline
+    Independent low-level verification         & Yes                 & Yes              & Core architectural idea shared by both systems.                                                                              \\
+    Dependent block / label state types        & Yes                 & Yes              & Xi--Harper uses typed labels; Veritas uses \texttt{.entry} plus \texttt{.assume}.                                            \\
+    Singleton integer types \texttt{int(x)}    & Yes                 & Yes              & Present in both; Veritas derives symbolic index expressions similarly.                                                       \\
+    Size-indexed array types                   & Yes                 & Yes              & Xi--Harper uses \texttt{int array(m)}; Veritas uses array types indexed by \texttt{IndexExpr}.                               \\
+    Array-bound-check elimination support      & Yes                 & Yes              & Central purpose in Xi--Harper; preserved in Veritas's array reasoning.                                                       \\
+    Typed stack discipline                     & Yes                 & Yes              & Present in both, though exposed differently in the concrete syntax.                                                          \\
+    Existential dependent types                & Yes                 & Partial          & Xi--Harper uses them centrally; Veritas currently supports existential integers, but not the broader original style.         \\
+    Tuple / product heap objects               & Yes                 & No               & Xi--Harper has \texttt{prod(...)} and \texttt{newtuple}; Veritas does not currently expose general tuple allocation in DTAL. \\
+    Sum / tag reasoning                        & Yes                 & No               & Xi--Harper extends DTAL for sums and tag-check elimination; Veritas does not currently have this DTAL feature.               \\
+    Explicit array allocation primitives       & Yes                 & No               & Xi--Harper has \texttt{newarray} and \texttt{arraysize}; Veritas uses a different allocation story.                          \\
+    Ownership / borrow operations              & No                  & Yes              & Veritas adds \texttt{move\_owned}, \texttt{alias\_borrow}, \texttt{borrow\_mut}, \texttt{borrow\_end}, \texttt{drop\_owned}. \\
+    Mutable vs shared alias discipline         & No                  & Yes              & Not present in Xi--Harper; central extension in Veritas.                                                                     \\
+    Physical post-regalloc verification target & No                  & Yes              & Veritas verifies physically allocated DTAL after register allocation.                                                        \\
+    ABI / calling-convention instructions      & No                  & Yes              & Veritas includes \texttt{spill\_store}, \texttt{spill\_load}, \texttt{.prologue}, \texttt{.epilogue}.                        \\
+    Machine-level division expansion           & No                  & Yes              & Veritas includes physical instructions such as \texttt{cqo} and \texttt{idiv}.                                               \\
+    \hline
+  \end{tabular}
+  \caption{Feature comparison between Xi and Harper's DTAL and the DTAL
+    implemented in Veritas.}
+  \label{tab:dtal-xi-harper-comparison}
+\end{table}
 
 \begin{table}[h]
   \centering
