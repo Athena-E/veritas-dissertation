@@ -98,19 +98,22 @@ A central claim of Veritas' architecture is that low-level artifacts can be inde
 
 \section{DTAL design and implementation}\label{sec:dtal-eval}
 
-The DTAL layer is central to the dissertation's trust argument, so it needs to
-be evaluated as a contribution in its own right rather than treated only as an
-implementation detail of the backend. The relevant question is not whether
-Veritas reproduces Xi and Harper's DTAL exactly, but whether it preserves the
-key purpose of DTAL: to place a small, independently checkable typed assembly
-language between an untrusted compiler and executable machine code. The answer
-is broadly positive. Veritas retains the essential architecture of
-type-preserving compilation to a low-level representation with explicit type
-states and proof-relevant annotations, while adapting the language to the needs
-of a practical compiler for arrays, refinement-carrying arithmetic, and a
-borrow-aware systems language. At the same time, the implemented DTAL is
-best understood as an engineering realisation influenced by Xi and Harper,
-rather than as a fully faithful formal port of the 2001 system.
+In the Veritas trust architecture, the target DTAL must be expressive enough to enable verification of the required safety properties. Xi and Harper's DTAL design provided a suitable foundation to draw inspiration from; the Veritas DTAL implementation includes a subset of its features for a narrower language but also extends the design in different directions, exploring ownership-aware memory operations, SMT-oriented refinement constraints, and verification of physically allocated code. The evaluation considers to what extent the DTAL implementation supports the intended trust architecture, rather than assessing it as fully faithful formal engineering realisation of Xi and Harper's design.
+% label sigs, reg types
+
+% The DTAL layer is central to the dissertation's trust argument, so it needs to
+% be evaluated as a contribution in its own right rather than treated only as an
+% implementation detail of the backend. The relevant question is not whether
+% Veritas reproduces Xi and Harper's DTAL exactly, but whether it preserves the
+% key purpose of DTAL: to place a small, independently checkable typed assembly
+% language between an untrusted compiler and executable machine code. The answer
+% is broadly positive. Veritas retains the essential architecture of
+% type-preserving compilation to a low-level representation with explicit type
+% states and proof-relevant annotations, while adapting the language to the needs
+% of a practical compiler for arrays, refinement-carrying arithmetic, and a
+% borrow-aware systems language. At the same time, the implemented DTAL is
+% best understood as an engineering realisation influenced by Xi and Harper,
+% rather than as a fully faithful formal port of the 2001 system.
 
 \subsection{Relationship to Xi and Harper's DTAL}
 
