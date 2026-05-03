@@ -181,25 +181,35 @@ after register allocation and backend lowering. Evaluated against that goal,
 Veritas's DTAL is faithful in the most important sense: it preserves the idea
 that low-level safety should be re-established independently of the compiler.
 
-Table~\ref{tab:dtal-xi-harper-comparison} summarises the most important points
-of continuity and divergence.
+Table~\ref{tab:dtal-xi-harper-comparison} gives a more explicit feature
+comparison, distinguishing what is present in both DTALs from what is omitted
+or added in Veritas.
 
-\begin{table}[h]
+\begin{table}[H]
   \centering
   \small
-  \begin{tabular}{p{0.24\textwidth} p{0.27\textwidth} p{0.35\textwidth}}
+  \begin{tabular}{p{0.33\textwidth} c c p{0.28\textwidth}}
     \hline
-    \textbf{Aspect}           & \textbf{Xi and Harper DTAL}                                     & \textbf{Veritas DTAL}                                                                                    \\
+    \textbf{Feature} & \textbf{Xi--Harper} & \textbf{Veritas} & \textbf{Notes} \\
     \hline
-    Verification model        & Typed assembly checked independently from the compiler          & Same core model: verifier re-derives low-level types from DTAL annotations and instruction semantics     \\
-    Block structure           & Labels carry dependent state information                        & Basic blocks carry explicit \texttt{.entry} states and assumptions                                       \\
-    Dependent information     & Array sizes and integer indices tracked through dependent types & Refinement-style arithmetic facts, singleton values, array bounds facts, and contracts preserved in DTAL \\
-    Memory safety style       & Separation of array access from proof of safe indexing          & Same separation, but expressed through \texttt{assert}, \texttt{assume}, and symbolic index constraints  \\
-    Backend abstraction level & Idealised typed assembly presentation                           & Virtual DTAL plus physically allocated DTAL verified after register allocation                           \\
-    Alias discipline          & Not ownership-oriented                                          & Extended with ownership, shared borrow, mutable borrow, and borrow-end operations                        \\
+    Independent low-level verification & Yes & Yes & Core architectural idea shared by both systems. \\
+    Dependent block / label state types & Yes & Yes & Xi--Harper uses typed labels; Veritas uses \texttt{.entry} plus \texttt{.assume}. \\
+    Singleton integer types \texttt{int(x)} & Yes & Yes & Present in both; Veritas derives symbolic index expressions similarly. \\
+    Size-indexed array types & Yes & Yes & Xi--Harper uses \texttt{int array(m)}; Veritas uses array types indexed by \texttt{IndexExpr}. \\
+    Array-bound-check elimination support & Yes & Yes & Central purpose in Xi--Harper; preserved in Veritas's array reasoning. \\
+    Typed stack discipline & Yes & Yes & Present in both, though exposed differently in the concrete syntax. \\
+    Existential dependent types & Yes & Partial & Xi--Harper uses them centrally; Veritas currently supports existential integers, but not the broader original style. \\
+    Tuple / product heap objects & Yes & No & Xi--Harper has \texttt{prod(...)} and \texttt{newtuple}; Veritas does not currently expose general tuple allocation in DTAL. \\
+    Sum / tag reasoning & Yes & No & Xi--Harper extends DTAL for sums and tag-check elimination; Veritas does not currently have this DTAL feature. \\
+    Explicit array allocation primitives & Yes & No & Xi--Harper has \texttt{newarray} and \texttt{arraysize}; Veritas uses a different allocation story. \\
+    Ownership / borrow operations & No & Yes & Veritas adds \texttt{move\_owned}, \texttt{alias\_borrow}, \texttt{borrow\_mut}, \texttt{borrow\_end}, \texttt{drop\_owned}. \\
+    Mutable vs shared alias discipline & No & Yes & Not present in Xi--Harper; central extension in Veritas. \\
+    Physical post-regalloc verification target & No & Yes & Veritas verifies physically allocated DTAL after register allocation. \\
+    ABI / calling-convention instructions & No & Yes & Veritas includes \texttt{spill\_store}, \texttt{spill\_load}, \texttt{.prologue}, \texttt{.epilogue}. \\
+    Machine-level division expansion & No & Yes & Veritas includes physical instructions such as \texttt{cqo} and \texttt{idiv}. \\
     \hline
   \end{tabular}
-  \caption{High-level comparison between Xi and Harper's DTAL and the DTAL
+  \caption{Feature comparison between Xi and Harper's DTAL and the DTAL
     implemented in Veritas.}
   \label{tab:dtal-xi-harper-comparison}
 \end{table}
