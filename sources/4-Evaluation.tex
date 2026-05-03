@@ -160,30 +160,17 @@ In both cases, the low-level program records enough information for the
 verifier to justify array access from the surrounding type and constraint
 context rather than relying on a hidden dynamic bounds check.
 
-At the same time, several aspects of the original DTAL are simplified or
-adapted. Veritas works with a much narrower language and proof domain than a
-general dependently typed assembly language: the logical fragment is chosen to
-match SMT-backed refinement checking, array bounds reasoning, and simple
-arithmetic safety properties rather than arbitrary proof terms. Proofs are
-represented operationally through constraints, singleton types, block entry
-states, assertions, and preconditions/postconditions, rather than through the
-full richness of a foundational typed assembly formalism. This is a deliberate
-tradeoff. The implemented system sacrifices some theoretical generality in
-exchange for automation and a verification model that fits the rest of the
-toolchain.
+% can call them 'proofs'?
+It should be noted that several aspects of the original DTAL are simplified or adapted. Veritas works with a much narrower language and proof domain than a general dependently typed assembly language: the logical fragment is chosen to match SMT-backed refinement checking, array bounds reasoning, and simple arithmetic safety properties rather than arbitrary proof terms. Safety evidence is represented operationally through constraints, singleton types, block entry states, assertions, and preconditions/postconditions, rather than through the full richness of a foundational typed assembly formalism. This is a tradeoff where the implemented system sacrifices some theoretical generality in exchange for automation and a verification model that fits the rest of the toolchain. Given that goal was not to replace a foundational proof-carrying assembly framework, nor implement the full metatheory of Xi and Harper's DTAL, this tradeoff is appropriate for the project's aims. % Instead, the aim was to show the DTAL architecture could be used to move the trust boundary downwards and allow source-language facts to survive compilation in a form that is still checkable.
 
-This tradeoff is appropriate for the dissertation's aims. The project is not
-trying to replace a foundational proof-carrying assembly framework, nor to
-rebuild the full metatheory of the original DTAL. Instead, it uses the DTAL
-architecture as a way to move the trust boundary downward, allowing
-source-language facts to survive compilation in a form that is still checkable
-after register allocation and backend lowering. Evaluated against that goal,
-Veritas's DTAL is faithful in the most important sense: it preserves the idea
-that low-level safety should be re-established independently of the compiler.
-
-Table~\ref{tab:dtal-xi-harper-comparison} gives a more explicit feature
-comparison, distinguishing what is present in both DTALs from what is omitted
-or added in Veritas.
+% This tradeoff is appropriate for the dissertation's aims. The project is not
+% trying to replace a foundational proof-carrying assembly framework, nor to
+% rebuild the full metatheory of the original DTAL. Instead, it uses the DTAL
+% architecture as a way to move the trust boundary downward, allowing
+% source-language facts to survive compilation in a form that is still checkable
+% after register allocation and backend lowering. Evaluated against that goal,
+% Veritas's DTAL is faithful in the most important sense: it preserves the idea
+% that low-level safety should be re-established independently of the compiler.
 
 \begin{table}[H]
   \centering
