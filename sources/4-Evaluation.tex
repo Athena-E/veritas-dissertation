@@ -98,7 +98,7 @@ A central claim of Veritas' architecture is that low-level artifacts can be inde
 
 \section{DTAL design and implementation}\label{sec:dtal-eval}
 
-In the Veritas architecture, the target DTAL must be expressive enough to enable verification of the required safety properties. Xi and Harper's DTAL design provided a suitable foundation to draw inspiration from; the Veritas DTAL implementation includes a subset of its features for a narrower language but also extends the design in different directions, exploring ownership-aware memory operations, SMT-oriented refinement constraints, and verification of physically allocated code. The evaluation considers to what extent the DTAL implementation supports the intended trust architecture, rather than assessing it as fully faithful formal engineering realisation of Xi and Harper's design.
+In the Veritas architecture, the target DTAL must be expressive enough to enable verification of the required safety properties. Xi and Harper's DTAL design provided a suitable foundation to draw inspiration from; the Veritas DTAL implementation includes a subset of its features for a narrower language but also extends the design in different directions, exploring ownership-aware memory operations, SMT-oriented refinement constraints, and verification of physically allocated code. The evaluation considers to what extent the DTAL implementation supports the intended trust architecture, rather than assessing it as a fully faithful formal engineering realisation of Xi and Harper's design.
 % label sigs, reg types
 
 \subsection{Relationship to Xi and Harper's DTAL}
@@ -227,67 +227,50 @@ The main tradeoff of Veritas' architecture to support physical DTAL is complexit
 
 \section{Veritas as a systems-language toolchain}\label{sec:veritas-sys-eval}
 
-The previous section evaluated DTAL as a mechanism that supports the trust architecture. This section evaluates Veritas from the angle of a systems-language toolchain
+This section evaluates Veritas from the angle of a systems language toolchain. A core goal of the project was to apply the defined trust architecture in a systems-oriented context in order to address the challenges of upholding memory safety properties. This adds new requirements and expectations beyond those for independent low-level verification; systems languages commonly support imperative control flow, mutable state, pointers/references, and predictable data representation, while their compilers generate efficient native code and preserve the intended resource and safety behaviour of programs through the backend. While Veritas is currently far less mature than widely-used systems toolchains in language breadth, tooling, and ecosystem, the evaluation focuses on whether within the intended fragment, Veritas behaves like a plausible and pragmatic systems-language design which could be built on further.
 
-The previous section evaluated DTAL as a mechanism that supports the trust architecture. This section evaluates Veritas from the angle of a systems-language toolchain that happens to incorporate verification, rather than as a verification system that happens to emit code. This distinction matters because the project claims more than source-level proof automation. It claims to provide a small systems-oriented language that can compile to
-executable programs, support structured numeric kernels, and preserve safety
-relevant information through the backend. The evaluation therefore considers
-language-level systems features, compiler functional correctness, and the
-practical behaviour of the generated code.
+% The previous section evaluated DTAL as a mechanism that supports the trust architecture. This section evaluates Veritas from the angle of a systems-language toolchain that happens to incorporate verification, rather than as a verification system that happens to emit code. This distinction matters because the project claims more than source-level proof automation. It claims to provide a small systems-oriented language that can compile to executable programs, support structured numeric kernels, and preserve safety relevant information through the backend. The evaluation therefore considers language-level systems features, compiler functional correctness, and the practical behaviour of the generated code.
 
 \subsection{Systems-language feature comparison}
 
-Compared with C and Rust, Veritas currently occupies an intermediate position.
-Like both languages, it supports first-order functions, mutable local state,
-fixed-size arrays, explicit integer reasoning, loop-based imperative control
-flow, and compilation to native code. Like Rust, it also has an ownership- and
-borrow-aware safety story rather than relying purely on unrestricted memory
-manipulation. Unlike both, however, its design is centred around carrying
-verification-relevant information through the compilation pipeline. This makes
-Veritas less general-purpose than C or Rust as a production systems language,
-but also gives it a stronger explicit safety and trust architecture within its
-supported fragment.
+Compared with C and Rust, Veritas currently occupies an intermediate position. Like both languages, it supports first-order functions, mutable local state, fixed-size arrays, explicit integer reasoning, loop-based imperative control flow, and compilation to native code. Like Rust, it also has an ownership- and borrow-aware safety story rather than relying purely on unrestricted memory
+manipulation. Unlike both, however, its design is centred around carrying verification-relevant information through the compilation pipeline. This makes Veritas less general-purpose than C or Rust as a production systems language, but also gives it a stronger explicit safety and trust architecture within its supported fragment.
 
-Table~\ref{tab:systems-language-comparison} summarises this position at a high
-level.
+% Table~\ref{tab:systems-language-comparison} summarises this position at a high level.
 
 \begin{table}[h]
   \centering
   \small
   \begin{tabular}{p{0.31\textwidth} c c c}
     \hline
-    \textbf{Feature}                            & \textbf{C} & \textbf{Rust} & \textbf{Veritas}      \\
+    \textbf{Feature}                            & \textbf{C} & \textbf{Rust} & \textbf{Veritas}                      \\
     \hline
-    Mutable local state                         & \checkmark & \checkmark    & \checkmark            \\
-    Fixed-size arrays                           & \checkmark & \checkmark    & \checkmark            \\
-    Structured loop control flow                & \checkmark & \checkmark    & \checkmark            \\
-    Native-code compilation                     & \checkmark & \checkmark    & \checkmark            \\
-    Built-in ownership discipline               &            & \checkmark    & \checkmark            \\
-    Refinement/contracts/invariants             &            &               & \checkmark            \\
-    Independent low-level verifier              &            &               & \checkmark            \\
-    User-defined structs / algebraic data types & \checkmark & \checkmark    & limited / absent      \\
-    General heap allocation model               & \checkmark & \checkmark    & limited / absent      \\
-    General unrestricted pointers               & \checkmark & \checkmark    &                       \\
-    Mature module / package ecosystem           & \checkmark & \checkmark    &                       \\
-    FFI / systems-library integration story     & \checkmark & \checkmark    & minimal               \\
-    Heap-heavy general systems idioms           & \checkmark & \checkmark    & partial / unsupported \\
-    Concurrency model in current fragment       & \checkmark & \checkmark    &                       \\
+    Mutable local state                         & \checkmark & \checkmark    & \checkmark                            \\
+    Fixed-size arrays                           & \checkmark & \checkmark    & \checkmark                            \\
+    Structured loop control flow                & \checkmark & \checkmark    & \checkmark                            \\
+    Native-code compilation                     & \checkmark & \checkmark    & \checkmark                            \\
+    Built-in ownership discipline               &            & \checkmark    & \checkmark                            \\
+    Refinement/contracts/invariants             &            &               & \checkmark                            \\
+    Independent low-level verifier              &            &               & \checkmark                            \\
+    User-defined structs / algebraic data types & \checkmark & \checkmark    & arrays / refs only                    \\
+    General heap allocation model               & \checkmark & \checkmark    & restricted \texttt{alloca}-style only \\
+    General unrestricted pointers               & \checkmark & \checkmark    &                                       \\
+    Basic I/O and runtime interaction           & \checkmark & \checkmark    & partial                               \\
+    Mature module / package ecosystem           & \checkmark & \checkmark    &                                       \\
+    FFI / systems-library integration story     & \checkmark & \checkmark    & minimal                               \\
+    Heap-heavy general systems idioms           & \checkmark & \checkmark    & array / ref kernels only              \\
+    Concurrency model in current fragment       & \checkmark & \checkmark    &                                       \\
     \hline
   \end{tabular}
+
   \caption{High-level comparison of Veritas with C and Rust as systems-language
     toolchains.}
   \label{tab:systems-language-comparison}
 \end{table}
 
-The most important implication of this comparison is that Veritas should not be
-judged as a drop-in replacement for C or Rust. The current language fragment is
-deliberately narrower. It handles mutation, arrays, integer safety, and
-borrow-style alias control well enough to support a class of systems-oriented
-programs and numeric kernels, but it does not yet provide a complete story for
-general pointers, arbitrary heap structure manipulation, or concurrency. The
-evaluation should therefore treat ``systems-language viability'' as a claim
-about the supported fragment and generated toolchain behaviour, not about full
-feature parity with mature production languages.
+The systems-language features that Veritas does share are enough to make Veritas viable for the kind of low-level kernels and array-oriented routines used throughout the evaluation.
+% and they distinguish it from source-only verification languages that do not aim to act as executable systems toolchains. 
+Features that are missing or only partial relative to C and Rust do limit its current generality as a systems language. The lack of a full heap allocation model, unrestricted pointers, rich user-defined data structures, concurrency support, and a substantial interoperability ecosystem means that Veritas is not yet suitable for broad systems programming in the way C and Rust are. Within a narrower fragment centered on structured imperative code with strong safety tracking, it does exhibit recognisably systems-language behaviour while offering a more explicit verification and trust model than conventional toolchains.
 
 \subsection{Compiler functional correctness}
 
