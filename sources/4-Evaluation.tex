@@ -172,10 +172,7 @@ borrow_end v3          : &[int(7); 1]
   \end{verbatim}
 \end{quote}
 
-Here the borrow itself is represented explicitly in DTAL rather than being an
-erased frontend-side fact. This allows the verifier to check that a borrowed
-view is created, used, and terminated in a way consistent with the ownership
-discipline of the source language.
+In this example, the creation, use, and termination of the borrowed view is represented explicitly in DTAL, which allows the verifier that the access occurs through a live borrow and that the borrow is ended consistently with the source-language ownership discipline.
 
 % There is no analogue to this ownership-aware low-level operation set in the original DTAL presentation. Instructions such as \texttt{move\_owned}, \texttt{alias\_borrow}, \texttt{borrow\_mut}, and \texttt{borrow\_end} are therefore genuine extensions rather than mere syntactic reformulations.
 
