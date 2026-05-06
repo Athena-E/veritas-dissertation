@@ -1,6 +1,5 @@
 % TODO: trust model of the project
 % TODO: move Veritas def to impl? Replace with more pre-testing, using and eval of other systems that inspired/guided design of Veritas
-% TODO: Section: Evaluation plan
 % TODO: Section: Key design decisions
 
 \chapter{Preparation}\label{ch:prep}
@@ -682,26 +681,26 @@ To maintain a manageable scope and clear focus on structural safety, several amb
   \item Verification of information flow control or cryptographic protocols.
 \end{itemize}
 
-\section{Evaluation plan}
-
-The evaluation aims to assess three dimensions: \textit{correctness}, \textit{overhead} (what is the cost of verification?), and \textit{expressiveness} (what can the type system express, and how large is the trusted computing base?).
-
-Correctness will be tested via suites of positive programs (expected to compile, verify, and execute correctly) and negative programs (expected to be rejected with specific errors). Verifier agreement---whether the independent DTAL verifier accepts every program the compiler produces---will serve as a cross-check of the trust architecture.
-
-Overhead will be measured quantitatively using the following metrics:
-
-\begin{itemize}
-  \item Compilation and verification time (with and without verification enabled)
-  \item SMT query count and cumulative solver time (frontend and verifier)
-  \item Output binary size compared to equivalent C programs compiled with GCC
-  \item Runtime execution time compared to C equivalents
-\end{itemize}
-
-Compilation timings will be collected using built-in instrumentation (the \texttt{--bench} flag emits per-stage JSON). Runtime benchmarking will use \texttt{hyperfine} for statistical rigour. A benchmarking harness will automate data collection across the test suite.
-
-Expressiveness will be assessed qualitatively: whether non-trivial algorithms can be verified, the annotation burden relative to executable code, and the proportion of the codebase within the trusted computing base.
-
-The language and its performance will also be compared against the existing verification systems surveyed in Section~\ref{sec:related-work}. Language comparisons will examine equivalent programs across systems (where possible), considering syntax verbosity, annotation requirements, and the kinds of properties each system can express. Performance comparisons will draw on published overhead figures from Liquid Haskell, Dafny, and similar tools to contextualise Veritas's verification cost.
+% \section{Evaluation plan}
+%
+% The evaluation aims to assess three dimensions: \textit{correctness}, \textit{overhead} (what is the cost of verification?), and \textit{expressiveness} (what can the type system express, and how large is the trusted computing base?).
+%
+% Correctness will be tested via suites of positive programs (expected to compile, verify, and execute correctly) and negative programs (expected to be rejected with specific errors). Verifier agreement---whether the independent DTAL verifier accepts every program the compiler produces---will serve as a cross-check of the trust architecture.
+%
+% Overhead will be measured quantitatively using the following metrics:
+%
+% \begin{itemize}
+%   \item Compilation and verification time (with and without verification enabled)
+%   \item SMT query count and cumulative solver time (frontend and verifier)
+%   \item Output binary size compared to equivalent C programs compiled with GCC
+%   \item Runtime execution time compared to C equivalents
+% \end{itemize}
+%
+% Compilation timings will be collected using built-in instrumentation (the \texttt{--bench} flag emits per-stage JSON). Runtime benchmarking will use \texttt{hyperfine} for statistical rigour. A benchmarking harness will automate data collection across the test suite.
+%
+% Expressiveness will be assessed qualitatively: whether non-trivial algorithms can be verified, the annotation burden relative to executable code, and the proportion of the codebase within the trusted computing base.
+%
+% The language and its performance will also be compared against the existing verification systems surveyed in Section~\ref{sec:related-work}. Language comparisons will examine equivalent programs across systems (where possible), considering syntax verbosity, annotation requirements, and the kinds of properties each system can express. Performance comparisons will draw on published overhead figures from Liquid Haskell, Dafny, and similar tools to contextualise Veritas's verification cost.
 
 \section{Software engineering methodology}
 \label{sec:software-eng-methodology}
