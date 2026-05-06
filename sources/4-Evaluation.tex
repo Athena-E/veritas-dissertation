@@ -1,4 +1,5 @@
 % TODO: explain hyperfine methodology
+% TODO: define feature suite
 
 \chapter{Evaluation}\label{ch:eval}
 
@@ -633,7 +634,7 @@ Table~\ref{tab:verification-safety-properties} makes the current limits of Verit
 % These examples are enough to show the main stylistic split. Veritas, Dafny, Liquid Haskell, and Verus all rely heavily on SMT-backed discharge once the relevant specifications are present, though they package those specifications differently. ATS is closer to a proof-oriented static programming discipline in which rich types are central but the automation story is less solver-driven.
 
 The cross-system comparison suite contains six normalised tasks: preconditioned safe division, bounded array access with an offset, array initialisation with a loop invariant, binary search over a sorted collection, returning the head of a sorted array, and overflow-safe midpoint arithmetic. The suite is normalised by verified property: Dafny uses heap arrays, Veritas and Verus use fixed-size arrays naturally, and Liquid Haskell uses a more functional representation.
-Within this small suite, Veritas is competitive on annotation burden and is particularly light on the loop- and search-heavy tasks.
+Within this small suite, Table~\ref{tab:cross-system-annotation-burden} shows Veritas is competitive on annotation burden and is particularly light on the loop- and search-heavy tasks.
 
 \begin{table}[h]
   \centering
@@ -687,72 +688,31 @@ Within this small suite, Veritas is competitive on annotation burden and is part
 
 \section{Verification cost and performance}\label{sec:verification-perf}
 
-The previous section evaluated what kinds of properties Veritas can express.
-This section asks the complementary question of cost: how expensive is it to
-check those properties, where in the pipeline that cost appears, and how
-Veritas should be compared fairly with source-level verification systems that
-do not also perform an explicit low-level re-checking stage.
+This section asks the question of verification cost: how expensive is it to check those properties, where in the pipeline that cost appears, and how Veritas should be compared fairly with source-level verification systems that do not also perform an explicit low-level re-checking stage.
 
 \subsection{Veritas verification cost breakdown}
 
-The first layer of cost evidence comes from the curated feature suite. These
-results separate source-to-DTAL compilation cost from the explicit DTAL
-verification stage, using the internal \texttt{--bench} measurements discussed
-earlier. Table~\ref{tab:veritas-feature-verification-cost} summarises the
-headline values for the current 28-program curated suite.
-
-\begin{table}[h]
-  \centering
-  \small
-  \begin{tabular}{l r}
-    \hline
-    \textbf{Metric}             & \textbf{Value}              \\
-    \hline
-    Feature-suite program count & 28                          \\
-    Mean \texttt{compile\_ms}   & 27.110 ms                   \\
-    Mean \texttt{verify\_ms}    & 9.116 ms                    \\
-    Mean frontend SMT time      & 13.097 ms                   \\
-    Mean verifier SMT time      & 8.737 ms                    \\
-    Worst compile case          & \texttt{20\_binary\_search} \\
-    Worst compile time          & 163.817 ms                  \\
-    Worst explicit verify case  & \texttt{20\_binary\_search} \\
-    Worst explicit verify time  & 55.209 ms                   \\
-    \hline
-  \end{tabular}
-  \caption{Headline verification-cost metrics for the curated 28-program
-    feature suite.}
-  \label{tab:veritas-feature-verification-cost}
-\end{table}
-
-Several observations follow. First, for the current supported fragment, the
-mean explicit verifier cost is materially smaller than the mean frontend
-source-to-DTAL cost. The extra low-level checking stage is therefore a real
-additional cost, but not one that dominates the overall pipeline uniformly.
-Second, the most expensive programs are exactly the ones that combine several
-proof mechanisms at once: binary search is heavy because it mixes loop
-invariants, symbolic arithmetic, and sortedness-oriented reasoning, while the
+The first layer of cost evidence comes from the curated feature suite. These results separate source-to-DTAL compilation cost from the explicit DTAL verification stage. Across the current 28-program suite, mean source-to-DTAL compilation time is 27.110\,ms, mean explicit DTAL verification time is 9.116\,ms, mean frontend SMT time is 13.097\,ms, and mean verifier SMT time is 8.737\,ms. The worst case on both compile and explicit verification cost is \texttt{binary\_search}, at 163.817\,ms and 55.209\,ms respectively.
+For the current supported fragment, the mean explicit verifier cost is materially smaller than the mean frontend source-to-DTAL cost. The extra low-level checking stage is an additional cost, but not one that dominates the overall pipeline uniformly. The most expensive programs are exactly the ones that combine several proof mechanisms at once: binary search is heavy because it mixes loop invariants, symbolic arithmetic, and sortedness-oriented reasoning, while the
 simpler contract and borrow examples remain much cheaper.
 
-The second layer of cost evidence comes from the verification-stress suite,
-measured using end-to-end \texttt{hyperfine} timings. This is important
-because the internal \texttt{compile\_ms} and \texttt{verify\_ms} counters do
-not include all of the user-visible command latency. Table
-~\ref{tab:verification-stress-overheads} therefore reports the wall-clock cost
-of running the compiler with and without explicit DTAL verification.
+The second layer of cost evidence comes from the verification-stress suite, a subset of the feature suite that acts as a proof-oriented stress suite of obligation-heavy programs.
+% , measured using end-to-end \texttt{hyperfine} timings. This is important because the internal \texttt{compile\_ms} and \texttt{verify\_ms} counters do not include all of the user-visible command latency. 
+% Table~\ref{tab:verification-stress-overheads} reports the wall-clock cost of running the compiler with and without explicit DTAL verification.
 
 \begin{table}[h]
   \centering
   \small
   \begin{tabular}{l r r r}
     \hline
-    \textbf{Program}                  & \textbf{Compile only (s)} & \textbf{Compile + verify (s)} & \textbf{Overhead ratio} \\
+    \textbf{Program}              & \textbf{Compile only (s)} & \textbf{Compile + verify (s)} & \textbf{Overhead ratio} \\
     \hline
-    \texttt{15\_array\_init}          & 0.0648                    & 0.2280                        & 3.521x                  \\
-    \texttt{16\_array\_assignment}    & 0.0890                    & 0.1089                        & 1.223x                  \\
-    \texttt{19\_quantifier\_showcase} & 0.1607                    & 0.1835                        & 1.142x                  \\
-    \texttt{20\_binary\_search}       & 0.2473                    & 0.2516                        & 1.017x                  \\
-    \texttt{22\_bubble\_sort}         & 0.0848                    & 0.1175                        & 1.385x                  \\
-    \texttt{sortedness}               & 0.0283                    & 0.0394                        & 1.393x                  \\
+    \texttt{array\_init}          & 0.0648                    & 0.2280                        & 3.521x                  \\
+    \texttt{array\_assignment}    & 0.0890                    & 0.1089                        & 1.223x                  \\
+    \texttt{quantifier\_showcase} & 0.1607                    & 0.1835                        & 1.142x                  \\
+    \texttt{binary\_search}       & 0.2473                    & 0.2516                        & 1.017x                  \\
+    \texttt{bubble\_sort}         & 0.0848                    & 0.1175                        & 1.385x                  \\
+    \texttt{sortedness}           & 0.0283                    & 0.0394                        & 1.393x                  \\
     \hline
   \end{tabular}
   \caption{End-to-end wall-clock overhead of explicit DTAL verification on the
@@ -760,15 +720,9 @@ of running the compiler with and without explicit DTAL verification.
   \label{tab:verification-stress-overheads}
 \end{table}
 
-These timings show that the cost of the independent verifier is highly
-program-dependent. \texttt{15\_array\_init} is the clearest outlier, with a
-3.521x overhead ratio, because it generates a particularly obligation-heavy
-array initialisation pattern. By contrast, \texttt{20\_binary\_search} is
-already expensive in the frontend, so the extra DTAL re-checking stage adds
-little relative overhead in end-to-end wall-clock terms. The correct
-interpretation is therefore not that DTAL verification adds a fixed tax, but
-that its cost scales with the structure of the proof obligations that survive
-lowering.
+The timings in Table~\ref{tab:verification-stress-overheads} show that the cost of the independent verifier is highly
+program-dependent. \texttt{array\_init} is the clearest outlier, with a 3.521$\times$ overhead ratio, because it generates a particularly obligation-heavy array initialisation pattern.
+% By contrast, \texttt{binary\_search} is already expensive in the frontend, so the extra DTAL re-checking stage adds little relative overhead in end-to-end wall-clock terms. The correct interpretation is therefore not that DTAL verification adds a fixed tax, but that its cost scales with the structure of the proof obligations that survive lowering.
 
 \subsection{Cross-system verification-cost comparison}
 
@@ -776,185 +730,139 @@ The comparison suite is designed to support a small empirical contrast with
 Dafny, Liquid Haskell, and Verus on six normalised tasks: safe division,
 bounded array access with an offset, array initialisation with a loop
 invariant, binary search, sorted-head extraction, and overflow-safe midpoint
-arithmetic. At present, the Veritas side of this suite has been measured and
-validated locally, while the authored programs for the other systems are
-frozen but have not yet been tool-validated in this environment. This means
-the current chapter can report a concrete Veritas baseline and a frozen
-cross-system task set, but should stop short of claiming a full verified
-timing comparison across all four systems.
+arithmetic. Repeated wall-clock timings were collected locally for Veritas in
+both \texttt{compile\_only} and \texttt{compile\_plus\_verify} modes, and for
+Dafny, Liquid Haskell, and Verus using the corresponding source-level
+verification commands.
 
-Table~\ref{tab:comparison-suite-veritas-costs} records the current Veritas
-cost profile for the six shared tasks.
+From Table~\ref{tab:comparison-suite-wallclock}, we can observe for Veritas, mean wall-clock time is around 0.041\,s in \texttt{compile\_only} mode and 0.051\,s in \texttt{compile\_plus\_verify} mode. Dafny averages $\sim$1.016\,s across the same six tasks, Liquid Haskell $\sim$1.227\,s, and Verus $\sim$0.488\,s, with \texttt{binary\_search} again the most expensive case for all systems. Veritas's \texttt{compile\_only} path is much shorter because the same implementation owns parsing, typing, lowering, and SMT discharge for a deliberately small fragment, with no separate general-purpose frontend or proof-oriented standard library layer. Dafny and Liquid Haskell, by contrast, are measured through their normal verification commands, which include the cost of their full source-level verification pipelines: Dafny's Boogie/SMT-based contract checking and Liquid Haskell's GHC-based compilation plus refinement checking plugin. Verus sits between these extremes in the suite: it remains a source-level system, but its executable/spec split and Rust-oriented verification flow produce lower wall-clock times on these particular small tasks.
 
 \begin{table}[h]
   \centering
   \small
-  \begin{tabular}{l r r r r}
+  \begin{tabularx}{\linewidth}{
+      >{\ttfamily}l
+      >{\centering\arraybackslash}X
+      >{\centering\arraybackslash}X
+      >{\centering\arraybackslash}X
+      >{\centering\arraybackslash}X
+      >{\centering\arraybackslash}X
+    }
     \hline
-    \textbf{Task}                  & \textbf{Compile (ms)} & \textbf{Verify (ms)} & \textbf{Annotation / code} & \textbf{Outcome} \\
+    \textbf{Task}                       &
+    \textbf{Veritas compile-only (s)}   &
+    \textbf{Veritas compile+verify (s)} &
+    \textbf{Dafny (s)}                  &
+    \textbf{Liquid Haskell (s)}         &
+    \textbf{Verus (s)}                                                      \\
     \hline
-    \texttt{safe\_division}        & 17.155                & 0.148                & 0.167                      & pass             \\
-    \texttt{bounded\_read\_offset} & 19.140                & 9.645                & 0.111                      & pass             \\
-    \texttt{fill\_with\_ones}      & 35.130                & 5.890                & 0.154                      & pass             \\
-    \texttt{binary\_search}        & 139.491               & 32.634               & 0.077                      & pass             \\
-    \texttt{sorted\_head}          & 16.491                & 4.086                & 0.125                      & pass             \\
-    \texttt{safe\_midpoint}        & 13.549                & 1.202                & 0.143                      & pass             \\
+
+    safe\_division                      &
+    0.0152                              & 0.0146 & 0.9259 & 1.1794 & 0.4484 \\
+
+    bounded\_read\_offset               &
+    0.0173                              & 0.0224 & 1.0118 & 1.2807 & 0.4604 \\
+
+    fill\_with\_ones                    &
+    0.0359                              & 0.0446 & 1.0015 & 1.2213 & 0.4924 \\
+
+    binary\_search                      &
+    0.1456                              & 0.1867 & 1.2629 & 1.3219 & 0.5285 \\
+
+    sorted\_head                        &
+    0.0156                              & 0.0208 & 1.0054 & 1.1942 & 0.5068 \\
+
+    safe\_midpoint                      &
+    0.0155                              & 0.0178 & 0.8856 & 1.1624 & 0.4939 \\
     \hline
-  \end{tabular}
-  \caption{Current Veritas verification-cost baseline for the six-task
+  \end{tabularx}
+
+  \caption{Repeated wall-clock timings for the normalised six-task
     cross-system comparison suite.}
-  \label{tab:comparison-suite-veritas-costs}
+  \label{tab:comparison-suite-wallclock}
 \end{table}
 
-This baseline is already informative: \texttt{safe\_division} is almost
-trivial, \texttt{bounded\_read\_offset} adds an index proof,
-\texttt{fill\_with\_ones} adds loop reasoning, \texttt{sorted\_head} and
-\texttt{safe\_midpoint} are modest contract-oriented checks, and
-\texttt{binary\_search} is substantially heavier than the others. As elsewhere
-in the chapter, cost is driven more by proof structure than by surface code
-size alone. The full wall-clock comparison against Dafny, Liquid Haskell, and
-Verus remains future work until those toolchains are available in the same
-controlled environment; that limitation is revisited later rather than
-repeated here at length.
 
-\subsection{Interpreting Veritas's two-level verification cost}
+% \subsection{Interpreting Veritas's two-level verification cost}
 
-The most important methodological point in this section is that Veritas incurs
-two separable verification costs, whereas most related systems primarily incur
-one. A source-level system such as Dafny or Liquid Haskell pays for checking
-contracts, refinements, and invariants over the source program, and then
-largely trusts the compiler to preserve those results. Veritas pays that same
-kind of frontend proof-discharge cost, but can additionally pay for explicit
-independent DTAL verification after lowering.
-
-For that reason, two views of Veritas cost are both legitimate and both
-necessary. The frontend-only view, approximated by \texttt{compile\_ms} and the
-frontend SMT metrics, is the fairest comparison point against source-level
-verification systems. The end-to-end view, measured by
-\texttt{compile\_plus\_verify} wall-clock timings and \texttt{verify\_ms}, is
-the right measure for evaluating the trust architecture that this dissertation
-actually contributes. Using only the second view would make Veritas look
-artificially expensive against systems that are solving a narrower problem;
-using only the first view would hide the cost of the very mechanism that makes
-Veritas distinctive.
-
-The correct conclusion is therefore two-part. Relative to ordinary frontend
-verification, Veritas's source-level costs are in the expected range for an
-SMT-backed verifier on proof-heavy array programs. Relative to its own
-architectural goals, the additional DTAL-level cost is measurable but
-manageable, and it buys something the comparison systems do not attempt to
-provide: a separately checkable low-level artifact that can reject backend
-mistakes after source-level verification has already succeeded.
+An important distinction is that Veritas incurs two separable verification costs at the source and DTAL level, whereas most related systems primarily incur one.
+% The most important methodological point in this section is that Veritas incurs two separable verification costs, whereas most related systems primarily incur one. A source-level system such as Dafny or Liquid Haskell pays for checking contracts, refinements, and invariants over the source program, and then largely trusts the compiler to preserve those results. Veritas pays that same kind of frontend proof-discharge cost, but can additionally pay for explicit independent DTAL verification after lowering.
+% For that reason, two views of Veritas cost are both legitimate and both necessary. 
+The frontend-only view, approximated by \texttt{compile\_ms} and the frontend SMT metrics, is the fairest comparison point against source-level verification systems. The end-to-end view, measured by \texttt{compile\_plus\_verify} wall-clock timings and \texttt{verify\_ms}, is a more appropriate measure for evaluating the trust architecture.
+% Using only the second view would make Veritas look artificially expensive against systems that are solving a narrower problem; using only the first view would hide the cost of the very mechanism that makes Veritas distinctive.
+% Relative to ordinary frontend verification, Veritas's source-level costs are in the expected range for an SMT-backed verifier on proof-heavy array programs. Relative to its own architectural goals, the additional DTAL-level cost is measurable but manageable
+% , and it buys something the comparison systems do not attempt to provide: a separately checkable low-level artifact that can reject backend mistakes after source-level verification has already succeeded.
+Veritas's extra low-level re-checking stage remains small in this comparison even when measured as an external wall-clock command.
+The other systems report only the source-level verification command because they do not attempt an analogous independently checkable low-level verification stage.
 
 \section{Verifier functional correctness and reliability}\label{sec:verifier-correctness}
 
-The previous sections evaluated expressiveness and cost. This section evaluates
-the verifier itself as an independent checking mechanism. The relevant claim is
-not that the verifier has been proved correct in a formal metatheoretic sense,
-but that it behaves reliably in practice across four complementary dimensions:
-agreement on valid programs, rejection of invalid source programs, rejection of
-tampered low-level DTAL, and deterministic robustness on a small generated
-corpus.
+This section evaluates the verifier itself as an independent checking mechanism. The claim is not that the verifier has been proved correct in a formal metatheoretic sense, but that it behaves reliably in practice.
+% across four complementary dimensions: agreement on valid programs, rejection of invalid source programs, rejection of tampered low-level DTAL, and deterministic robustness on a small generated corpus.
 
 \subsection{Verifier agreement on valid programs}
 
-The strongest positive evidence comes from the curated feature suite. For this
-suite, the frontend compiler and the independent physical-DTAL verifier now
-agree on acceptance for every frozen benchmark program. This matters because
-the feature suite is not a collection of trivial smoke tests: it includes
-arrays, contracts, loop invariants, quantifiers, safe arithmetic, sortedness
-reasoning, and borrow-oriented examples. Agreement across that suite therefore
-means that the low-level verifier accepts the same supported fragment that the
-frontend is intended to accept.
+The strongest positive evidence comes from the feature suite. The frontend compiler and the independent physical-DTAL verifier agree on acceptance for all benchmark programs. This agreement is broad across feature categories, including arrays, preconditions, loop invariants, quantifiers, sortedness, shared borrows, mutable borrows, scalar dereferences, and overflow-aware arithmetic. For the supported fragment, the frontend and independent DTAL verifier agree on which valid programs are accepted.
 
-Table~\ref{tab:verifier-agreement-summary} summarises the current positive
-agreement evidence.
+% Table~\ref{tab:verifier-agreement-summary} summarises the current positive agreement evidence.
+
+% \begin{table}[h]
+%   \centering
+%   \small
+%   \begin{tabular}{l r}
+%     \hline
+%     \textbf{Metric}                   & \textbf{Value} \\
+%     \hline
+%     Curated feature-suite size        & 28             \\
+%     Frontend accepted                 & 28             \\
+%     Independent verifier accepted     & 28             \\
+%     Frontend / verifier disagreements & 0              \\
+%     \hline
+%   \end{tabular}
+%   \caption{Verifier agreement on the curated valid-program corpus.}
+%   \label{tab:verifier-agreement-summary}
+% \end{table}
+
+
+\subsection{Rejection of invalid source programs}
+
+The verifier and surrounding pipeline must also reject invalid programs systematically. The curated negative suite provides the complementary source-level rejection corpus. All 35 programs in this suite are rejected, and the suite is grouped by error class as shown in Table~\ref{tab:negative-suite-summary}. The rejection results support the claim that Veritas rejects representative unsafe programs across a broad range of error modes.
+
+% Table~\ref{tab:negative-suite-summary} summarises the current rejection result by class.
 
 \begin{table}[h]
   \centering
   \small
   \begin{tabular}{l r}
     \hline
-    \textbf{Metric}                   & \textbf{Value} \\
+    \textbf{Error class}           & \textbf{Total} \\
     \hline
-    Curated feature-suite size        & 28             \\
-    Frontend accepted                 & 28             \\
-    Independent verifier accepted     & 28             \\
-    Frontend / verifier disagreements & 0              \\
-    \hline
-  \end{tabular}
-  \caption{Verifier agreement on the curated valid-program corpus.}
-  \label{tab:verifier-agreement-summary}
-\end{table}
-
-This agreement is also broad across feature categories rather than being
-concentrated in only the easy cases. The grouped verifier matrix shows full
-agreement across all tagged categories present in the current suite, including
-arrays, preconditions, loop invariants, quantifiers, sortedness, shared
-borrows, mutable borrows, scalar dereferences, and overflow-aware arithmetic.
-The appropriate claim is therefore: for the current supported fragment as
-frozen by the 28-program feature suite, the frontend and independent DTAL
-verifier agree on which valid programs are accepted.
-
-This is intentionally a claim about the frozen supported fragment, not about
-all possible future translations or external benchmarks. Programs from
-PolyBench or future LLVM-derived suites should only be counted in this
-agreement story once they have been stabilised and explicitly added to frozen
-manifests.
-
-\subsection{Rejection of invalid source programs}
-
-Positive agreement alone is not enough to evaluate reliability. The verifier
-and surrounding pipeline must also reject invalid programs systematically. The
-curated negative suite therefore provides the complementary source-level
-rejection corpus. All 35 programs in this suite are rejected, and the suite is
-grouped by error class so that the evidence is not merely anecdotal.
-
-Table~\ref{tab:negative-suite-summary} summarises the current rejection result
-by class.
-
-\begin{table}[h]
-  \centering
-  \small
-  \begin{tabular}{l r r}
-    \hline
-    \textbf{Error class}           & \textbf{Total} & \textbf{Rejected} \\
-    \hline
-    Type error                     & 7              & 7                 \\
-    Name resolution                & 2              & 2                 \\
-    Control flow                   & 3              & 3                 \\
-    Array error                    & 2              & 2                 \\
-    Call error                     & 2              & 2                 \\
-    Contract violation             & 2              & 2                 \\
-    Quantifier error               & 3              & 3                 \\
-    Invariant failure              & 2              & 2                 \\
-    Safety proof failure           & 2              & 2                 \\
-    Arithmetic safety              & 2              & 2                 \\
-    Overflow safety                & 5              & 5                 \\
-    Other grouped frontend classes & 3              & 3                 \\
+    Type error                     & 7              \\
+    Name resolution                & 2              \\
+    Control flow                   & 3              \\
+    Array error                    & 2              \\
+    Call error                     & 2              \\
+    Contract violation             & 2              \\
+    Quantifier error               & 3              \\
+    Invariant failure              & 2              \\
+    Safety proof failure           & 2              \\
+    Arithmetic safety              & 2              \\
+    Overflow safety                & 5              \\
+    Other grouped frontend classes & 3              \\
     \hline
   \end{tabular}
   \caption{Rejection of invalid programs in the curated negative suite.}
   \label{tab:negative-suite-summary}
 \end{table}
 
-These classes cover the main safety claims made elsewhere in the dissertation:
-array bounds violations, negative indices, unsatisfied preconditions, invalid
-quantifier use, invariant establishment and preservation failures,
-division-by-zero risks, and overflow or underflow hazards. The rejection
-results therefore support the claim that Veritas does not merely accept a set
-of positive examples, but also rejects representative unsafe programs across a
-broad range of error modes.
-
-There is, however, an important caveat about diagnostics. Some rejection
-classes still collapse to relatively generic error codes such as
-\texttt{[E001] Type mismatch}. The reliability claim here is therefore
-stronger than the diagnostic-precision claim. The system is already systematic
-at rejecting invalid programs, but the dissertation should not overstate the
-quality or granularity of every emitted message.
+% These classes cover the main safety claims made elsewhere in the dissertation:
+% array bounds violations, negative indices, unsatisfied preconditions, invalid
+% quantifier use, invariant establishment and preservation failures,
+% division-by-zero risks, and overflow or underflow hazards. 
 
 \subsection{Rejection of tampered DTAL}
 
+To test the rejection of invalid DTAL directioy, the DTAL tampering
 The most distinctive reliability evidence is the DTAL tampering corpus, since
 it tests the trust boundary directly rather than only the source language. In
 this corpus, a valid curated source program is compiled to DTAL, the baseline
@@ -962,140 +870,82 @@ DTAL is verified successfully, and then a small syntax-preserving mutation is
 applied to the low-level program. The verifier is expected to reject the
 tampered DTAL.
 
-The current corpus contains 14 cases spanning:
-return-signature mismatches, strengthened preconditions, contradictory
-assertions, positive and negative out-of-bounds accesses, arithmetic overflow,
-use-after-drop, ownership duplication, mutable-aliasing violations, and entry
-state or signature mismatches. Table~\ref{tab:dtal-tampering-summary}
-summarises these mutation families.
+The current corpus contains 14 cases spanning: return-signature mismatches, strengthened preconditions, contradictory assertions, positive and negative out-of-bounds accesses, arithmetic overflow, use-after-drop, ownership duplication, mutable-aliasing violations, and entry state or signature mismatches.
+% Table~\ref{tab:dtal-tampering-summary} summarises these mutation families.
+%
+% \begin{table}[h]
+%   \centering
+%   \small
+%   \begin{tabular}{l r}
+%     \hline
+%     \textbf{Mutation family}          & \textbf{Cases} \\
+%     \hline
+%     Structural / signature mismatches & 3              \\
+%     Contract / assertion failures     & 3              \\
+%     Bounds-check failures             & 4              \\
+%     Ownership / aliasing violations   & 4              \\
+%     Arithmetic overflow tampering     & 1              \\
+%     \hline
+%   \end{tabular}
+%   \caption{Coverage of the DTAL tampering corpus. Some cases exercise more
+%     than one conceptual safety concern, so the grouping is by primary
+%     mutation family.}
+%   \label{tab:dtal-tampering-summary}
+% \end{table}
+% Three short examples make the corpus more concrete. 
+A structural tamper can be as small as changing the declared return type of a function from the valid baseline \texttt{.returns int} to the mutated form \texttt{.returns bool}, which the verifier rejects as a return-type mismatch. A bounds-safety tamper can change an in-bounds index into an invalid one, for example replacing \texttt{mov v4, 0 : int} with \texttt{mov v4, 1 : int(1)} in a one-element shared-borrow dereference example, which turns a proven safe access into a verifier-detected bounds failure. An ownership tamper can replace an ownership-preserving path with an illegal duplicating move, for example inserting \texttt{mov v6, v1 : [int(7); 1]} after a live borrow, which the verifier rejects as an ownership violation.
+% These mutations are intentionally small: the goal is to show that safety-critical backend corruption need not be dramatic to be caught.
 
-\begin{table}[h]
-  \centering
-  \small
-  \begin{tabular}{l r}
-    \hline
-    \textbf{Mutation family}          & \textbf{Cases} \\
-    \hline
-    Structural / signature mismatches & 3              \\
-    Contract / assertion failures     & 3              \\
-    Bounds-check failures             & 4              \\
-    Ownership / aliasing violations   & 4              \\
-    Arithmetic overflow tampering     & 1              \\
-    \hline
-  \end{tabular}
-  \caption{Coverage of the DTAL tampering corpus. Some cases exercise more
-    than one conceptual safety concern, so the grouping is by primary
-    mutation family.}
-  \label{tab:dtal-tampering-summary}
-\end{table}
+% This evidence supports a narrow but important claim. It does not prove that every possible semantic miscompilation is caught, nor that the compiler is correct. 
+This evidence shows that representative low-level corruptions that break the verifier's safety model are rejected even when the original source program was valid.
+% This is exactly the kind of evidence needed for the untrusted-compiler story: safety-critical backend mistakes are not simply trusted away once source-level verification has succeeded.
 
-Three short examples make the corpus more concrete. A structural tamper can be
-as small as changing the declared return type of a function from the valid
-baseline
-
-\begin{quote}
-  \begin{verbatim}
-.returns int
-  \end{verbatim}
-\end{quote}
-
-to the mutated form
-
-\begin{quote}
-  \begin{verbatim}
-.returns bool
-  \end{verbatim}
-\end{quote}
-
-which the verifier rejects as a return-type mismatch. A bounds-safety tamper
-can change an in-bounds index into an invalid one, for example replacing
-
-\begin{quote}
-  \begin{verbatim}
-mov v4, 0    : int
-  \end{verbatim}
-\end{quote}
-
-with
-
-\begin{quote}
-  \begin{verbatim}
-mov v4, 1    : int(1)
-  \end{verbatim}
-\end{quote}
-
-in a one-element shared-borrow dereference example, which turns a proven safe
-access into a verifier-detected bounds failure. An ownership tamper can
-replace an ownership-preserving path with an illegal duplicating move, for
-example inserting
-
-\begin{quote}
-  \begin{verbatim}
-mov v6, v1    : [int(7); 1]
-  \end{verbatim}
-\end{quote}
-
-after a live borrow, which the verifier rejects as an ownership violation.
-These mutations are intentionally small: the goal is to show that
-safety-critical backend corruption need not be dramatic to be caught.
-
-This evidence supports a narrow but important claim. It does not prove that
-every possible semantic miscompilation is caught, nor that the compiler is
-correct. What it does show is that representative low-level corruptions that
-break the verifier's safety model are rejected even when the original source
-program was valid. This is exactly the kind of evidence needed for the
-untrusted-compiler story: safety-critical backend mistakes are not simply
-trusted away once source-level verification has succeeded.
-
-\subsection{Robustness evidence}
-
-The final layer of reliability evidence comes from the fixed-seed robustness
-track. This is not a benchmark suite and not a replacement for the curated
-feature or negative suites. Instead, it asks whether the implementation
-behaves deterministically and without crashes on a broader range of generated
-small programs inside a restricted fragment.
-
-The current robustness corpus contains 16 generated cases across four families:
-valid arithmetic programs, valid array programs, invalid type errors, and
-invalid syntax errors. The accompanying integration test checks three
-properties:
-deterministic compilation and DTAL generation for valid programs,
-successful in-memory and text-DTAL verification for generated valid programs,
-and deterministic failures with stable diagnostics for generated invalid
-programs.
-
-The current explicit run passes all three properties over the fixed corpus.
-This does not say much about semantic completeness, but it does provide useful
-engineering evidence that the implementation is stable under repeated
-compilation and verification. It also already exposed a real bug during the
-evaluation work: synthesized refinement names were previously allocated from a
-global counter that was not reset between compilations, which made repeated
-compilation of the same source produce drifting generated identifiers. Fixing
-that issue improved both tool robustness and reproducibility of the DTAL
-artifacts used elsewhere in the evaluation.
-
-Taken together, these four evidence streams support a practical reliability
-claim for the current implementation. The verifier agrees with the frontend on
-the supported valid fragment, invalid programs are rejected across a broad
-range of source-level failure classes, representative tampered low-level
-artifacts are rejected after compilation, and the implementation behaves
-deterministically on a fixed generated corpus. That is a substantially
-stronger trust and reliability story than source-level acceptance alone.
+% \subsection{Robustness evidence}
+%
+% The final layer of reliability evidence comes from the fixed-seed robustness
+% track. This is not a benchmark suite and not a replacement for the curated
+% feature or negative suites. Instead, it asks whether the implementation
+% behaves deterministically and without crashes on a broader range of generated
+% small programs inside a restricted fragment.
+%
+% The current robustness corpus contains 16 generated cases across four families:
+% valid arithmetic programs, valid array programs, invalid type errors, and
+% invalid syntax errors. The accompanying integration test checks three
+% properties:
+% deterministic compilation and DTAL generation for valid programs,
+% successful in-memory and text-DTAL verification for generated valid programs,
+% and deterministic failures with stable diagnostics for generated invalid
+% programs.
+%
+% The current explicit run passes all three properties over the fixed corpus.
+% This does not say much about semantic completeness, but it does provide useful
+% engineering evidence that the implementation is stable under repeated
+% compilation and verification. It also already exposed a real bug during the
+% evaluation work: synthesized refinement names were previously allocated from a
+% global counter that was not reset between compilations, which made repeated
+% compilation of the same source produce drifting generated identifiers. Fixing
+% that issue improved both tool robustness and reproducibility of the DTAL
+% artifacts used elsewhere in the evaluation.
+%
+% Taken together, these four evidence streams support a practical reliability
+% claim for the current implementation. The verifier agrees with the frontend on
+% the supported valid fragment, invalid programs are rejected across a broad
+% range of source-level failure classes, representative tampered low-level
+% artifacts are rejected after compilation, and the implementation behaves
+% deterministically on a fixed generated corpus. That is a substantially
+% stronger trust and reliability story than source-level acceptance alone.
 
 \section{Trust architecture and trusted computing base}\label{sec:tcb-eval}
 
-The earlier sections evaluated correctness, expressiveness, cost, and
-reliability. This section turns back to the trust architecture itself. The
-dissertation's claim is not only that Veritas can verify useful programs, but
-that it does so with a trust boundary that is smaller and more explicit than a
-conventional source-level verification pipeline. Emitted binary size is part of
-the practicality discussion earlier in the chapter; here, code size matters
+This section turns back to the trust architecture itself. The
+dissertation's claim is not only that Veritas can verify useful programs, but that it does so with a trust boundary that is smaller and more explicit than a conventional source-level verification pipeline. Emitted binary size is part of the practicality discussion earlier in the chapter; here, code size matters
 only indirectly, because Veritas emits compact freestanding binaries and does
 not depend on a large trusted runtime. The main quantitative question is
 therefore the size of the trusted implementation that remains on the verifier
 side of the architecture.
 
 \subsection{Trusted computing base analysis}
+% Size of TCB; relative to other trust architectures; extended TCB to support I/O; runtime/unikernel TCB
 
 The more important quantitative result in this section is the trusted
 computing base summary. In the current physical-DTAL architecture, the
@@ -1234,52 +1084,47 @@ abstractly.
 % artifacts. That is a narrower claim than ``general-purpose verified systems
 % language,'' but it is also a much better-supported one.
 
-\section{Summary against project objectives}
-
-Taken as a whole, the evaluation supports the dissertation's central claim:
-Veritas is not merely a frontend refinement-type prototype, but a working
-type-preserving compilation pipeline in which proof-relevant information is
-preserved to a low-level representation and independently re-checked there. On
-the frozen supported fragment, this architecture works in the intended sense.
-The curated feature suite provides 28 out of 28 frontend/verifier agreements,
-the curated negative suite provides 35 out of 35 rejections, the DTAL
-tampering corpus shows that representative low-level corruptions are caught
-after compilation, and the fixed-seed robustness track shows that the current
-implementation behaves deterministically on a broader generated corpus.
-
-Several objectives can therefore be treated as fully met. The project does
-implement a DTAL-inspired trust architecture rather than only discussing one
-conceptually. It does provide an independently operating verifier over the
-compiled low-level artifact. It does support a non-trivial source-language
-fragment including contracts, arrays, loop invariants, quantifiers,
-sortedness-oriented reasoning, and borrow-aware examples. It also produces
-real executable code and supports a meaningful external practicality story via
-the translated PolyBench-style kernels.
-
-Other objectives are best treated as partially met rather than fully complete.
-The runtime and code-size results show that the compiler is usable and often
-plausible, but not yet competitive with mature systems compilers on emitted
-code quality. The verification-cost comparison with other languages is well
-designed and partially instrumented, but not yet fully executed under one
-local toolchain environment. The supported fragment is broad enough for a
-strong dissertation argument, but still substantially narrower than a mature
-systems language or a general-purpose verification platform.
-
-The strongest overall conclusion is therefore architectural. Veritas occupies a
-distinct and well-evidenced point in the design space between source-level
-verification tools and foundational low-level proof systems. It combines
-automated SMT-backed source reasoning with an independently checkable DTAL
-layer, reducing the amount of compiler infrastructure that must be trusted for
-the core safety claim. The main remaining limitations are not that this idea
-fails, but that it has so far been demonstrated on a deliberately scoped
-fragment rather than on the full range of systems-programming and verification
-tasks. Within that scope, however, the evaluation shows the approach to be
-successful, credible, and practically implemented.
-
-\section{Appendix: Supplementary Evaluation Tables}
-
-This section retains supporting tables that are useful for reference but not
-essential to the main flow of the chapter.
+% \section{Summary against project objectives}
+%
+% Taken as a whole, the evaluation supports the dissertation's central claim:
+% Veritas is not merely a frontend refinement-type prototype, but a working
+% type-preserving compilation pipeline in which proof-relevant information is
+% preserved to a low-level representation and independently re-checked there. On
+% the frozen supported fragment, this architecture works in the intended sense.
+% The curated feature suite provides 28 out of 28 frontend/verifier agreements,
+% the curated negative suite provides 35 out of 35 rejections, the DTAL
+% tampering corpus shows that representative low-level corruptions are caught
+% after compilation, and the fixed-seed robustness track shows that the current
+% implementation behaves deterministically on a broader generated corpus.
+%
+% Several objectives can therefore be treated as fully met. The project does
+% implement a DTAL-inspired trust architecture rather than only discussing one
+% conceptually. It does provide an independently operating verifier over the
+% compiled low-level artifact. It does support a non-trivial source-language
+% fragment including contracts, arrays, loop invariants, quantifiers,
+% sortedness-oriented reasoning, and borrow-aware examples. It also produces
+% real executable code and supports a meaningful external practicality story via
+% the translated PolyBench-style kernels.
+%
+% Other objectives are best treated as partially met rather than fully complete.
+% The runtime and code-size results show that the compiler is usable and often
+% plausible, but not yet competitive with mature systems compilers on emitted
+% code quality. The verification-cost comparison with other languages is well
+% designed and partially instrumented, but not yet fully executed under one
+% local toolchain environment. The supported fragment is broad enough for a
+% strong dissertation argument, but still substantially narrower than a mature
+% systems language or a general-purpose verification platform.
+%
+% The strongest overall conclusion is therefore architectural. Veritas occupies a
+% distinct and well-evidenced point in the design space between source-level
+% verification tools and foundational low-level proof systems. It combines
+% automated SMT-backed source reasoning with an independently checkable DTAL
+% layer, reducing the amount of compiler infrastructure that must be trusted for
+% the core safety claim. The main remaining limitations are not that this idea
+% fails, but that it has so far been demonstrated on a deliberately scoped
+% fragment rather than on the full range of systems-programming and verification
+% tasks. Within that scope, however, the evaluation shows the approach to be
+% successful, credible, and practically implemented.
 
 \begin{table}[h]
   \centering
@@ -1310,52 +1155,33 @@ essential to the main flow of the chapter.
   \label{tab:dtal-xi-harper-comparison}
 \end{table}
 
-\begin{table}[h]
-  \centering
-  \small
-  \begin{tabular}{l l r r}
-    \hline
-    \textbf{Program}                  & \textbf{Role}                  & \textbf{Compile (ms)} & \textbf{Binary bytes} \\
-    \hline
-    \texttt{16\_array\_assignment}    & array mutation and indexing    & 21.169                & 799                   \\
-    \texttt{19\_quantifier\_showcase} & quantified proof obligations   & 130.811               & 2553                  \\
-    \texttt{20\_binary\_search}       & sorted search with invariants  & 163.817               & 2111                  \\
-    \texttt{21\_safe\_division}       & arithmetic-safety baseline     & 5.177                 & 653                   \\
-    \texttt{22\_bubble\_sort}         & non-trivial algorithmic kernel & 86.265                & 1641                  \\
-    \texttt{33\_mutable\_borrow}      & ownership-oriented mutation    & 4.233                 & 705                   \\
-    \hline
-  \end{tabular}
-  \caption{Representative compiler-side results from the cleaned feature suite.}
-  \label{tab:feature-compiler-representatives}
-\end{table}
-
-\begin{table}[h]
-  \centering
-  \small
-  \begin{tabular}{l c c c c c}
-    \hline
-    \textbf{Feature}                                      & \textbf{Veritas} & \textbf{Dafny} & \textbf{Liquid Haskell} & \textbf{Verus} & \textbf{ATS} \\
-    \hline
-    Refinement-style specifications                       & Yes              & Yes            & Yes                     & Yes            & Yes          \\
-    SMT-backed verification                               & Yes              & Yes            & Yes                     & Yes            & No           \\
-    Imperative mutable programming model                  & Yes              & Yes            & No                      & Yes            & Yes          \\
-    Contracts and loop invariants                         & Yes              & Yes            & Partial                 & Yes            & Partial      \\
-    Fixed-size array reasoning in the evaluated fragment  & Yes              & Partial        & Partial                 & Yes            & Yes          \\
-    Ownership / borrow discipline                         & Yes              & No             & No                      & Yes            & Partial      \\
-    Systems-language orientation                          & Yes              & Partial        & No                      & Yes            & Yes          \\
-    User-defined algebraic data types / structs           & Partial          & Yes            & Yes                     & Yes            & Yes          \\
-    Pattern matching over rich user data                  & No               & Yes            & Yes                     & Partial        & Yes          \\
-    General heap-allocated data structures                & No               & Yes            & Yes                     & Partial        & Partial      \\
-    Recursive functional programming style                & No               & Partial        & Yes                     & Partial        & Yes          \\
-    Mature module / library ecosystem                     & No               & Partial        & Yes                     & Partial        & No           \\
-    Concurrency-oriented verification story               & No               & No             & No                      & Yes            & No           \\
-    Proof-oriented ghost state / ghost code               & Partial          & Yes            & Partial                 & Yes            & Yes          \\
-    User-guided theorem proving beyond SMT automation     & No               & Partial        & Partial                 & Yes            & Yes          \\
-    Type-preserving low-level compilation target          & Yes              & No             & No                      & No             & No           \\
-    Independent low-level verifier over compiled artifact & Yes              & No             & No                      & No             & No           \\
-    \hline
-  \end{tabular}
-  \caption{Broader feature comparison across the verification languages used
-    in the evaluation.}
-  \label{tab:verification-language-features}
-\end{table}
+% \begin{table}[h]
+%   \centering
+%   \small
+%   \begin{tabular}{l c c c c c}
+%     \hline
+%     \textbf{Feature}                                      & \textbf{Veritas} & \textbf{Dafny} & \textbf{Liquid Haskell} & \textbf{Verus} & \textbf{ATS} \\
+%     \hline
+%     Refinement-style specifications                       & Yes              & Yes            & Yes                     & Yes            & Yes          \\
+%     SMT-backed verification                               & Yes              & Yes            & Yes                     & Yes            & No           \\
+%     Imperative mutable programming model                  & Yes              & Yes            & No                      & Yes            & Yes          \\
+%     Contracts and loop invariants                         & Yes              & Yes            & Partial                 & Yes            & Partial      \\
+%     Fixed-size array reasoning in the evaluated fragment  & Yes              & Partial        & Partial                 & Yes            & Yes          \\
+%     Ownership / borrow discipline                         & Yes              & No             & No                      & Yes            & Partial      \\
+%     Systems-language orientation                          & Yes              & Partial        & No                      & Yes            & Yes          \\
+%     User-defined algebraic data types / structs           & Partial          & Yes            & Yes                     & Yes            & Yes          \\
+%     Pattern matching over rich user data                  & No               & Yes            & Yes                     & Partial        & Yes          \\
+%     General heap-allocated data structures                & No               & Yes            & Yes                     & Partial        & Partial      \\
+%     Recursive functional programming style                & No               & Partial        & Yes                     & Partial        & Yes          \\
+%     Mature module / library ecosystem                     & No               & Partial        & Yes                     & Partial        & No           \\
+%     Concurrency-oriented verification story               & No               & No             & No                      & Yes            & No           \\
+%     Proof-oriented ghost state / ghost code               & Partial          & Yes            & Partial                 & Yes            & Yes          \\
+%     User-guided theorem proving beyond SMT automation     & No               & Partial        & Partial                 & Yes            & Yes          \\
+%     Type-preserving low-level compilation target          & Yes              & No             & No                      & No             & No           \\
+%     Independent low-level verifier over compiled artifact & Yes              & No             & No                      & No             & No           \\
+%     \hline
+%   \end{tabular}
+%   \caption{Broader feature comparison across the verification languages used
+%     in the evaluation.}
+%   \label{tab:verification-language-features}
+% \end{table}
