@@ -830,31 +830,6 @@ The verifier and surrounding pipeline must also reject invalid programs systemat
 
 % Table~\ref{tab:negative-suite-summary} summarises the current rejection result by class.
 
-\begin{table}[h]
-  \centering
-  \small
-  \begin{tabular}{l r}
-    \hline
-    \textbf{Error class}           & \textbf{Total} \\
-    \hline
-    Type error                     & 7              \\
-    Name resolution                & 2              \\
-    Control flow                   & 3              \\
-    Array error                    & 2              \\
-    Call error                     & 2              \\
-    Contract violation             & 2              \\
-    Quantifier error               & 3              \\
-    Invariant failure              & 2              \\
-    Safety proof failure           & 2              \\
-    Arithmetic safety              & 2              \\
-    Overflow safety                & 5              \\
-    Other grouped frontend classes & 3              \\
-    \hline
-  \end{tabular}
-  \caption{Rejection of invalid programs in the curated negative suite.}
-  \label{tab:negative-suite-summary}
-\end{table}
-
 % These classes cover the main safety claims made elsewhere in the dissertation:
 % array bounds violations, negative indices, unsatisfied preconditions, invalid
 % quantifier use, invariant establishment and preservation failures,
@@ -937,66 +912,38 @@ This evidence shows that representative low-level corruptions that break the ver
 
 \section{Trust architecture and trusted computing base}\label{sec:tcb-eval}
 
-This section turns back to the trust architecture itself. The
-dissertation's claim is not only that Veritas can verify useful programs, but that it does so with a trust boundary that is smaller and more explicit than a conventional source-level verification pipeline. Emitted binary size is part of the practicality discussion earlier in the chapter; here, code size matters
-only indirectly, because Veritas emits compact freestanding binaries and does
-not depend on a large trusted runtime. The main quantitative question is
-therefore the size of the trusted implementation that remains on the verifier
-side of the architecture.
+This section returns to the dissertation's architectural claim: Veritas should not only verify useful programs, but do so with a smaller and more explicit trust boundary than a source-level-only verification pipeline. The main question here is what remains trusted once independent physical-DTAL verification is in place.
 
 \subsection{Trusted computing base analysis}
-% Size of TCB; relative to other trust architectures; extended TCB to support I/O; runtime/unikernel TCB
+In the current design, the frontend, lowering pipeline, register allocator, physical allocation pass, and most backend logic are intentionally untrusted: bugs in those components should be exposed as verification failure. Table~\ref{tab:tcb-summary} separates the measured verifier-side Rust core from the small trusted artifacts that remain below it on the Linux and bare-metal targets.
 
-The more important quantitative result in this section is the trusted
-computing base summary. In the current physical-DTAL architecture, the
-compiler pipeline itself is intentionally untrusted: parser, frontend,
-lowering, register allocation, code generation, and most surrounding
-infrastructure are allowed to be buggy without directly invalidating the main
-safety claim. What remains trusted is the verifier-side core together with the
-underlying solver.
-
-Table~\ref{tab:tcb-summary} gives the chapter-labelled size summary for that
-trusted core.
-
-\begin{table}[h]
+\begin{table}[ht]
   \centering
   \small
-  \begin{tabular}{l r r r}
+  \begin{tabular}{l l l c c}
     \hline
-    \textbf{Trusted component} & \textbf{Trusted lines} & \textbf{Total lines} & \textbf{Trusted ratio} \\
+    \textbf{Trusted component} & \textbf{Form}         & \textbf{Size}             & \textbf{Linux} & \textbf{Unikernel} \\
     \hline
-    \texttt{verifier\_tcb}     & 7864                   & 42775                & 0.184                  \\
+    DTAL verifier core         & Rust LOC              & 7864 / 42775 (18.4\%)     & \checkmark     & \checkmark         \\
+    Direct encoder             & Rust LOC              & \~309                     & \checkmark     & \checkmark         \\
+    x86 instruction encoder    & Rust LOC              & \~550                     & \checkmark     & \checkmark         \\
+    Z3 solver                  & external tool         & large external dependency & \checkmark     & \checkmark         \\
+    Runtime blob               & machine code          & 228 bytes                 & \checkmark     & --                 \\
+    Multiboot bootstrap        & machine code          & 206 bytes                 & --             & \checkmark         \\
+    Host OS / kernel           & execution environment & large external dependency & \checkmark     & --                 \\
     \hline
   \end{tabular}
-  \caption{Trusted computing base size for the current Veritas implementation.}
+  \caption{Decomposed trust architecture for the current Veritas
+    implementation. The verifier-side Rust LOC measurement captures the main
+    trusted implementation core; the remaining rows distinguish the additional
+    trusted artifacts for Linux and bare-metal targets.}
   \label{tab:tcb-summary}
 \end{table}
 
-This result should be interpreted carefully. It does not mean that the rest of
-the implementation is unimportant, nor that the verifier is ``small'' in an
-absolute sense. Nearly eight thousand lines of trusted verifier-side logic is
-still a meaningful audit burden. The important point is relative rather than
-absolute: only 18.4\% of the counted Rust implementation lies on the trusted
-path for the core low-level safety claim, while 81.6\% of the implementation
-is outside that path and may fail by being rejected rather than by silently
-compromising safety.
+The verifier-side Rust core is \num{7864} lines out of \num{42775}, or 18.4\% of the counted Rust implementation.
+While this remains a substantial audit target in absolute terms, it does mean that most of the compiler remains outside the trusted path. The decomposition also shows how I/O changes the trust model. On Linux, adding I/O adds a small trusted runtime blob and its typed interface, while the verifier still re-checks all call sites independently. On the bare-metal target, that runtime layer is largely replaced by DTAL-verified Veritas code, leaving mainly the encoder and the 206-byte bootstrap beneath the verifier.
 
-This is where Veritas differs most sharply from source-level-only verification
-systems. In a conventional architecture, once the frontend verifier has proved
-the source program, the rest of the compiler backend is usually trusted to
-preserve that result. In Veritas, the independent DTAL verifier removes much
-of that backend from the trusted path by re-checking the low-level artifact
-after lowering and register allocation. The quantitative TCB table therefore
-does not only measure code size; it measures the practical payoff of the DTAL
-architecture in trust-boundary terms.
-
-The most accurate conclusion is therefore modest but strong. Veritas does not
-yet deliver a tiny foundational checker in the style of a proof assistant
-kernel, and the trusted verifier core is still a substantial engineering
-artifact. But it does achieve a meaningful reduction in trust relative to the
-whole implementation, and it does so in a way that is directly reflected in
-the architecture and evaluation artifacts rather than only argued for
-abstractly.
+% This is the main contrast with other trust architectures. Source-level systems such as Dafny, Liquid Haskell, and Verus trust the backend to preserve frontend proofs. A verified compiler such as CompCert instead places a much larger translation algorithm on the trusted path. Veritas takes the middle route: the compiler remains untrusted, while trust is concentrated in an independent low-level checker plus a very small encoding/runtime substrate. For the dissertation's scope, that is the main payoff of the DTAL architecture.
 
 % \section{Threats to validity and limitations}
 %
@@ -1125,35 +1072,6 @@ abstractly.
 % fragment rather than on the full range of systems-programming and verification
 % tasks. Within that scope, however, the evaluation shows the approach to be
 % successful, credible, and practically implemented.
-
-\begin{table}[h]
-  \centering
-  \small
-  \begin{tabular}{p{0.33\textwidth} c c p{0.4\textwidth}}
-    \hline
-    \textbf{Feature}                           & \textbf{Xi--Harper} & \textbf{Veritas} & \textbf{Notes}                                                                                                               \\
-    \hline
-    Independent low-level verification         & Yes                 & Yes              & Core architectural idea shared by both systems.                                                                              \\
-    Dependent block / label state types        & Yes                 & Yes              & Xi--Harper uses typed labels; Veritas uses \texttt{.entry} plus \texttt{.assume}.                                            \\
-    Singleton integer types \texttt{int(x)}    & Yes                 & Yes              & Present in both; Veritas derives symbolic index expressions similarly.                                                       \\
-    Size-indexed array types                   & Yes                 & Yes              & Xi--Harper uses \texttt{int array(m)}; Veritas uses array types indexed by \texttt{IndexExpr}.                               \\
-    Array-bound-check elimination support      & Yes                 & Yes              & Central purpose in Xi--Harper; preserved in Veritas's array reasoning.                                                       \\
-    Typed stack discipline                     & Yes                 & Yes              & Present in both, though exposed differently in the concrete syntax.                                                          \\
-    Existential dependent types                & Yes                 & Partial          & Xi--Harper uses them centrally; Veritas currently supports existential integers, but not the broader original style.         \\
-    Tuple / product heap objects               & Yes                 & No               & Xi--Harper has \texttt{prod(...)} and \texttt{newtuple}; Veritas does not currently expose general tuple allocation in DTAL. \\
-    Sum / tag reasoning                        & Yes                 & No               & Xi--Harper extends DTAL for sums and tag-check elimination; Veritas does not currently have this DTAL feature.               \\
-    Explicit array allocation primitives       & Yes                 & No               & Xi--Harper has \texttt{newarray} and \texttt{arraysize}; Veritas uses a different allocation story.                          \\
-    Ownership / borrow operations              & No                  & Yes              & Veritas adds \texttt{move\_owned}, \texttt{alias\_borrow}, \texttt{borrow\_mut}, \texttt{borrow\_end}, \texttt{drop\_owned}. \\
-    Mutable vs shared alias discipline         & No                  & Yes              & Not present in Xi--Harper; central extension in Veritas.                                                                     \\
-    Physical post-regalloc verification target & No                  & Yes              & Veritas verifies physically allocated DTAL after register allocation.                                                        \\
-    ABI / calling-convention instructions      & No                  & Yes              & Veritas includes \texttt{spill\_store}, \texttt{spill\_load}, \texttt{.prologue}, \texttt{.epilogue}.                        \\
-    Machine-level division expansion           & No                  & Yes              & Veritas includes physical instructions such as \texttt{cqo} and \texttt{idiv}.                                               \\
-    \hline
-  \end{tabular}
-  \caption{Feature comparison between Xi and Harper's DTAL and the DTAL
-    implemented in Veritas.}
-  \label{tab:dtal-xi-harper-comparison}
-\end{table}
 
 % \begin{table}[h]
 %   \centering

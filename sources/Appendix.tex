@@ -169,7 +169,7 @@ $$
 $$
   \frac{
     \begin{array}{c}
-      (x: \tau_m) \in \Delta_0                                   \\
+      (x: \tau_m) \in \Delta_0                                                 \\
       \phi_0; \Delta_0; \Gamma \vdash e \Rightarrow (\phi_1; \Delta_1; \tau_e) \\
       \phi_1 \vdash \tau_e <: \tau_m
     \end{array}
@@ -378,3 +378,60 @@ The following instructions appear only after register allocation and are verifie
   \item \textbf{D-SpillLoad}: Checks that the loaded type matches what was previously stored at that offset.
   \item \textbf{D-Prologue / D-Epilogue}: Structural markers verified at the function level.
 \end{itemize}
+
+\chapter{Feature comparison between Xi and Harper's DTAL and Veritas' DTAL}
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabular}{p{0.33\textwidth} c c p{0.4\textwidth}}
+    \hline
+    \textbf{Feature}                           & \textbf{Xi--Harper} & \textbf{Veritas} & \textbf{Notes}                                                                                                               \\
+    \hline
+    Independent low-level verification         & Yes                 & Yes              & Core architectural idea shared by both systems.                                                                              \\
+    Dependent block / label state types        & Yes                 & Yes              & Xi--Harper uses typed labels; Veritas uses \texttt{.entry} plus \texttt{.assume}.                                            \\
+    Singleton integer types \texttt{int(x)}    & Yes                 & Yes              & Present in both; Veritas derives symbolic index expressions similarly.                                                       \\
+    Size-indexed array types                   & Yes                 & Yes              & Xi--Harper uses \texttt{int array(m)}; Veritas uses array types indexed by \texttt{IndexExpr}.                               \\
+    Array-bound-check elimination support      & Yes                 & Yes              & Central purpose in Xi--Harper; preserved in Veritas's array reasoning.                                                       \\
+    Typed stack discipline                     & Yes                 & Yes              & Present in both, though exposed differently in the concrete syntax.                                                          \\
+    Existential dependent types                & Yes                 & Partial          & Xi--Harper uses them centrally; Veritas currently supports existential integers, but not the broader original style.         \\
+    Tuple / product heap objects               & Yes                 & No               & Xi--Harper has \texttt{prod(...)} and \texttt{newtuple}; Veritas does not currently expose general tuple allocation in DTAL. \\
+    Sum / tag reasoning                        & Yes                 & No               & Xi--Harper extends DTAL for sums and tag-check elimination; Veritas does not currently have this DTAL feature.               \\
+    Explicit array allocation primitives       & Yes                 & No               & Xi--Harper has \texttt{newarray} and \texttt{arraysize}; Veritas uses a different allocation story.                          \\
+    Ownership / borrow operations              & No                  & Yes              & Veritas adds \texttt{move\_owned}, \texttt{alias\_borrow}, \texttt{borrow\_mut}, \texttt{borrow\_end}, \texttt{drop\_owned}. \\
+    Mutable vs shared alias discipline         & No                  & Yes              & Not present in Xi--Harper; central extension in Veritas.                                                                     \\
+    Physical post-regalloc verification target & No                  & Yes              & Veritas verifies physically allocated DTAL after register allocation.                                                        \\
+    ABI / calling-convention instructions      & No                  & Yes              & Veritas includes \texttt{spill\_store}, \texttt{spill\_load}, \texttt{.prologue}, \texttt{.epilogue}.                        \\
+    Machine-level division expansion           & No                  & Yes              & Veritas includes physical instructions such as \texttt{cqo} and \texttt{idiv}.                                               \\
+    \hline
+  \end{tabular}
+  % \caption{Feature comparison between Xi and Harper's DTAL and the DTAL implemented in Veritas.}
+  \label{tab:dtal-xi-harper-comparison}
+\end{table}
+
+\chapter{Error classes featured in the negative suite}
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabular}{l r}
+    \hline
+    \textbf{Error class}           & \textbf{Total} \\
+    \hline
+    Type error                     & 7              \\
+    Name resolution                & 2              \\
+    Control flow                   & 3              \\
+    Array error                    & 2              \\
+    Call error                     & 2              \\
+    Contract violation             & 2              \\
+    Quantifier error               & 3              \\
+    Invariant failure              & 2              \\
+    Safety proof failure           & 2              \\
+    Arithmetic safety              & 2              \\
+    Overflow safety                & 5              \\
+    Other grouped frontend classes & 3              \\
+    \hline
+  \end{tabular}
+  % \caption{Rejection of invalid programs in the curated negative suite.}
+  \label{tab:negative-suite-summary}
+\end{table}
