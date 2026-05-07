@@ -125,39 +125,39 @@ The abstract syntax of Veritas is defined by the following grammar:
   e & ::= &
   \parbox[t]{0.66\textwidth}{
     $c \,|\, x \,|\, e \textsf{ aop } e \,|\, e \textsf{ cop } e \,|\, e \textsf{ lop } e \,|\, \textsf{ulop}\; e \,|\, \textsf{uaop}\; e \,|\, f(\overrightarrow{e}) \,|\, {}$\\
-    $x[e_i] \,|\, \textsf{if } e_\textsf{cond}\; \{B\}\; \textsf{else } \{B'\} \,|\, [e_\textsf{val}; e_\textsf{size}]$
+    $x[e_i] \,|\, \kw{if } e_\textsf{cond}\; \{B\}\; \kw{else } \{B'\} \,|\, [e_\textsf{val}; e_\textsf{size}]$
   }
   & \textbf{(Expressions)} \\[4pt]
   P & ::= &
   \parbox[t]{0.66\textwidth}{
     $e \textsf{ cop } e \,|\, P \textsf{ lop } P \,|\, \textsf{ulop}\; P \,|\, {}$\\
-    $\textsf{forall } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{P\} \,|\, \textsf{exists } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\;\{P\}$
+    $\kw{forall } x \kw{in } e_\textsf{start}..e_\textsf{end}\;\{P\} \,|\, \kw{exists } x \kw{in } e_\textsf{start}..e_\textsf{end}\;\{P\}$
   }
   & \textbf{(Propositions)} \\[4pt]
   S & ::= &
   \parbox[t]{0.66\textwidth}{
-    $\textsf{let } x:T = e; \,|\, \textsf{let mut } x:T = e; \,|\, x = e; \,|\, x[e_i] = e; \,|\, \textsf{return } e; \,|\, e; \,|\, {}$\\
-    $\textsf{if } e_\textsf{cond}\; \{B\}\; (\textsf{else } \{B'\})^? \,|\, \textsf{for } x \textsf{ in } e_\textsf{start}..e_\textsf{end}\; (\textsf{invariant } P)^?\; \{B\} \,|\, {}$\\
-    $\textsf{while } e_\textsf{cond}\; (\textsf{invariant } P)^?\; \{B\}$
+    $\kw{let } x:T = e; \,|\, \kw{let mut } x:T = e; \,|\, x = e; \,|\, x[e_i] = e; \,|\, \kw{return } e; \,|\, e; \,|\, {}$\\
+    $\kw{if } e_\textsf{cond}\; \{B\}\; \kw{else } \{B'\} \,|\, \kw{if } e_\textsf{cond}\; \{B\} \,|\, {}$\\ 
+    $\kw{for } x \kw{in } e_\textsf{start}..e_\textsf{end}\; \optclause{\textsf{invariant } P}\; \{B\} \,|\, \kw{while } e_\textsf{cond}\; \optclause{\textsf{invariant } P}\; \{B\}$
   }
   & \textbf{(Statements)} \\[4pt]
   D & ::= &
   \parbox[t]{0.66\textwidth}{
-    $\textsf{fn } f(x_1:T_1, \ldots)\; (\rightarrow T_\textsf{ret})^?\; (\textsf{requires } P)^?\;(\textsf{ensures } P)^?\; \{B\}$
+    $\kw{fn } f(x_1:T_1, \ldots)\; \rightarrow T_\textsf{ret}\; \optclause{\textsf{requires } P}\;\optclause{\textsf{ensures } P}\; \{B\}$
   }
   & \textbf{(Function definitions)} \\[2pt]
   \textsf{Prog} & ::= &
   D^*
   & \textbf{(Program)} \\[2pt]
   B & ::= &
-  S^*\; e^?
+  S^*\; \optclause{e}
   & \textbf{(Blocks)}
 \end{array}
 \]
 }
 
 % consider moving before rules
-The metavariables used in the grammar are as follows: $n$ ranges over integer literals; $x$, $f$ range over identifiers (variables and function names); $N$ ranges over integer expressions that must reduce to a statically known constant (used for array sizes and singleton types). $P$ is the specification language used in refinement predicates, function contracts, and loop invariants, and additionally provides bounded quantifiers. A block $B$ is a sequence of zero or more statements followed by an optional trailing expression. If a block has a trailing expression, its value is the block's result; otherwise, its result is unit. The superscript $(\cdot)^?$ denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
+The metavariables used in the grammar are as follows: $n$ ranges over integer literals; $x$, $f$ range over identifiers (variables and function names); $N$ ranges over integer expressions that must reduce to a statically known constant (used for array sizes and singleton types). $P$ is the specification language used in refinement predicates, function contracts, and loop invariants, and additionally provides bounded quantifiers. A block $B$ is a sequence of zero or more statements followed by an optional trailing expression. If a block has a trailing expression, its value is the block's result; otherwise, its result is unit. Grey text denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
 
 \subsection{Typing contexts}\label{sec:typing-contexts}
 

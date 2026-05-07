@@ -379,7 +379,7 @@ The following instructions appear only after register allocation and are verifie
   \item \textbf{D-Prologue / D-Epilogue}: Structural markers verified at the function level.
 \end{itemize}
 
-\chapter{Feature comparison between Xi and Harper's DTAL and Veritas' DTAL}
+\chapter{Evaluation tables}
 
 \begin{table}[h]
   \centering
@@ -405,11 +405,9 @@ The following instructions appear only after register allocation and are verifie
     Machine-level division expansion           & No                  & Yes              & Veritas includes physical instructions such as \texttt{cqo} and \texttt{idiv}.                                               \\
     \hline
   \end{tabular}
-  % \caption{Feature comparison between Xi and Harper's DTAL and the DTAL implemented in Veritas.}
+  \caption{Feature comparison between Xi and Harper's DTAL and the DTAL implemented in Veritas.}
   \label{tab:dtal-xi-harper-comparison}
 \end{table}
-
-\chapter{Error classes featured in the negative suite}
 
 \begin{table}[h]
   \centering
@@ -432,8 +430,94 @@ The following instructions appear only after register allocation and are verifie
     Other grouped frontend classes & 3              \\
     \hline
   \end{tabular}
-  % \caption{Rejection of invalid programs in the curated negative suite.}
+  \caption{Rejection of invalid programs in the curated negative suite.}
   \label{tab:negative-suite-summary}
+\end{table}
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabular}{l r r r}
+    \hline
+    \textbf{Kernel}              & \textbf{Veritas (s)} & \textbf{GCC \texttt{-O2} (s)} & \textbf{Ratio} \\
+    \hline
+    \texttt{floyd\_warshall\_500} & 0.601975           & 0.091029                      & 6.613          \\
+    \texttt{jacobi\_1d\_400\_100} & 0.000796          & 0.001396                      & 0.570          \\
+    \texttt{jacobi\_2d\_250\_100} & 0.098254          & 0.019011                      & 5.168          \\
+    \texttt{seidel\_2d\_400\_100} & 0.316906          & 0.090827                      & 3.489          \\
+    \texttt{mvt\_400}            & 0.004776            & 0.003371                      & 1.417          \\
+    \texttt{atax\_390\_410}      & 0.005116            & 0.003447                      & 1.484          \\
+    \texttt{gesummv\_250}        & 0.002868            & 0.004430                      & 0.647          \\
+    \hline
+  \end{tabular}
+  \caption{Selected PolyBench-style runtime results against GCC
+    \texttt{-O2}. All kernels in the evaluated set passed checksum-based
+    semantic validation before timing results were accepted.}
+  \label{tab:polybench-practicality}
+\end{table}
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabular}{l r r r r}
+    \hline
+    \textbf{Task}                  & \textbf{Veritas} & \textbf{Dafny} & \textbf{Liquid Haskell} & \textbf{Verus} \\
+    \hline
+    \texttt{safe\_division}        & 0.167            & 0.125          & 0.400                   & 0.100          \\
+    \texttt{bounded\_read\_offset} & 0.111            & 0.267          & 0.286                   & 0.182          \\
+    \texttt{fill\_with\_ones}      & 0.154            & 0.267          & 0.364                   & 0.250          \\
+    \texttt{binary\_search}        & 0.077            & 0.229          & 0.200                   & 0.222          \\
+    \texttt{sorted\_head}          & 0.125            & 0.263          & 0.417                   & 0.235          \\
+    \texttt{safe\_midpoint}        & 0.143            & 0.250          & 0.400                   & 0.200          \\
+    \hline
+  \end{tabular}
+  \caption{Annotation-to-code ratios for the normalised cross-system comparison suite.}
+  \label{tab:cross-system-annotation-burden}
+\end{table}
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabularx}{\linewidth}{
+      >{\ttfamily}l
+      >{\centering\arraybackslash}X
+      >{\centering\arraybackslash}X
+      >{\centering\arraybackslash}X
+      >{\centering\arraybackslash}X
+      >{\centering\arraybackslash}X
+    }
+    \hline
+    \textbf{Task}                       &
+    \textbf{Veritas compile-only (s)}   &
+    \textbf{Veritas compile+verify (s)} &
+    \textbf{Dafny (s)}                  &
+    \textbf{Liquid Haskell (s)}         &
+    \textbf{Verus (s)}                                                      \\
+    \hline
+
+    safe\_division                      &
+    0.0100                              & 0.0138 & 0.9259 & 1.1794 & 0.4484 \\
+
+    bounded\_read\_offset               &
+    0.0171                              & 0.0204 & 1.0118 & 1.2807 & 0.4604 \\
+
+    fill\_with\_ones                    &
+    0.0336                              & 0.0398 & 1.0015 & 1.2213 & 0.4924 \\
+
+    binary\_search                      &
+    0.1416                              & 0.1780 & 1.2629 & 1.3219 & 0.5285 \\
+
+    sorted\_head                        &
+    0.0147                              & 0.0174 & 1.0054 & 1.1942 & 0.5068 \\
+
+    safe\_midpoint                      &
+    0.0116                              & 0.0149 & 0.8856 & 1.1624 & 0.4939 \\
+    \hline
+  \end{tabularx}
+
+  \caption{Exact mean wall-clock timings for the normalised six-task
+    cross-system comparison suite.}
+  \label{tab:comparison-suite-wallclock}
 \end{table}
 
 \chapter{Project proposal}

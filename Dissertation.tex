@@ -7,6 +7,7 @@
 \usepackage{pdfpages}
 \usepackage{tabularx}
 \usepackage{array}
+\usepackage{xcolor}
 
 \usepackage{enumitem}
 \setlist{itemsep=0pt,parsep=0pt}
@@ -43,6 +44,9 @@
 \LetLtxMacro{\cminted}{\minted}
 \let\endcminted\endminted
 \xpretocmd{\cminted}{\RecustomVerbatimEnvironment{Verbatim}{BVerbatim}{}}{}{}
+
+\newcommand{\kw}[1]{\textcolor{blue!70!black}{\textsf{#1}}}
+\newcommand{\optclause}[1]{\textcolor{gray}{#1}}
 
 \title{A type-preserving compiler from a systems language to a dependently typed assembly language}
 \author{9615Q}

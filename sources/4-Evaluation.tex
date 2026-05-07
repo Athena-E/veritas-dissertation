@@ -247,7 +247,7 @@ manipulation. Unlike both, however, its design is centred around carrying verifi
 
 \begin{table}[h]
   \centering
-  \small
+  \scriptsize
   \begin{tabular}{p{0.31\textwidth} c c c}
     \hline
     \textbf{Feature}                            & \textbf{C} & \textbf{Rust} & \textbf{Veritas}                      \\
@@ -290,7 +290,7 @@ The second suite is the external PolyBench-style kernel suite. PolyBench/C is a 
 
 \begin{table}[h]
   \centering
-  \small
+  \scriptsize
   \begin{tabular}{p{0.17\textwidth} p{0.17\textwidth} p{0.31\textwidth} p{0.25\textwidth}}
     \hline
     \textbf{Kernel} & \textbf{Fixed \texttt{MEDIUM} params} & \textbf{Program / algorithm}                                                       & \textbf{Main features exercised}                                                                     \\
@@ -316,24 +316,6 @@ Correctness is evaluated by deterministic checksum agreement, and all seven kern
 
 While these results do not amount to full compiler correctness in the CompCert sense, nor does it imply that every future program in the Veritas fragment will automatically enjoy the same guarantee, it supports a strong suite-bounded claim: for the representative local feature corpus and the committed external kernel corpus, the delivered compiler both preserves verifier-relevant structure and produces binaries whose observed behaviour matches the intended semantics.
 
-% \begin{table}[h]
-%   \centering
-%   \small
-%   \begin{tabular}{l l r}
-%     \hline
-%     \textbf{Evidence source}        & \textbf{Correctness criterion}                            & \textbf{Current result} \\
-%     \hline
-%     Curated feature suite           & frontend acceptance agrees with independent DTAL verifier & 28 / 28 pass            \\
-%     Curated feature suite           & semantic runtime result matches expected behaviour        & 28 / 28 pass            \\
-%     PolyBench-style kernels         & checksum agrees with committed C baseline                 & 7 / 7 pass              \\
-%     Expanded runtime corpus overall & all runtime cases pass their semantic checks              & 35 / 35 pass            \\
-%     \hline
-%   \end{tabular}
-%   \caption{Summary of compiler functional-correctness evidence across the
-%     current local and external benchmark corpora.}
-%   \label{tab:compiler-correctness-summary}
-% \end{table}
-
 \subsection{Compiler and runtime practicality}
 
 Practicality is evaluated at two levels: compilation cost and runtime behaviour of the generated binaries. The curated \texttt{feature\_suite} provides a useful summary of compiler throughput.
@@ -343,7 +325,7 @@ Practicality is evaluated at two levels: compilation cost and runtime behaviour 
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.92\textwidth]{figures/chapter4_feature_suite_compile_cost.png}
+  \includegraphics[width=0.8\textwidth]{figures/chapter4_feature_suite_compile_cost.png}
   \caption{Compile-cost structure across the curated feature suite.}
   \label{fig:feature-suite-compile-cost}
 \end{figure}
@@ -422,29 +404,7 @@ All included kernels pass semantic validation and runtime performance relative t
 \end{figure}
 % Bars show mean wall-clock time over repeated \texttt{hyperfine} runs, with error bars indicating one standard deviation. 
 
-% \begin{table}[h]
-%   \centering
-%   \small
-%   \begin{tabular}{l r r r}
-%     \hline
-%     \textbf{Kernel}              & \textbf{Veritas (s)} & \textbf{GCC \texttt{-O2} (s)} & \textbf{Ratio} \\
-%     \hline
-%     \texttt{floyd\_warshall\_500} & 0.601975           & 0.091029                      & 6.613          \\
-%     \texttt{jacobi\_1d\_400\_100} & 0.000796          & 0.001396                      & 0.570          \\
-%     \texttt{jacobi\_2d\_250\_100} & 0.098254          & 0.019011                      & 5.168          \\
-%     \texttt{seidel\_2d\_400\_100} & 0.316906          & 0.090827                      & 3.489          \\
-%     \texttt{mvt\_400}            & 0.004776            & 0.003371                      & 1.417          \\
-%     \texttt{atax\_390\_410}      & 0.005116            & 0.003447                      & 1.484          \\
-%     \texttt{gesummv\_250}        & 0.002868            & 0.004430                      & 0.647          \\
-%     \hline
-%   \end{tabular}
-%   \caption{Selected PolyBench-style runtime results against GCC
-%     \texttt{-O2}. All kernels in the evaluated set passed checksum-based
-%     semantic validation before timing results were accepted.}
-%   \label{tab:polybench-practicality}
-% \end{table}
-
-The results show a mixed pattern rather than a uniform slowdown:Jacobi-1D and GESUMMV remain below the GCC \texttt{-O2} baseline, while MVT and ATAX are within roughly 1.4--1.5$\times$, and Floyd--Warshall, Jacobi-2D, and Seidel-2D are between roughly 3.5$\times$ and 6.6$\times$ slower. This shows that the runtime performance depends strongly on workload shape. % elaborate on nature of workload shape that separates results of programs (inc. Jacobi 1D speedup)
+The results in Figure~\ref{fig:polybench-runtime-absolute} show a mixed pattern rather than a uniform slowdown. On the \texttt{MEDIUM}-class PolyBench suite, MVT and GESUMMV are relatively close to the GCC \texttt{-O3} baseline, at roughly 1.55$\times$ and 1.10$\times$ respectively, while Floyd--Warshall, Jacobi-2D, and Seidel-2D are slower by roughly 3.3--5.9$\times$. This shows that runtime performance depends strongly on workload shape rather than following a single fixed overhead pattern.
 
 To test whether the fixed-suite PolyBench results were stable beyond a single committed benchmark size, a follow-up size-sweep experiment was run on the more stable kernels. For each of Floyd--Warshall, Jacobi-2D, Seidel-2D, MVT, and GESUMMV, four problem sizes were measured, each timed for Veritas, GCC \texttt{-O3}, and a checked C \texttt{-O3} baseline, where `checked C' denotes the manually instrumented C program variant with explicit dynamic array-bounds checks in order to provide a baseline for a C program that enforces similar memory safety guarantees as Veritas, which achieves this via static bounds checking.
 % : a smaller point near the lower end of the committed \texttt{MEDIUM} regime, the committed \texttt{MEDIUM} point itself, and two larger follow-up points. 
@@ -453,7 +413,7 @@ To test whether the fixed-suite PolyBench results were stable beyond a single co
 \begin{figure}[h]
   \centering
   \includegraphics[width=0.96\textwidth]{figures/chapter4_polybench_scaling_absolute.png}
-  \caption{Runtime scaling for the chapter-facing PolyBench follow-up sweep. These size sweeps are anchored around the committed \texttt{MEDIUM}-class kernel sizes and compare Veritas with GCC \texttt{-O3} and checked C \texttt{-O3}.}
+  \caption{Runtime scaling for the chapter-facing PolyBench follow-up sweep. These size sweeps are anchored around the \texttt{MEDIUM}-class kernel sizes and compare Veritas with GCC \texttt{-O3} and checked C \texttt{-O3}.}
   \label{fig:polybench-scaling-absolute}
 \end{figure}
 
@@ -474,26 +434,26 @@ The compiler's output artifacts also matter as part of toolchain evaluation beca
 Evaluation also considers binary size as a simple proxy for artifact compactness and backend expansion: it shows whether verified programs compile to small standalone executables, whether larger proof-heavy examples cause disproportionate output growth, and how far the current backend is from a mature native compiler in code-density terms.
 % It is therefore a useful supporting metric for the systems-toolchain story, even though in Veritas's current freestanding ELF format it must be interpreted more cautiously than runtime or correctness results.
 
-\begin{table}[H]
-  \centering
-  \small
-  \begin{tabular}{l r r r r}
-    \hline
-    \textbf{Program}           & \textbf{Veritas ELF} & \textbf{Veritas code} & \textbf{GCC -O2 ELF} & \textbf{GCC -O2 \texttt{.text}} \\
-    \hline
-    \texttt{simple}            & 631                  & 631                   & 15720                & 265                             \\
-    \texttt{arrays}            & 811                  & 811                   & 15720                & 265                             \\
-    \texttt{advanced\_types}   & 770                  & 770                   & 15728                & 265                             \\
-    \texttt{array\_assignment} & 815                  & 815                   & 15728                & 265                             \\
-    \texttt{binary\_search}    & 2115                 & 2115                  & 15920                & 441                             \\
-    \texttt{bubble\_sort}      & 1649                 & 1649                  & 15920                & 441                             \\
-    \texttt{mutable\_borrow}   & 709                  & 709                   & 15728                & 265                             \\
-    \texttt{sortedness}        & 805                  & 805                   & 15720                & 265                             \\
-    \hline
-  \end{tabular}
-  \caption{Representative binary-size sample from the full 28-program feature suite. For Veritas, the code-bearing size falls back to total ELF size because the freestanding binaries do not carry a conventional section table.}
-  \label{tab:binary-size-summary}
-\end{table}
+% \begin{table}[H]
+%   \centering
+%   \small
+%   \begin{tabular}{l r r r r}
+%     \hline
+%     \textbf{Program}           & \textbf{Veritas ELF} & \textbf{Veritas code} & \textbf{GCC -O2 ELF} & \textbf{GCC -O2 \texttt{.text}} \\
+%     \hline
+%     \texttt{simple}            & 631                  & 631                   & 15720                & 265                             \\
+%     \texttt{arrays}            & 811                  & 811                   & 15720                & 265                             \\
+%     \texttt{advanced\_types}   & 770                  & 770                   & 15728                & 265                             \\
+%     \texttt{array\_assignment} & 815                  & 815                   & 15728                & 265                             \\
+%     \texttt{binary\_search}    & 2115                 & 2115                  & 15920                & 441                             \\
+%     \texttt{bubble\_sort}      & 1649                 & 1649                  & 15920                & 441                             \\
+%     \texttt{mutable\_borrow}   & 709                  & 709                   & 15728                & 265                             \\
+%     \texttt{sortedness}        & 805                  & 805                   & 15720                & 265                             \\
+%     \hline
+%   \end{tabular}
+%   \caption{Representative binary-size sample from the full 28-program feature suite. For Veritas, the code-bearing size falls back to total ELF size because the freestanding binaries do not carry a conventional section table.}
+%   \label{tab:binary-size-summary}
+% \end{table}
 
 It should be noted that the total ELF artifacts are not directly comparable in a naive way: Veritas emits very small freestanding binaries, whereas GCC links hosted startup and runtime code, so the GCC ELF column mainly illustrates how much hosted scaffolding dominates those totals. Also, the code-size comparison remains less favourable to Veritas across the completed representative sample: programs compared against a 265-byte GCC \texttt{.text} section typically occupy around 2.7--3.1x that size in Veritas, while the larger algorithmic cases \texttt{binary\_search} and \texttt{bubble\_sort} are around 4.8x and 3.7x larger respectively than GCC's \texttt{.text}. That is consistent with the relative maturity of the backend. The practical result is that Veritas emits compact standalone binaries across the full curated suite, even though its generated code is not yet as dense as GCC's on the directly comparable subset.
 
@@ -550,7 +510,7 @@ The most appropriate comparison points are Dafny, Liquid Haskell, Verus, and ATS
 
 \begin{table}[h]
   \centering
-  \small
+  \footnotesize
   \begin{tabular}{l c c c c c}
     \hline
     \textbf{Safety property / constraint class}         & \textbf{Veritas} & \textbf{Dafny} & \textbf{Liquid Haskell} & \textbf{Verus} & \textbf{ATS} \\
@@ -572,10 +532,7 @@ The most appropriate comparison points are Dafny, Liquid Haskell, Verus, and ATS
     Independent checking of compiled artifact           & Yes              & No             & No                      & No             & No           \\
     \hline
   \end{tabular}
-  \caption{Comparison of the main safety properties and specification classes
-    relevant to this dissertation. ``Partial'' indicates that the property is
-    expressible, but less naturally or less directly in the style of programs
-    considered here.}
+  \caption{Comparison of the main safety properties and specification classes relevant to this dissertation. ``Partial'' indicates that the property is expressible, but less naturally or less directly in the style of programs considered here.}
   \label{tab:verification-safety-properties}
 \end{table}
 
@@ -633,27 +590,15 @@ Table~\ref{tab:verification-safety-properties} makes the current limits of Verit
 
 % These examples are enough to show the main stylistic split. Veritas, Dafny, Liquid Haskell, and Verus all rely heavily on SMT-backed discharge once the relevant specifications are present, though they package those specifications differently. ATS is closer to a proof-oriented static programming discipline in which rich types are central but the automation story is less solver-driven.
 
-The cross-system comparison suite contains six normalised tasks: preconditioned safe division, bounded array access with an offset, array initialisation with a loop invariant, binary search over a sorted collection, returning the head of a sorted array, and overflow-safe midpoint arithmetic. The suite is normalised by verified property: Dafny uses heap arrays, Veritas and Verus use fixed-size arrays naturally, and Liquid Haskell uses a more functional representation.
-Within this small suite, Table~\ref{tab:cross-system-annotation-burden} shows Veritas is competitive on annotation burden and is particularly light on the loop- and search-heavy tasks.
+The cross-system comparison suite contains six normalised tasks: preconditioned safe division, bounded array access with an offset, array initialisation with a loop invariant, binary search over a sorted collection, returning the head of a sorted array, and overflow-safe midpoint arithmetic. The suite is normalised by verified property: Dafny uses heap arrays, Veritas and Verus use fixed-size arrays naturally, and Liquid Haskell uses a more functional representation. Within this small suite, Figure~\ref{fig:cross-system-annotation-burden} shows Veritas is competitive on annotation burden and is particularly light on the loop- and search-heavy tasks.
 
-\begin{table}[h]
+\begin{figure}[H]
   \centering
-  \small
-  \begin{tabular}{l r r r r}
-    \hline
-    \textbf{Task}                  & \textbf{Veritas} & \textbf{Dafny} & \textbf{Liquid Haskell} & \textbf{Verus} \\
-    \hline
-    \texttt{safe\_division}        & 0.167            & 0.125          & 0.400                   & 0.100          \\
-    \texttt{bounded\_read\_offset} & 0.111            & 0.267          & 0.286                   & 0.182          \\
-    \texttt{fill\_with\_ones}      & 0.154            & 0.267          & 0.364                   & 0.250          \\
-    \texttt{binary\_search}        & 0.077            & 0.229          & 0.200                   & 0.222          \\
-    \texttt{sorted\_head}          & 0.125            & 0.263          & 0.417                   & 0.235          \\
-    \texttt{safe\_midpoint}        & 0.143            & 0.250          & 0.400                   & 0.200          \\
-    \hline
-  \end{tabular}
-  \caption{Annotation-to-code ratios for the normalised cross-system comparison suite.}
-  \label{tab:cross-system-annotation-burden}
-\end{table}
+  \includegraphics[width=\linewidth]{figures/chapter4_annotation_burden.png}
+  \caption{Annotation-to-code ratios across the normalised six-task
+    cross-system comparison suite.}
+  \label{fig:cross-system-annotation-burden}
+\end{figure}
 
 % This means the expressiveness comparison should not be read as a simple league table. Veritas is not more expressive overall than Verus or F*, nor does it match the ecosystem maturity of Dafny or Liquid Haskell. Its distinctive point in the design space is narrower: it supports a useful SMT-verifiable imperative fragment with contracts, arrays, invariants, quantifiers, and borrow-aware reasoning, while also preserving enough of that information for low-level re-checking.
 
@@ -700,6 +645,16 @@ The second layer of cost evidence comes from the verification-stress suite, a su
 % , measured using end-to-end \texttt{hyperfine} timings. This is important because the internal \texttt{compile\_ms} and \texttt{verify\_ms} counters do not include all of the user-visible command latency. 
 % Table~\ref{tab:verification-stress-overheads} reports the wall-clock cost of running the compiler with and without explicit DTAL verification.
 
+% \begin{figure}[h]
+%   \centering
+%   \includegraphics[width=\linewidth]{figures/chapter4_verification_stress_overhead.png}
+%   \caption{Stacked wall-clock breakdown for the verification-stress suite. The
+%     lower segment is \texttt{compile\_only}; the upper segment is the added
+%     end-to-end cost of explicit DTAL verification, so the total bar height
+%     matches \texttt{compile\_plus\_verify}.}
+%   \label{fig:verification-stress-overheads}
+% \end{figure}
+
 \begin{table}[h]
   \centering
   \small
@@ -720,8 +675,8 @@ The second layer of cost evidence comes from the verification-stress suite, a su
   \label{tab:verification-stress-overheads}
 \end{table}
 
-The timings in Table~\ref{tab:verification-stress-overheads} show that the cost of the independent verifier is highly
-program-dependent. \texttt{array\_init} is the clearest outlier, with a 3.521$\times$ overhead ratio, because it generates a particularly obligation-heavy array initialisation pattern.
+% Figure~\ref{fig:verification-stress-overheads} and 
+Table~\ref{tab:verification-stress-overheads} show that the cost of the independent verifier is highly program-dependent. \texttt{array\_init} is the clearest outlier, with a 3.521$\times$ overhead ratio, because it generates a particularly obligation-heavy array initialisation pattern.
 % By contrast, \texttt{binary\_search} is already expensive in the frontend, so the extra DTAL re-checking stage adds little relative overhead in end-to-end wall-clock terms. The correct interpretation is therefore not that DTAL verification adds a fixed tax, but that its cost scales with the structure of the proof obligations that survive lowering.
 
 \subsection{Cross-system verification-cost comparison}
@@ -735,55 +690,18 @@ both \texttt{compile\_only} and \texttt{compile\_plus\_verify} modes, and for
 Dafny, Liquid Haskell, and Verus using the corresponding source-level
 verification commands.
 
-From Table~\ref{tab:comparison-suite-wallclock}, we can observe for Veritas, mean wall-clock time is around 0.041\,s in \texttt{compile\_only} mode and 0.051\,s in \texttt{compile\_plus\_verify} mode. Dafny averages $\sim$1.016\,s across the same six tasks, Liquid Haskell $\sim$1.227\,s, and Verus $\sim$0.488\,s, with \texttt{binary\_search} again the most expensive case for all systems. Veritas's \texttt{compile\_only} path is much shorter because the same implementation owns parsing, typing, lowering, and SMT discharge for a deliberately small fragment, with no separate general-purpose frontend or proof-oriented standard library layer. Dafny and Liquid Haskell, by contrast, are measured through their normal verification commands, which include the cost of their full source-level verification pipelines: Dafny's Boogie/SMT-based contract checking and Liquid Haskell's GHC-based compilation plus refinement checking plugin. Verus sits between these extremes in the suite: it remains a source-level system, but its executable/spec split and Rust-oriented verification flow produce lower wall-clock times on these particular small tasks.
+Figure~\ref{fig:comparison-suite-wallclock} shows the resulting wall-clock times. For Veritas, mean wall-clock time is around 0.038\,s in \texttt{compile\_only} mode and 0.047\,s in \texttt{compile\_plus\_verify} mode when measured over 100 runs with 10 warmups. Dafny averages $\sim$1.016\,s across the same six tasks, Liquid Haskell $\sim$1.227\,s, and Verus $\sim$0.488\,s, with \texttt{binary\_search} again the most expensive case for all systems. Veritas's \texttt{compile\_only} path is much shorter because the same implementation owns parsing, typing, lowering, and SMT discharge for a deliberately small fragment, with no separate general-purpose frontend or proof-oriented standard library layer. Dafny and Liquid Haskell, by contrast, are measured through their normal verification commands, which include the cost of their full source-level verification pipelines: Dafny's Boogie/SMT-based contract checking and Liquid Haskell's GHC-based compilation plus refinement checking plugin. Verus sits between these extremes in the suite: it remains a source-level system, but its executable/spec split and Rust-oriented verification flow produce lower wall-clock times on these particular small tasks.
 
-\begin{table}[h]
+\begin{figure}[h]
   \centering
-  \small
-  \begin{tabularx}{\linewidth}{
-      >{\ttfamily}l
-      >{\centering\arraybackslash}X
-      >{\centering\arraybackslash}X
-      >{\centering\arraybackslash}X
-      >{\centering\arraybackslash}X
-      >{\centering\arraybackslash}X
-    }
-    \hline
-    \textbf{Task}                       &
-    \textbf{Veritas compile-only (s)}   &
-    \textbf{Veritas compile+verify (s)} &
-    \textbf{Dafny (s)}                  &
-    \textbf{Liquid Haskell (s)}         &
-    \textbf{Verus (s)}                                                      \\
-    \hline
-
-    safe\_division                      &
-    0.0152                              & 0.0146 & 0.9259 & 1.1794 & 0.4484 \\
-
-    bounded\_read\_offset               &
-    0.0173                              & 0.0224 & 1.0118 & 1.2807 & 0.4604 \\
-
-    fill\_with\_ones                    &
-    0.0359                              & 0.0446 & 1.0015 & 1.2213 & 0.4924 \\
-
-    binary\_search                      &
-    0.1456                              & 0.1867 & 1.2629 & 1.3219 & 0.5285 \\
-
-    sorted\_head                        &
-    0.0156                              & 0.0208 & 1.0054 & 1.1942 & 0.5068 \\
-
-    safe\_midpoint                      &
-    0.0155                              & 0.0178 & 0.8856 & 1.1624 & 0.4939 \\
-    \hline
-  \end{tabularx}
-
-  \caption{Repeated wall-clock timings for the normalised six-task
-    cross-system comparison suite.}
-  \label{tab:comparison-suite-wallclock}
-\end{table}
-
-
-% \subsection{Interpreting Veritas's two-level verification cost}
+  \includegraphics[width=\linewidth]{figures/chapter4_comparison_suite_wallclock.png}
+  \caption{Grouped wall-clock timings for the normalised six-task
+    cross-system comparison suite. Bars show mean time and error bars show one
+    standard deviation. The Veritas results were refreshed at 100 runs with 10
+    warmups; the external-system results use the corresponding repeated local
+    verification-command measurements.}
+  \label{fig:comparison-suite-wallclock}
+\end{figure}
 
 An important distinction is that Veritas incurs two separable verification costs at the source and DTAL level, whereas most related systems primarily incur one.
 % The most important methodological point in this section is that Veritas incurs two separable verification costs, whereas most related systems primarily incur one. A source-level system such as Dafny or Liquid Haskell pays for checking contracts, refinements, and invariants over the source program, and then largely trusts the compiler to preserve those results. Veritas pays that same kind of frontend proof-discharge cost, but can additionally pay for explicit independent DTAL verification after lowering.
