@@ -9,7 +9,7 @@
 \section{Evaluation goals and methodology}
 % no formalisation/proof of DTAL; does it successfully build on the foundation of xi and harper's DTAL (can their proofs be used as evidence/support here)?
 
-This chapter evaluates the core goals of Veritas put forward in the proposal (Appendix [TODO]) and refined in the requirements analysis (Section~\ref{sec:requirements-anal}).
+This chapter evaluates the core goals of Veritas put forward in the proposal and refined in the requirements analysis (Section~\ref{sec:requirements-anal}).
 % The core memory-safety, control-flow safety and arithmetic safety properties Veritas aimed to support were array bounds checking, state consistency at joins and branches, function contract checking, and integer overflow. These features were fully realised in the implementation presented in Chapter~\ref{ch:impl} in addition to extensions that build on the core goals.
 
 A central claim of Veritas' architecture is that low-level artifacts can be independently verified while the compiler can be untrusted. This was achieved owing to the refinement type system, verification-oriented language features, type-preserving compilation, as well as other components of the languages and compiler. Veritas also aimed to support a toolchain for a \emph{systems language}. This evaluation must therefore address several distinct questions:

@@ -39,7 +39,7 @@ The source code is organised as a single Rust crate with the following top-level
 
 % \textbf{Original work.} The entire compiler, verifier, and test suite were written from scratch for this project. No existing compiler or tutorial was used as a starting point. The project's design draws on the DTAL paper by Xi and Harper~\cite{Xi2001DTAL} for the typed assembly language and on the Liquid Types paper by Rondon et al.~\cite{Rondon2008Liquid} for the refinement type checking approach, but the implementations are original.
 
-\textbf{External dependencies.} Four third-party Rust crates are used:
+\textbf{External dependencies.} 
 \begin{itemize}
   \item \texttt{z3}\footnote{\url{https://docs.rs/z3/latest/z3/}} (v0.19, MIT): Rust bindings for the Z3 SMT solver~\cite{DeMoura2008Z3} (MIT-licensed), used for proof obligations in both the type checker and verifier. Z3 is a substantial external system; its correctness is assumed.
   \item \texttt{chumsky}\footnote{\url{https://docs.rs/chumsky/latest/chumsky/}} (v1.0.0-alpha.8, MIT): a parser combinator library used for the lexer and parser. It provides the parsing infrastructure, but all grammar rules are original.
@@ -621,15 +621,21 @@ Most TIR instructions lower directly to DTAL. Phi nodes are implemented as paral
 
 \subsection{Optimisation}
 
-Two optimisation passes operate on the DTAL representation before register allocation:
+% Optimisation is an optional stage that runs on the virtual-register DTAL program after code generation and before register allocation. The implementation exposes a configurable pass pipeline via \texttt{-O} and individual optimisation flags. The stable default profile enables four passes: constant folding, peephole simplification, copy propagation, and dead code elimination. Two additional passes---loop-invariant code motion (LICM) and load-op fusion---are implemented but disabled in the default profile because they are still experimental.
+The implementation enables several different optimisation passes that operate on the DTAL representation before register allocation.
 
-\textbf{Copy propagation} identifies instructions of the form \texttt{mov r1, r2} and replaces subsequent uses of \texttt{r1} with \texttt{r2}, eliminating redundant copies introduced by phi-node lowering.
+\begin{itemize}
+  \item \textbf{Constant folding} is implemented as a forward scan within each DTAL basic block, maintaining a map from virtual registers to known immediate values. In Veritas this pass rewrites constant \texttt{BinOp} instructions to \texttt{MovImm}, introduces immediate-specific DTAL instructions such as \texttt{AddImm} and \texttt{CmpImm}, and performs a few targeted strength reductions such as multiplication by a power of two to a shift.
+  \item \textbf{Peephole optimisation} consists of a small set of hand-written local rewrites over DTAL instructions. These are mainly cleanup rules exposed by earlier simplification, such as eliminating identity operations, rewriting same-register patterns, and recognising the two-instruction encoding of negation.
+  \item \textbf{Copy propagation} is implemented block-locally using a map from virtual destinations to their source registers. In Veritas it primarily removes \texttt{MovReg} instructions introduced when phi nodes are lowered to edge copies, but deliberately does not propagate physical-register materialisation moves, because later backend stages still rely on those explicit ABI-oriented copies.
+  \item \textbf{Dead code elimination} reuses the liveness analysis already implemented for register allocation. The pass removes instructions whose defined virtual registers are dead, but treats DTAL instructions with backend or verifier significance---including stores, calls, control-flow instructions, pushes, and constraint assertions---as non-removable.
+  \item \textbf{Loop-invariant code motion (LICM)} is implemented over the DTAL CFG using dominator information and natural-loop detection borrowed from the liveness infrastructure. It hoists only pure computations, never constraint assertions or other verifier-visible instructions.
+  \item \textbf{Load-op fusion} is a Veritas-specific backend pass that recognises a \texttt{Load} whose result is used exactly once by a following arithmetic instruction and rewrites the pair to a single \texttt{LoadOp}. This is intended to exploit x86-64 memory operands in the final encoder.
+\end{itemize}
 
-\textbf{Dead code elimination} removes instructions whose destination register is never used.
+The passes run in a fixed order: constant folding, peephole optimisation, copy propagation, dead code elimination, followed by LICM and load-fusion. This sequence is iterated to a fixed point, bounded to ten iterations in the current implementation.
 
-Both passes iterate to a fixed point, as copy propagation may expose new dead code and vice versa. The passes must preserve type annotations: when a copy is propagated, the type of the source register must be compatible with all uses of the destination.
-
-[TODO:]
+The passes must preserve the verification structure of the program. In particular, constraint assertions are treated as verifier-visible effects and are never eliminated, while rewritten instructions continue to carry the type information required by the verifier.
 
 \subsection{Register allocation}
 
@@ -674,7 +680,7 @@ Beyond simple register renaming, the physical allocation pass performs several x
 
 The \textit{direct encoder} translates physically-allocated DTAL to x86-64 machine code. Because the physical allocation pass has already performed all x86-specific expansions (division, calling convention, prologues), the encoder is a near-trivial 1:1 mapping: each DTAL instruction maps to exactly one x86-64 instruction (or a short fixed sequence for prologues and epilogues). The entire module is 309 lines in the current implementation.
 
-This simplicity is deliberate and architecturally significant. An initial phase of the implementation used a monolithic x86-64 lowering pass that performed register allocation, instruction selection, and encoding in a single trusted step. By splitting this into an untrusted physical allocation pass (verified by the DTAL verifier) and a trivial encoder, the trusted code for the final translation was reduced from $\sim$1,100 lines to a $\sim$300-line encoder. This is small enough to audit by inspection, which is important as it is one of the few backend components that remains in the trusted computing base (alongside the ELF generator).
+This simplicity is deliberate and architecturally significant. Initially, I implemented a monolithic x86-64 lowering pass that performed register allocation, instruction selection, and encoding in a single trusted step. By splitting this into an untrusted physical allocation pass (verified by the DTAL verifier) and a trivial encoder, the trusted code for the final translation was reduced from $\sim$1,100 lines to a $\sim$300-line encoder. This is small enough to audit by inspection, which is important as it is one of the few backend components that remains in the trusted computing base (alongside the ELF generator).
 
 \subsection{Binary encoding and ELF generation}
 

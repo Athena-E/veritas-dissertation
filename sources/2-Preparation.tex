@@ -4,7 +4,7 @@
 
 \chapter{Preparation}\label{ch:prep}
 
-This chapter establishes the conceptual and technical background for Veritas. It first introduces the type-theoretic foundations that motivate the project: type soundness, dependent and refinement types, bidirectional type checking, SMT-based proof discharge, and type-preserving compilation (Section~\ref{sec:background}). It then places Veritas in the context of related work (Section~\ref{sec:related-work}), particularly systems that trade off expressiveness, automation, and trust in different ways. Section~\ref{sec:design-decisions} covers design decisions for the system architecture, trust model, and languages as well as challenges and how they were addressed. Sections~\ref{sec:requirements-anal}--\ref{sec:starting-point} contain the requirements analysis, software engineering approach, and starting point for the project.
+This chapter establishes the conceptual and technical background for Veritas. It introduces the type-theoretic foundations that motivate the project: type soundness, dependent and refinement types, bidirectional type checking, SMT-based proof discharge, and type-preserving compilation (Section~\ref{sec:background}). It then places Veritas in the context of related work (Section~\ref{sec:related-work}), particularly systems that trade off expressiveness, automation, and trust in different ways. Section~\ref{sec:design-decisions} covers design decisions for the system architecture, trust model, and languages as well as challenges and how they were addressed. Sections~\ref{sec:requirements-anal}--\ref{sec:starting-point} contain the requirements analysis, software engineering approach, and starting point for the project.
 
 % The goal of the chapter is to give insight to existing ideas and make precise which of them Veritas does (or does not) adopt, and why those choices are appropriate for a project centred on independently verifiable systems code.
 
@@ -204,7 +204,7 @@ Figure~\ref{fig:verification-landscape} summarises the trade-off between express
 
 \section{Design decisions}\label{sec:design-decisions}
 
-This section describes the key architectural decisions made during the preparation phase. The full syntax and formal typing rules for both the source language and DTAL are presented in Chapter~\ref{ch:impl} alongside their implementation.
+Having established the intended trust architecture and the theoretical tools and verification mechanisms available, my next step was to determine how they should be realised in the design of the language, compiler architecture, and trust model. This section describes the key design decisions made during the preparation phase.
 
 \subsection{Compiler architecture}
 
@@ -212,18 +212,20 @@ A central architectural decision is that the compiler is \textit{untrusted}. Rat
 
 \subsection{Trust model and TCB reduction}
 
-The project was designed in phases that progressively reduced the trusted computing base (TCB). Each phase moved the verification boundary further down the pipeline, removing components from the set of code that must be correct for the safety guarantee to hold:
+I structured the project in phases that progressively reduced the trusted computing base (TCB), allowing the implementation to proceed incrementally while maintaining a clear trust boundary at each stage. Each phase moved the verification boundary further down the pipeline, removing components from the set of code that must be correct for the safety guarantee to hold:
 
 \begin{enumerate}
   \item \textbf{Virtual DTAL verification}: the verifier checks DTAL with virtual registers. The TCB includes the verifier, Z3, register allocation, instruction selection, and the x86-64 encoder.
   \item \textbf{Physical DTAL verification}: the verifier checks DTAL \textit{after} register allocation. Register allocation and instruction selection are removed from the TCB. The TCB is now the verifier, Z3, and a trivial direct encoder.
-  \item \textbf{Runtime and bare-metal}: the runtime is kept small enough to audit by inspection, and a bare-metal target removes the OS from the TCB entirely. These are described in Sections~\ref{sec:runtime} and~\ref{sec:unikernel}.
+  \item \textbf{Runtime and bare-metal}: the runtime is kept small enough to audit by inspection, and a bare-metal target removes the OS from the TCB entirely.
 \end{enumerate}
 
 \begin{figure}[ht]
   \centering
   \begin{tikzpicture}[
-      node distance=0.75cm,
+      scale=0.85,
+      transform shape,
+      node distance=0.9cm and 1.1cm,
       box/.style={draw, rounded corners, minimum height=1.0cm, minimum width=4.0cm, align=center, font=\small},
       typed/.style={box, fill=blue!10},
       untyped/.style={box, fill=gray!10},
@@ -231,26 +233,35 @@ The project was designed in phases that progressively reduced the trusted comput
       arrow/.style={-Latex, thick}
     ]
     \node[untyped] (src) {Source\\\texttt{.veri}};
-    \node[typed, below=of src] (tast) {Typed AST};
-    \node[typed, below=of tast] (tir) {Typed SSA\\(TIR)};
-    \node[typed, below=of tir] (dtal) {DTAL};
-    \node[typed, below=of dtal] (phys) {Physical DTAL};
-    \node[trusted, below=of phys] (ver) {Independent Verifier};
-    \node[trusted, below=of ver] (enc) {Direct Encoder};
-    \node[untyped, below=of enc] (elf) {ELF / Machine Code};
+    \node[typed, right=of src] (tast) {Typed AST};
+    \node[typed, right=of tast] (tir) {Typed SSA\\(TIR)};
+    \node[typed, right=of tir] (dtal) {DTAL};
+
+    \node[typed, below=1.6cm of dtal] (phys) {Physical DTAL};
+    \node[trusted, left=of phys] (ver) {Independent Verifier};
+    \node[trusted, left=of ver] (enc) {Direct Encoder};
+    \node[untyped, left=of enc] (elf) {ELF / Machine Code};
 
     \draw[arrow] (src) -- (tast);
     \draw[arrow] (tast) -- (tir);
     \draw[arrow] (tir) -- (dtal);
-    \draw[arrow] (dtal) -- node[right=0.45cm, font=\scriptsize, align=left, fill=white, inner sep=1pt] {physalloc\\(untrusted)} (phys);
+    \draw[arrow] (dtal) -- node[right=0.35cm, font=\scriptsize, align=left, fill=white, inner sep=1pt] {physalloc\\(untrusted)} (phys);
     \draw[arrow] (phys) -- (ver);
     \draw[arrow] (ver) -- (enc);
     \draw[arrow] (enc) -- (elf);
 
-    \node[draw, dashed, rounded corners, fit=(tast)(tir)(dtal)(phys), inner sep=0.35cm,
-      label={[font=\small]right:untrusted compiler}] {};
+    \draw[dashed, rounded corners]
+      ([xshift=-0.35cm,yshift=0.35cm]tast.north west) --
+      ([xshift=0.35cm,yshift=0.35cm]dtal.north east) --
+      ([xshift=0.35cm,yshift=-0.35cm]dtal.south east) --
+      ([xshift=0.35cm,yshift=-0.35cm]phys.south east) --
+      ([xshift=-0.35cm,yshift=-0.35cm]phys.south west) --
+      ([xshift=-0.35cm,yshift=-0.35cm]dtal.south west) --
+      ([xshift=-0.35cm,yshift=-0.35cm]tast.south west) --
+      ([xshift=-0.35cm,yshift=0.35cm]tast.north west);
+    \node[font=\small, above] at ([yshift=0.35cm]tir.north) {untrusted compiler};
     \node[draw, dashed, rounded corners, fit=(ver)(enc), inner sep=0.25cm,
-      label={[font=\small]right:trusted core}] {};
+      label={[font=\small]below:trusted core}] {};
   \end{tikzpicture}
   \caption{Veritas compilation pipeline and trust boundary.}
   \label{fig:trust-pipeline}
@@ -258,17 +269,17 @@ The project was designed in phases that progressively reduced the trusted comput
 
 \subsection{Source language design}
 
-Veritas is an imperative language with C-like syntax, taking inspiration from Xi and Harper's Xanadu. It is designed to be minimal but expressive. The language supports integers, booleans, fixed-size arrays, mutable and immutable variables, for-loops, while-loops, and functions. The type system extends simple types with singleton types, refinement types, function contracts (with bounded quantifiers), and loop invariants.
+Veritas is an imperative language with C-like syntax, taking inspiration from Xi and Harper's Xanadu. I designed it to be minimal but expressive. The language supports integers, booleans, fixed-size arrays, mutable and immutable variables, for-loops, while-loops, and functions. The type system extends simple types with singleton types, refinement types, function contracts (with bounded quantifiers), and loop invariants.
 
 \subsection{DTAL target language design}
 
-The target language is a variant of Xi and Harper's Dependently Typed Assembly Language~\cite{Xi2001DTAL}, extended to support the Veritas refinement type system and targeting x86-64. DTAL resembles a RISC assembly language augmented with type annotations on registers, constraint assertions embedded in the instruction stream, and declared type states at basic block entry points.
+The target language is a variant of Xi and Harper's Dependently Typed Assembly Language~\cite{Xi2001DTAL}, extended to support the Veritas refinement type system and targeting x86-64. I designed the core DTAL to resemble a RISC assembly language since simple, explicit instructions are easier to type, easier to verify, and map naturally from the compiler’s SSA-style intermediate representation. The DTAL was then augmented with type annotations on registers, constraint assertions embedded in the instruction stream, and declared type states at basic block entry points.
 
-A key design decision was to define DTAL with its own \textit{physical register model} (registers \texttt{r0}--\texttt{r12}, \texttt{sp}, \texttt{fp}, \texttt{lr}) that maps directly to x86-64 registers. This allows verification to occur \textit{after} register allocation: the register allocator is untrusted, and its output is verified before the final (trivial) encoding to x86-64.
+I also defined DTAL with its own \textit{physical register model} (registers \texttt{r0}--\texttt{r12}, \texttt{sp}, \texttt{fp}, \texttt{lr}) that maps directly to x86-64 registers. This allows verification to occur \textit{after} register allocation: the register allocator is untrusted, and its output is verified before the final (trivial) encoding to x86-64.
 
 \subsection{Machine code encoding and ELF generation}
 % The final stages of the compilation pipeline translates verified physical DTAL to x86-64 machine code and packages it as a freestanding ELF binary. 
-Rather than emitting assembly text and invoking an external assembler (e.g., NASM or GAS), Veritas encodes x86-64 instructions directly as bytes. This is a deliberate design choice to minimise the trusted computing base: an external assembler would be a large, unverified component whose correctness must be assumed. The Veritas encoder comprises three small modules: a one-to-one mapping from physical DTAL instructions to x86-64 instructions, a byte encoder, and an ELF generator. The mapping is deliberately trivial---each DTAL instruction translates to exactly one x86-64 instruction (or a small fixed sequence for prologues/epilogues)---making the entire path amenable to manual audit.
+Rather than emitting assembly text and invoking an external assembler (e.g., NASM or GAS), Veritas encodes x86-64 instructions directly as bytes. I made this design choice to minimise the trusted computing base: an external assembler would be a large, unverified component whose correctness must be assumed. The Veritas encoder comprises three small modules: a one-to-one mapping from physical DTAL instructions to x86-64 instructions, a byte encoder, and an ELF generator. The mapping is deliberately trivial---each DTAL instruction translates to exactly one x86-64 instruction (or a small fixed sequence for prologues/epilogues)---making the entire path amenable to manual audit.
 
 The choice of x86-64 as the target architecture is a pragmatic one: the development machine runs x86-64 Linux, enabling direct execution and testing of compiled binaries without emulation. Targeting a different ISA (e.g., AArch64) would require replacing only the instruction mapping, byte encoder, and register definitions. The DTAL instruction set, type system, verifier, and everything upstream would remain unchanged.
 
