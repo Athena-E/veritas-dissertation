@@ -1037,93 +1037,93 @@ Key aspects of the TIR representation:
       \exists\, \texttt{v8}.\; \mathtt{int}(\texttt{v8}) \;\mathbf{where}\; (\texttt{v8} \ge 0 \;\wedge\; \texttt{v8} < 20)
     \]
     This captures the loop bounds without fixing a concrete value. The existential is opened at each use, making the bound constraints available for verification.
-  \item Mutable variables (\texttt{lo}, \texttt{hi}, \texttt{result}) are represented by phi nodes at the loop header. Their types are widened to $\mathtt{int}$ at join points, since the concrete value depends on the iteration.
-  \item An \texttt{.assert} directive at the entry of bb2 encodes the loop invariant $\mathtt{v11} \ge 0 \wedge \mathtt{v10} < 10$, where \texttt{v11} and \texttt{v10} are the registers holding \texttt{lo} and \texttt{hi} respectively.
+  \item Mutable variables (\texttt{lo}, \texttt{hi}, \texttt{result}) are represented by phi nodes at the loop header. Their current values become explicit loop-carried registers, and useful refinements may be preserved existentially: for example, the phi node for \texttt{lo} retains the fact that it remains non-negative.
+  \item The loop invariant appears in TIR as an \texttt{AssertConstraint} instruction at the entry of bb2. During code generation this becomes a DTAL \texttt{.assert}, allowing the later verifier to re-check the invariant independently of the frontend type checker.
 \end{itemize}
 
 \subsection{DTAL code generation and verification}
 %
-The DTAL output preserves the block structure of the TIR, augmented with entry state declarations, constraint assumptions, and type annotations on every instruction. Rather than showing all 13 blocks, this section traces the critical path: bb1 (loop header) $\to$ bb2 (body entry) $\to$ bb4 (the array access) $\to$ bb6 (back edge to loop header).
+The DTAL output preserves the block structure of the TIR, augmented with entry-state declarations, constraint assumptions, and type annotations on every instruction. In the current implementation, \texttt{binary\_search} now verifies successfully end-to-end. For readability, the first snippet below shows the virtual-register DTAL emitted immediately after code generation; the second shows the corresponding physical DTAL after register allocation and x86-specific expansion, which is the form actually consumed by the final verifier.
 %
-\subsubsection{bb1: loop header}
-%
-\begin{verbatim}
-.binary_search_bb1:
-    .type v8: exists v8. int(v8) where (v8 >= 0 && v8 < 20)
-    .type v9: [int; 10]
-    .type v10: int           ; hi
-    .type v11: int           ; lo
-    .type v12: int           ; result
-    .type v13: int           ; target
-    cmp v8, v7
-    blt .binary_search_bb2
-    jmp .binary_search_bb3
-\end{verbatim}
-%
-The verifier processes this block as follows. It opens the existential on \texttt{v8}, introducing a fresh witness satisfying $\texttt{v8} \ge 0 \wedge \texttt{v8} < 20$ into the constraint set. The comparison \texttt{cmp v8, v7} (where \texttt{v7} holds 20) determines whether the loop continues. The conditional branch \texttt{blt} adds $\texttt{v8} < 20$ to bb2's context.
-%
-\subsubsection{bb2: body entry --- invariant verification}
-%
-\begin{verbatim}
-.binary_search_bb2:
-    .assume v8 < v7
-    .assert (v11 >= 0 && v10 < 10)
-    cmp v11, v10
-    ble .binary_search_bb4
-    jmp .binary_search_bb5
-\end{verbatim}
-%
-The \texttt{.assert} directive is the loop invariant, now expressed over registers. The verifier must prove $\texttt{v11} \ge 0 \wedge \texttt{v10} < 10$ from the current constraint set. This constraint set includes all assumptions propagated from predecessor edges --- specifically, the constraints verified at the bb0$\to$bb1 and bb6$\to$bb1 transitions. Entry state constraints are not trusted from the compiler; the verifier checks them independently at every incoming edge.
-%
-The branch \texttt{ble} (branch if less-or-equal) adds $\texttt{v11} \le \texttt{v10}$ (i.e., $\mathtt{lo} \le \mathtt{hi}$) to bb4's context.
-%
-\subsubsection{bb4: the array access}
-%
-This is the most interesting block, containing the midpoint computation and the array load:
+\subsubsection{Virtual DTAL: midpoint computation and array access}
 %
 \begin{verbatim}
 .binary_search_bb4:
     .assume v8 < v7
     .assume (v11 >= 0 && v10 < 10)
     .assume v11 <= v10
-    sub v16, v10, v11        : int((v10 - v11))
-    mov v17, 2               : int(2)
-    div v18, v16, v17        : int(((v10 - v11) / 2))
-    add v19, v11, v18        : int((v11 + ((v10 - v11) / 2)))
-    load v20, [v9 + v19]     : int
+    sub v16, v10, v11    : {_synth_0: int | _synth_0 == (hi - lo) }
+    mov v17, 2           : int(2)
+    div v18, v16, v17    : {_synth_1: int | _synth_1 == ((hi - lo) / 2) }
+    add v19, v11, v18    : {_synth_2: int | _synth_2 == (lo + ((hi - lo) / 2)) }
+    .assert true
+    load v20, [v0 + v19] : int
 \end{verbatim}
 %
-The verifier re-derives the type of each instruction from its operands, following the Xi and Harper typing rules for DTAL~\cite{Xi2001DTAL}:
+This virtual DTAL is still close to the source-level reasoning. The branch constraints and invariant have already been translated into register-based assumptions, and the midpoint arithmetic is represented symbolically through the synthesised refinement types on \texttt{v16}, \texttt{v18}, and \texttt{v19}. At this level it is easy to see how the array-bounds proof is carried forward: the load of \texttt{v20} depends on the facts $v11 \ge 0$, $v10 < 10$, and $v11 \le v10$, together with the symbolic definition of the midpoint.
+%
+\subsubsection{Physical DTAL: verifier-facing code}
+%
+\begin{verbatim}
+.binary_search_bb2:
+    .assert (r0 >= 0 && r4 < 10)
+    cmp r0, r4
+    setle lr
+    mov r3, lr    : bool
+    .type r3: bool
+    ble .binary_search_bb4
+    jmp .binary_search_bb5
+.binary_search_bb4:
+    mov lr, r4    : int
+    mov r7, r0    : int
+    sub lr, lr, r7    : {_synth_0: int | _synth_0 == (hi - lo) }
+    mov r10, lr    : {_synth_0: int | _synth_0 == (hi - lo) }
+    mov r3, 2    : int(2)
+    mov r7, r3    : int
+    mov lr, r10    : int
+    cqo
+    idiv r7
+    mov r3, lr    : {_synth_1: int | _synth_1 == ((hi - lo) / 2) }
+    mov lr, r0    : int
+    mov r7, r3    : int
+    add lr, lr, r7    : {_synth_2: int | _synth_2 == (lo + ((hi - lo) / 2)) }
+    mov r10, lr    : {_synth_2: int | _synth_2 == (lo + ((hi - lo) / 2)) }
+    .assert true
+    mov lr, r6    : int
+    mov r7, r10   : int
+    load lr, [lr + r7]    : int
+\end{verbatim}
+%
+This is the post-register-allocation DTAL that the final verifier checks. The logical structure is the same as in the virtual DTAL, but the values have been assigned to physical registers and division has been expanded into the x86-64-specific \texttt{cqo}/\texttt{idiv} sequence. This illustrates the key trust-model point of the final implementation: register allocation and target-specific expansion remain untrusted compiler passes, and the verifier validates their output rather than assuming they are correct.
+
+The verifier still re-derives the types of the key arithmetic instructions from their operands:
 \begin{enumerate}
-  \item \texttt{sub v16, v10, v11} --- from $\texttt{v10}: \mathtt{int}$ and $\texttt{v11}: \mathtt{int}$, the verifier assigns $\texttt{v16}: \mathtt{int}((\texttt{v10} - \texttt{v11}))$.
-  \item \texttt{div v18, v16, v17} --- yields $\texttt{v18}: \mathtt{int}(((\texttt{v10} - \texttt{v11}) / 2))$.
-  \item \texttt{add v19, v11, v18} --- yields $\texttt{v19}: \mathtt{int}((\texttt{v11} + ((\texttt{v10} - \texttt{v11}) / 2)))$.
-  \item \texttt{load v20, [v9 + v19]} --- the verifier must prove $0 \le \texttt{v19} < 10$. The constraint set at this point is:
+  \item \texttt{sub lr, r4, r0} --- from the current types of \texttt{hi} and \texttt{lo}, the verifier derives the refinement corresponding to $(\texttt{hi} - \texttt{lo})$.
+  \item \texttt{idiv r7} --- after the division-expansion sequence, the verifier re-establishes that the quotient register holds $((\texttt{hi} - \texttt{lo}) / 2)$.
+  \item \texttt{add lr, r0, r7} --- yields the midpoint refinement $\texttt{lo} + ((\texttt{hi} - \texttt{lo}) / 2)$.
+  \item \texttt{load lr, [lr + r7]} --- the verifier must prove that the computed midpoint still satisfies the array-bounds obligation. The constraint set at this point is the physical-register counterpart of the virtual one:
     \[
-      \{\; \texttt{v11} \ge 0, \;\; \texttt{v10} < 10, \;\; \texttt{v11} \le \texttt{v10}, \;\; \texttt{v19} = \texttt{v11} + (\texttt{v10} - \texttt{v11})/2 \;\}
+      \{\; \texttt{r0} \ge 0, \;\; \texttt{r4} < 10, \;\; \texttt{r0} \le \texttt{r4}, \;\; \texttt{r10} = \texttt{r0} + (\texttt{r4} - \texttt{r0})/2 \;\}
     \]
-    The verifier sends $\phi \wedge \lnot(0 \le \texttt{v19} \wedge \texttt{v19} < 10)$ to Z3 and obtains UNSAT.
+    The verifier sends the negated bounds goal to Z3 and obtains UNSAT.
 \end{enumerate}
 %
-Note that the type annotations (e.g., \texttt{: int((v10 - v11))}) are emitted by the compiler but independently re-derived by the verifier. The verifier does not trust these annotations; it uses them only as a cross-check.
+Note that these annotations are emitted by the compiler but independently re-derived by the verifier. The verifier does not trust the compiler's claimed types; it uses them only as a cross-check against its own derivation.
 %
-\subsubsection{bb6: back edge --- state coercion}
+\subsubsection{Back edge and state coercion}
 %
 \begin{verbatim}
 .binary_search_bb6:
-    .type v47: int
-    .type v48: int            ; hi (updated)
-    .type v49: int            ; lo (updated)
-    .type v50: int            ; result (updated)
-    add v52, v8, v51          : int((v8 + 1))
-    mov v8, v52               : int
-    mov v10, v48              : int
-    mov v11, v49              : int
-    mov v12, v50              : int
+    mov r3, 1    : int
+    mov lr, r9   : int
+    mov r7, r3   : int
+    add lr, lr, r7    : int
+    mov r3, lr   : int
+    mov r9, r3   : int
     jmp .binary_search_bb1
 \end{verbatim}
 %
-At the back edge, the updated values of \texttt{lo}, \texttt{hi}, and \texttt{result} are moved into the registers that bb1 expects. The loop counter is incremented: $\texttt{v52} = \texttt{v8} + 1$. The verifier checks that the exit state of bb6 is compatible with the declared entry state of bb1 --- specifically, that $\texttt{v52}$ satisfies the existential bound $\texttt{v8} \ge 0 \wedge \texttt{v8} < 20$ (after accounting for the increment), and that the loop invariant can be re-established from the updated register values.
+At the physical back edge, the loop counter has been allocated to \texttt{r9}. The block increments it and jumps back to the loop header. The important point is not the specific register names but the state-coercion check performed at the edge: the verifier must show that the exit state of bb6 is compatible with the declared entry state of bb1, including the existential bound on the loop counter and the re-established invariant on the registers holding \texttt{lo} and \texttt{hi}. This is the inductive step of the loop proof in its final, post-register-allocation form.
 %
 % \subsection{Discussion}
 % %

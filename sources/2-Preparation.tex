@@ -35,9 +35,7 @@ In a dependently typed language, types may depend on terms. The canonical exampl
 
 Refinement types~\cite{Rondon2008Liquid} are a practical restriction of full dependent types in which a base type is decorated with a logical predicate drawn from a decidable logic. For example, the type $\{v\!:\!\mathtt{int} \mid v > 0\}$ classifies integers that are strictly positive. Notably, subtyping between refinement types reduces to logical implication: $\{v\!:\!\mathtt{int} \mid P(v)\} <: \{v\!:\!\mathtt{int} \mid Q(v)\}$ holds when $P(v) \Rightarrow Q(v)$ is valid. Because the predicates are drawn from a decidable theory (typically quantifier-free linear arithmetic), this implication check can be delegated to an SMT solver.
 
-A particularly useful special case is the singleton type, written $\mathtt{int}(n)$, which is inhabited by exactly the integer $n$. Singleton types arise naturally from Xi and Pfenning's work on Dependent ML~\cite{Xi1999DML}, where integer index expressions are used to track array sizes and loop bounds. In Veritas, singleton types propagate exact values through arithmetic: if $x : \mathtt{int}(3)$ and $y : \mathtt{int}(5)$, then $x + y : \mathtt{int}(8)$. This enables compile-time verification of array bounds when indices are statically known. Singleton types can be viewed as the special refinement $\{v\!:\!\mathtt{int} \mid v = n\}$; in the implementation, they are represented as a distinct type variant for efficiency, as constant folding on singletons avoids invoking the SMT solver entirely.
-
-Veritas additionally supports bounded quantifiers in specification positions. A postcondition such as $\mathbf{forall}\ i\ \mathbf{in}\ 0..n\ \{\ \mathit{arr}[i] \ge 0\ \}$ expresses a property over all elements of an array, going beyond scalar refinements to reason about aggregate data structures.
+A particularly useful special case is the singleton type, written $\mathtt{int}(n)$, which is inhabited by exactly the integer $n$. Singleton types arise naturally from Xi and Pfenning's work on Dependent ML~\cite{Xi1999DML}, where integer index expressions are used to track array sizes and loop bounds. Singleton types can propagate exact values through arithmetic: if $x : \mathtt{int}(3)$ and $y : \mathtt{int}(5)$, then $x + y : \mathtt{int}(8)$. This enables compile-time verification of array bounds when indices are statically known.
 
 \subsection{Bidirectional type checking}
 
@@ -78,7 +76,7 @@ In Veritas, the SMT solver is invoked at several points: subtyping checks betwee
 
 \subsection{Type-preserving compilation and DTAL}\label{sec:dtal-background}
 
-Conventional compilers erase types after type checking, discarding the safety guarantees established by the type system. The generated machine code is then trusted on the basis that the compiler is correct, an assumption that is difficult to verify for large, complex compilers. Type-preserving compilation~\cite{Morrisett1999SystemF} retains type information through every intermediate representation in the pipeline. This enables the property that the compiled output can be independently verified without trusting the compiler. If a bug in the compiler produces incorrect code, the type annotations on the output will be inconsistent, and the verifier will reject it.
+Conventional compilers erase types after type checking, discarding the safety guarantees established by the type system. The generated machine code is subsequently trusted on the basis that the compiler is correct, an assumption that is difficult to verify for large, complex compilers. Type-preserving compilation~\cite{Morrisett1999SystemF} retains type information through every intermediate representation in the pipeline. This enables the property that the compiled output can be independently verified without trusting the compiler. If a bug in the compiler produces incorrect code, the type annotations on the output will be inconsistent, and the verifier will reject it.
 % TODO: give examples of what attacks from an adversarial compiler can be detected
 
 The idea of shipping machine code together with a checkable proof of its safety was formalised by Necula as proof-carrying code (PCC)~\cite{Necula1997PCC}. In PCC, the code producer (i.e., compiler) generates both executable code and a safety proof; the code consumer (e.g., an operating system loader) checks the proof against a safety policy before executing the code. The proof checker is small and can be verified more quickly and easily than the entire compiler. Type-preserving compilation can be seen as a particular instance of PCC where the `proof' takes the form of type annotations.
@@ -144,31 +142,31 @@ Figure~\ref{fig:verification-landscape} summarises the trade-off between express
 
     % Systems (hollow = proofs erased, filled = proofs preserved)
     % C: low expressiveness, high automation (no proofs needed, but no safety)
-    \node[hollow, label={[font=\small]above right:C}] at (1.5,6.5) {};
+    \node[hollow, label={[font=\footnotesize]above right:C}] at (1.5,6.5) {};
 
     % Rust: moderate expressiveness (ownership), high automation
-    \node[hollow, label={[font=\small]above right:Rust}] at (3,5.5) {};
+    \node[hollow, label={[font=\footnotesize]above right:Rust}] at (3,5.5) {};
 
     % Liquid Haskell: good expressiveness, high automation (predicate inference)
-    \node[hollow, label={[font=\small]above right:Liquid Haskell}] at (5.5,6) {};
+    \node[hollow, label={[font=\footnotesize]above right:Liquid Haskell}] at (5.5,6) {};
 
     % Dafny: good expressiveness, moderate automation (requires contracts/invariants)
-    \node[hollow, label={[font=\small]above right:Dafny}] at (6,4.5) {};
+    \node[hollow, label={[font=\footnotesize]above right:Dafny}] at (6,4.5) {};
 
     % Veritas: similar expressiveness to Dafny, slightly less automated, proofs preserved
     % \node[filled, label={[font=\small\bfseries]below left:Veritas}] at (5.5,4) {};
 
     % ATS: high expressiveness, lower automation (manual proofs sometimes needed), proofs preserved at compile time
-    \node[filled, label={[font=\small]above right:ATS}] at (7,3) {};
+    \node[filled, label={[font=\footnotesize]above right:ATS}] at (7,3) {};
 
     % F*: very expressive, moderate-low automation
-    \node[hollow, label={[font=\small]above right:F*}] at (8,2.5) {};
+    \node[hollow, label={[font=\footnotesize]above right:F*}] at (8,2.5) {};
 
     % RefinedC: very expressive, low automation (Coq proofs), proofs preserved
-    \node[filled, label={[font=\small]below left:RefinedC}] at (8.5,1.5) {};
+    \node[filled, label={[font=\footnotesize]below left:RefinedC}] at (8.5,1.5) {};
 
     % Coq/Agda: most expressive, lowest automation
-    \node[hollow, label={[font=\small]above right:Coq/Agda}] at (9.5,1) {};
+    \node[hollow, label={[font=\footnotesize]above right:Coq/Agda}] at (9.5,1) {};
 
     % Legend
     \node[filled, label={[font=\footnotesize]right:Proofs preserved}] at (10,7) {};
@@ -251,14 +249,14 @@ I structured the project in phases that progressively reduced the trusted comput
     \draw[arrow] (enc) -- (elf);
 
     \draw[dashed, rounded corners]
-      ([xshift=-0.35cm,yshift=0.35cm]tast.north west) --
-      ([xshift=0.35cm,yshift=0.35cm]dtal.north east) --
-      ([xshift=0.35cm,yshift=-0.35cm]dtal.south east) --
-      ([xshift=0.35cm,yshift=-0.35cm]phys.south east) --
-      ([xshift=-0.35cm,yshift=-0.35cm]phys.south west) --
-      ([xshift=-0.35cm,yshift=-0.35cm]dtal.south west) --
-      ([xshift=-0.35cm,yshift=-0.35cm]tast.south west) --
-      ([xshift=-0.35cm,yshift=0.35cm]tast.north west);
+    ([xshift=-0.35cm,yshift=0.35cm]tast.north west) --
+    ([xshift=0.35cm,yshift=0.35cm]dtal.north east) --
+    ([xshift=0.35cm,yshift=-0.35cm]dtal.south east) --
+    ([xshift=0.35cm,yshift=-0.35cm]phys.south east) --
+    ([xshift=-0.35cm,yshift=-0.35cm]phys.south west) --
+    ([xshift=-0.35cm,yshift=-0.35cm]dtal.south west) --
+    ([xshift=-0.35cm,yshift=-0.35cm]tast.south west) --
+    ([xshift=-0.35cm,yshift=0.35cm]tast.north west);
     \node[font=\small, above] at ([yshift=0.35cm]tir.north) {untrusted compiler};
     \node[draw, dashed, rounded corners, fit=(ver)(enc), inner sep=0.25cm,
       label={[font=\small]below:trusted core}] {};
@@ -269,7 +267,11 @@ I structured the project in phases that progressively reduced the trusted comput
 
 \subsection{Source language design}
 
-Veritas is an imperative language with C-like syntax, taking inspiration from Xi and Harper's Xanadu. I designed it to be minimal but expressive. The language supports integers, booleans, fixed-size arrays, mutable and immutable variables, for-loops, while-loops, and functions. The type system extends simple types with singleton types, refinement types, function contracts (with bounded quantifiers), and loop invariants.
+Veritas is an imperative language with C-like syntax, taking inspiration from Xi and Harper's Xanadu. I designed it to be minimal but expressive. The language supports integers, booleans, fixed-size arrays, mutable and immutable variables, for-loops, while-loops, and functions.
+
+The type system extends simple types with singleton types, refinement types, function contracts (with bounded quantifiers), and loop invariants. For efficiency, singleton types are represented as a distinct type variant so constant folding on singletons avoids invoking the SMT solver entirely.
+
+When considering the example programs I wanted Veritas to express, particularly array-based algorithms such as binary search, I needed a way to state array-wide and range-based properties such as sortedness. Scalar refinement types alone cannot express such global invariants, so I extended the specification language with \emph{bounded quantifiers} in specification positions. A precondition such as $\mathbf{forall}\ i\ \mathbf{in}\ 0..n\ \{\ \mathit{arr}[i] \le \mathit{arr}[i + 1]\ \}$ expresses a property over all elements of an array, going beyond scalar refinements to reason about aggregate data structures.
 
 \subsection{DTAL target language design}
 
@@ -717,19 +719,18 @@ To maintain a manageable scope and clear focus on structural safety, several amb
 \label{sec:software-eng-methodology}
 
 \subsection{Methodology}
-Development followed a hybrid approach. Initial planning resembled a waterfall model in which the compiler pipeline modules, source and target language features and specifications were defined. Software development then followed a spiral approach: the pipeline was built end-to-end with minimal features first (integer arithmetic only), then progressively extended with arrays, mutable variables, refinement types, function contracts, and quantifiers. Work items were planned for two-week sprints and I kept track of tasks using a Kanban board on Jira. Each feature was accompanied by test cases in both positive (should compile) and negative (should produce a specific error) categories. The test suite features unit tests for each significant module and integration tests between the components of the pipeline.
 
-  [TODO: final Gantt chart diagram here]
+\paragraph{Development process.} Development followed a hybrid approach. Initial planning resembled a waterfall model in which the compiler pipeline modules, source and target language features and specifications were defined. Software development then followed a spiral approach: the pipeline was built end-to-end with minimal features first (integer arithmetic only), then progressively extended with arrays, mutable variables, refinement types, function contracts, and quantifiers. Work items were planned for two-week sprints and I kept track of tasks using a Kanban board on Jira. Each feature was accompanied by test cases in both positive (should compile) and negative (should produce a specific error) categories. The test suite features unit tests for each significant module and integration tests between the components of the pipeline. I also attended thrice weekly standups with other Computer Science students, organised by my Director of Studies, where we gave brief reports on our project status and upcoming work items.
 
-% TODO: Development proceeded with evaluation in mind. TCB shrunk as project progressed
+\paragraph{Version control.} Version control was managed using Git, employing a trunk-based development strategy. Features and bug fixes were developed in short-lived branches before being integrated into a central master branch. To maintain code quality and ensure continuous correctness, I set up an automated Continuous Integration (CI) pipeline via GitHub Actions, which triggered on every push to the remote repository.
 
-Version control was managed using Git, employing a trunk-based development strategy. Features and bug fixes were developed in short-lived branches before being integrated into a central master branch. To maintain code quality and ensure continuous correctness, I set up an automated Continuous Integration (CI) pipeline via GitHub Actions, which triggered on every push to the remote repository. This pipeline enforced formatting and linting standards (using the \texttt{cargo fmt} and \texttt{cargo clippy} tools), validated the suite of example programs, and executed the test suite across both Ubuntu Linux and macOS environments; this covers two primary platforms on which systems programming toolchains are used in practice and ensures the compiler and verifier implementations remain portable and correct across OS environments, libc implementations (relevant to the C-based implementation of Z3), and toolchain versions. Testing was done against both stable and nightly Rust toolchains; stable ensures the project builds with the version most users would have, while nightly provides early warning of upcoming compiler changes or deprecations, and is necessary if any features behind features gates are used.
+\paragraph{Code quality and testing.} To maintain clean code and follow common practices, I set up the CI pipeline to enforce formatting and linting standards (using the \texttt{cargo fmt} and \texttt{cargo clippy} tools). It also validated the suite of example programs, and executed the test suite across both Ubuntu Linux and macOS environments; this covers two primary platforms on which systems programming toolchains are used in practice and ensures the compiler and verifier implementations remain portable and correct across OS environments, libc implementations (relevant to the C-based implementation of Z3), and toolchain versions. Testing was done against both stable and nightly Rust toolchains; stable ensures the project builds with the version most users would have, while nightly provides early warning of upcoming compiler changes or deprecations, and is necessary if any features behind features gates are used.
+% TODO: unit/integration tests
 
-I also attended thrice weekly standups with other Computer Science students, where we gave brief reports on our project status and upcoming work items.
 
 \subsection{Tools and Technologies}
 % TODO: also Rust's desirable safety features that were used as inspiration (borrow checker?)
-The project was implemented in Rust, chosen for its strong type system, pattern matching, and memory safety guarantees without garbage collection.
+The project was implemented in Rust, chosen for its strong type system, pattern matching, and memory safety guarantees without garbage collection. Aspects of its language design and safety features were also inspiration for some of the features I would later come to implement in Veritas, such as the borrowing and ownership model.
 
 The Z3 SMT solver used for the frontend typechecker and DTAL verifier was accessed via the \texttt{z3} Rust crate, which provided high-quality, idiomatic Rust bindings, compared to potential alternatives like CVC5 that have less mature Rust ecosystem support. As mentioned in Section~\ref{sec:smt-based-ver}, Z3 is one of the most widely-deployed, well-audited SMT solvers. In Veritas, Z3 is used by the DTAL verifier and thus forms part of the trusted computing base; it is important to minimise the risk introduced by this trust---using an obscure solver would weaken this argument. Another prominent reason for using Z3 is that it natively supports the theories featured in Veritas: quantifier-free LIA for refinement subtyping, and bounded quantifiers for array specifications.
 
