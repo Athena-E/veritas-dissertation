@@ -525,6 +525,30 @@ An important feature is \textit{refinement lifting}: when an array has a refined
 
 Type errors are represented as structured values (\texttt{TypeError} variants) carrying source spans, expected and actual types, and contextual information. A separate reporting module formats these into diagnostics using the \texttt{ariadne} library, highlighting the relevant source location and explaining the failed proof obligation, including the propositions that were assumed and the goal that could not be proved.
 
+\section{Borrowing and ownership extension}\label{sec:ownership-extension}
+
+The borrowing and ownership model extends through the full verified pipeline rather than stopping at the source type checker. At the source level it enforces a Rust-inspired discipline over aliasing and mutation; in the intermediate and assembly-like representations it is reified as explicit ownership operations; and in the verifier it becomes part of the independently checked low-level safety state. This design is important to the trust argument: an incorrect backend cannot silently discard the source-level borrowing guarantees, because those guarantees are carried into verifier-visible code.
+
+\subsection{Frontend enforcement}
+
+In the frontend, borrowing and ownership are implemented as an extension of the ordinary typing context rather than as a separate pass. In addition to $\phi$, $\Gamma$, and $\Delta$, the concrete \texttt{TypingContext} maintains four ownership-specific components: a set of \texttt{moved\_bindings}, a map of \texttt{active\_borrows} for each owner, a map of \texttt{borrow\_bindings} from reference variables back to the owner they borrow from, and a stack of lexical \texttt{borrow\_scopes}. The first component enforces move semantics by making a binding unavailable after ownership has been transferred; subsequent reads are reported as use-after-move errors until the binding is reinitialised. The remaining three components implement a lightweight lexical borrow checker: entering a block pushes a new borrow scope, and leaving the block releases all borrows introduced in that scope.
+
+Operationally, creating \texttt{\&x} increments the shared-borrow count for \texttt{x}, while creating \texttt{\&mut x} requires \texttt{x} to be mutable and to have no live borrows at all. Each reference binding records both its owner and whether it is shared or mutable, so later checks can reject the operations that would violate the ownership discipline: mutating, shadowing, or moving a borrowed owner; creating a shared borrow while a mutable borrow is live; or creating a mutable borrow while either a shared or mutable borrow is already active. This logic is integrated directly into the ordinary statement checker, so assignments, \texttt{let} bindings, and returns all update ownership state at the same time as they update the refinement-typing context.
+
+The current implementation intentionally keeps the source-level borrow checker lexical and first-order. Borrows must be taken from place expressions already representable in the typed AST, reborrowing is not yet supported, and borrow scopes are ended structurally at block exit rather than inferred by a separate lifetime analysis. This restriction is sufficient for the current Veritas fragment and keeps the operational account simple enough to preserve below the frontend.
+
+\subsection{Lowering and code generation}
+
+Once the frontend has accepted a program, ownership behaviour is not forgotten. Lowering from TAST to TIR makes it explicit using instructions such as \texttt{MoveOwned}, \texttt{DropOwned}, \texttt{BorrowShared}, \texttt{BorrowMut}, and \texttt{BorrowEnd}. Function calls also record parameter-passing modes (\texttt{PlainValue}, \texttt{OwnedValue}, \texttt{SharedBorrow}, and \texttt{MutableBorrow}) together with a return-ownership mode, allowing the compiler to distinguish ordinary calls from ownership-transferring or borrow-passing calls.
+
+These ownership-carrying TIR instructions lower directly to corresponding DTAL operations. In particular, Veritas extends the DTAL fragment with explicit low-level borrow and ownership instructions such as \texttt{move\_owned}, \texttt{alias\_borrow}, \texttt{borrow\_mut}, \texttt{borrow\_end}, and \texttt{drop\_owned}. As a result, the ownership discipline is present in the verifier-facing program text itself rather than being implicit in compiler conventions. This is the key difference from a source-only borrow checker: the backend must continue to justify ownership behaviour in a form that can be re-checked independently.
+
+\subsection{Verifier support}
+
+The independent verifier extends its ordinary register-and-constraint state with ownership metadata. Concretely, it tracks which registers currently hold owned values, assigns object identities to owned values, and separately records registers holding shared and mutable borrows of those objects. Verification rules then enforce the expected capability discipline: plain moves may not duplicate ownership, \texttt{move\_owned} transfers ownership rather than copying it, a mutable borrow is rejected if any shared or mutable borrow of the same object is already live, and ownership cannot be moved or dropped while conflicting borrows remain active.
+
+This ownership state is checked not only instruction-by-instruction but also across control-flow joins and after register allocation. Consequently, the verified property is stronger than ``the source borrow checker once accepted the program'': the final DTAL program must still exhibit a consistent ownership discipline after lowering, optimisation, register allocation, spill insertion, and calling-convention materialisation. If any backend phase introduces an illegal alias, a duplicated owner, or an unbalanced borrow termination, the standalone verifier rejects the program.
+
 \section{Middle end}\label{sec:middle-end}
 
 \subsection{Typed Intermediate Representation (TIR)}
