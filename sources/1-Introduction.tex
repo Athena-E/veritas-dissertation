@@ -5,9 +5,8 @@
 
 \chapter{Introduction}\label{ch:intro}
 
-In his seminal 1977 paper, Leslie Lamport defined \emph{safety} as a property ensuring that ``something bad never happens'' \cite{Lamport1977Proving}. In systems programming, where code written in languages such as C and C++ often runs with elevated privileges, \emph{memory safety} translates to a guarantee: no out-of-bounds reads, no null-pointer dereferences, and no other memory-related undefined behaviour (UB). Yet, the history of systems software
-has many instances where these guarantees are not achieved.
-% demonstrates the difficulty of achieving such guarantees in practice. 
+In his seminal 1977 paper, Leslie Lamport defined \emph{safety} as a property ensuring that ``something bad never happens'' \cite{Lamport1977Proving}. In systems programming, where code written in languages such as C and C++ often runs in privileged environments, \emph{memory safety} translates to a guarantee: no out-of-bounds reads, no null-pointer dereferences, and no other memory-related undefined behaviour (UB). In C and C++, it is the programmer's responsibility to uphold these guarantees. However, programmers are human and humans make mistakes, and mistakes that fail to uphold memory safety can be catastrophic.
+% Yet, the history of systems software has many instances where these guarantees are not always achieved.
 The Heartbleed bug (2014) \cite{CVE-2014-0160} was ultimately an unchecked bounds error that leaked sensitive memory contents, and the Code Red worm (2001) exploited a buffer overflow in Microsoft's Internet Information Services (IIS) to compromise 359,000 servers in less than 14 hours \cite{Microsoft2001MS01-033}.
 
 Modern languages and toolchains address this problem in different ways, but they differ in what must be trusted for the final executable to be assumed safe. One approach, exemplified by languages such as Rust, is to enforce safety properties at the source level using mechanisms such as the borrow checker
