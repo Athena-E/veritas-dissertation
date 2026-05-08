@@ -14,12 +14,12 @@ This chapter evaluates the core goals of Veritas put forward in the proposal and
 
 A central claim of Veritas' architecture is that low-level artifacts can be independently verified while the compiler can be untrusted. This was achieved owing to the refinement type system, verification-oriented language features, type-preserving compilation, as well as other components of the languages and compiler. Veritas also aimed to support a toolchain for a \emph{systems language}. This evaluation must therefore address several distinct questions:
 \begin{itemize}
-  \item Is the design and implementation of DTAL a useful realisation of the intended trust architecture?
-  \item Are the source language and compiler implementations viable for a systems-language toolchain?
-  \item Is the source language expressive enough for the targeted verification tasks?
-  \item Is the additional cost imposed by independent DTAL-level verification practical enough to keep the toolchain usable?
-  \item How confident can one be about the correctness of the verifier?
-  \item What reduction in the TCB does Veritas achieve, and is that reduction substantial enough to justify the DTAL-based trust architecture?
+  \item Is the design and implementation of DTAL a useful realisation of the intended trust architecture? % Trust architecture
+  \item Are the source language and compiler implementations viable for a systems-language toolchain? % Practicality/Expressivity
+  \item Is the source language expressive enough for the targeted verification tasks? % Expressivity
+  \item Is the additional cost imposed by independent DTAL-level verification practical enough to keep the toolchain usable? % Practicality
+  \item How confident can one be about the correctness of the verifier? % Trust architecture
+  \item What reduction in the TCB does Veritas achieve, and is that reduction substantial enough to justify the DTAL-based trust architecture? % Trust architecture
 \end{itemize}
 
 % \noindent This chapter explores these questions through relevant experiments and analysis, as well as quantitative and qualitative comparisons with external languages and systems.

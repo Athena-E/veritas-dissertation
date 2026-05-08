@@ -33,19 +33,12 @@ To express and discharge these guarantees, Veritas uses refinement types \cite{R
 
 \section{Aims}
 
-% TODO: success criteria: in/out of scope, what is verified, changes to dev's build env, algorithmic decidability 
-The core aim of this project is to deliver a type-preserving compilation pipeline that supports independent verification of code for a small systems language. This means:
-% TODO: add runtime and unikernel?
-% TODO: tangible assets to the community? intellectual/concrete contributions
+The core goal of this project is to investigate whether a small systems-language toolchain can realise the trust model suggested by proof-carrying code: an untrusted compiler whose low-level output is independently checked before execution. The aims can be defined along three main axes:
 \begin{itemize}
-  \item \textbf{The Veritas Language:} a systems language featuring refinement types, loop invariants, and function contracts.
-  \item \textbf{Dependently Typed Assembly Language (DTAL):} a target language based on Xi and Harper \cite{Xi2001DTAL} that embeds type states and constraints directly into the instruction stream.
-  \item \textbf{Type-Preserving Compiler Pipeline:} a pipeline that lowers high-level types to a typed SSA (Static Single Assignment) typed intermediate representation to DTAL, preserving all defined safety invariants.
-  \item \textbf{DTAL Verifier:} a tool that re-verifies DTAL programs without access to the source code, reducing the trusted computing base to the verifier and the SMT solver.
-  \item \textbf{Evaluation:} an evaluation and benchmarking suite to measure the expressiveness, overhead, and practical limits of the architecture.
+  \item \textbf{Trust architecture:} Veritas should demonstrate that the relevant low-level safety properties of compiled programs can be checked independently at the DTAL level, so that the compiler itself need not be trusted for memory and control-flow safety.
+  \item \textbf{Expressive source language:} the source language should be expressive enough both from a verification perspective as well as from a systems-language perspective, by remaining suitable for realistic imperative and systems-oriented programs.
+  \item \textbf{Practicality:} the overall toolchain should remain usable in practice, by keeping the trusted core substantially smaller than the full compiler and by keeping the additional cost of independent verification acceptable.
 \end{itemize}
-% \item \textbf{x86 runtime generation:} an assembler that maps DTAL instructions to x86 and generates an executable ELF.
-% memory-safety, control-flow safety properties; full functional correctness, complete automation of specification inference, compatibility with existing industrial build systems, and proving decidability or competitive performance for all verification tasks
 
 % \noindent The memory-safety and control-flow safety properties covered by verification include: array bounds checking, control-flow/state consistency at joins and branches, function contract checking and loop-invariant preservation. Arithmetic safety properties such as division/modulo safety and integer overflow checking are also supported. While a formal proof of decidability for verification is beyond the scope of this project, the design aims to remain within SMT-friendly logical fragments so that verification succeeds automatically for a broad class of realistic programs. Formally proving the correctness of the verifier is also beyond scope, but its reliability should be supported through extensive testing and program suites.
 

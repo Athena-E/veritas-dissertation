@@ -21,7 +21,7 @@ The fundamental theorem that connects type systems to safety is \emph{type sound
 \textbf{Preservation.} If $\emptyset \vdash e : \tau$ and $e \to e'$, then $\emptyset \vdash e' : \tau$.
 
 % \noindent Progress states that a closed well-typed program never becomes stuck before it has produced a value: whenever evaluation has not yet finished, there is always a valid next reduction step. Preservation states that evaluation does not invalidate typing: every execution step preserves the type established statically. 
-\noindent Together, these yield type soundness. Starting from a well-typed program, repeated evaluation can neither get stuck in an ill-defined intermediate state nor escape the guarantees expressed by its type. In practice, this is the formal basis for claims such as ``a well-typed array access cannot go out of bounds'' or ``a well-typed arithmetic expression is not applied to a boolean''.
+\noindent Starting from a well-typed program, repeated evaluation can neither get stuck in an ill-defined intermediate state nor escape the guarantees expressed by its type. In practice, this is the formal basis for claims such as ``a well-typed array access cannot go out of bounds'' or ``a well-typed arithmetic expression is not applied to a boolean''.
 
 % An important consequence of tractability is that type systems are \emph{sound} but not \emph{complete}: every accepted program is safe, but some safe programs will be rejected. This is a deliberate trade-off---soundness is essential for guarantees, while completeness is sacrificed for decidability. Refinement types push this boundary by encoding richer invariants, but the fundamental incompleteness remains.
 
