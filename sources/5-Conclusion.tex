@@ -5,26 +5,15 @@
 
 \chapter{Conclusion}\label{ch:conclusion}
 
-\subsection{Achievements}
-% Achieviements
-In this project, I ...
+\section{Achievements}
+This project delivered a working implementation of Veritas: a refinement-typed imperative source language, a type-preserving compiler, an independent DTAL verifier, and native hosted and bare-metal execution targets. The core architectural achievement is that important source-level guarantees are preserved below the frontend. Refinement constraints, contracts, array-bounds obligations, and borrowing/ownership information are carried through TAST, TIR, and DTAL, then re-checked independently at the low level rather than trusted after compilation.
 
-The evaluation shows ... and provides strong evidence for ...
+The evaluation provides evidence that this design works for the implemented fragment. The frontend and independent physical-DTAL verifier agree on all 28 valid feature-suite programs, the negative suite rejects 35 invalid source programs spanning the main supported error classes, and the DTAL tampering corpus shows that representative low-level corruptions are detected after compilation. Taken together, these results support the dissertation's main claim: Veritas demonstrates that a useful SMT-verified imperative fragment can be compiled to low-level code while retaining an explicit and independently checkable safety story.
 
-\subsection{Future work}
-% Future work
-% \begin{itemize}
-%   \item \textbf{Region-based borrow checker.} References with explicit regions enforced at source and DTAL levels.
-%   \item \textbf{Type-directed optimisations.} Refinements used to elide bounds checks and propagate singletons across calls.
-%   \item \textbf{E-graphs for constraints.} Equality saturation as a pre-filter for SMT entailment.
-%   \item \textbf{Incremental verification.} Function-level caching with call-graph dependency tracking.
-%   \item \textbf{Full DTT Mode.} User-supplied proof terms for obligations beyond the decidable SMT fragment.
-%   \item \textbf{Mechanised soundness.} Formalising the verifier in a proof assistant.
-% \end{itemize}
+\section{Future work}
+The most natural next step is to extend the supported fragment without weakening the trust architecture. This includes a richer borrowing model with non-lexical lifetimes and reborrowing, more expressive data structures and heap reasoning, and more type-directed optimisation that can exploit proven facts such as bounds or singleton information. On the assurance side, the strongest longer-term direction is to reduce trust further by formalising the verifier or its key metatheory in a proof assistant, while on the engineering side the project would benefit from broader benchmarking, larger verification corpora, and a public open-source release to make the toolchain easier to evaluate and build on.
 
-Release as open license
-
-\subsection{Reflections}
+\section{Reflections}
 % Reflections
 % How would I plan the project if starting again?
 % Initial proposal ext: concurrency and behavioural properties
