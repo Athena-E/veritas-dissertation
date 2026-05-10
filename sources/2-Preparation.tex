@@ -31,15 +31,27 @@ Type systems exist on a spectrum of expressiveness. At one end, simply typed lan
 
 \subsection{Dependent types and refinement types}\label{sec:dependent-types}
 
-In a dependently typed language, types may depend on terms. The canonical example is the type of vectors indexed by their length, $\mathrm{Vec}(A, n)$, where $n$ is a natural number. A function that accesses the $i$-th element can require in its type that $0 \le i < n$, statically ruling out out-of-bounds accesses. Full dependent type systems, such as those in Coq and Agda~\cite{Bove2009Agda}, can express arbitrary propositions as types (via the Curry--Howard correspondence), but this generality comes at a cost: type checking may require the programmer to construct explicit proof terms, and type inference is generally undecidable.
+In a dependently typed language, types may depend on terms. The canonical example is the type of vectors indexed by their length, $\mathrm{Vec}(A, n)$, where $n$ is a natural number. A function that accesses the $i$-th element can require in its type that $0 \le i < n$, statically ruling out out-of-bounds accesses. Full dependent type systems, such as those in Coq and Agda~\cite{Bove2009Agda}, can express arbitrary propositions in higher-order logic as types (via the Curry--Howard correspondence), but this generality comes at a cost: type checking is expensive and may require the programmer to construct explicit proof terms.
 % TODO: coq, agda: higher-order logic
 % \[
 %   \mathrm{lookup} : \forall A, n.; \mathrm{Vec}(A,n) \to \mathrm{Fin}(n) \to A
 % \] where Fin(n) is the type of all valid indices n
 
-Refinement types~\cite{Rondon2008Liquid} are a practical restriction of full dependent types in which a base type is decorated with a logical predicate drawn from a decidable logic. For example, the type $\{v\!:\!\mathtt{int} \mid v > 0\}$ classifies integers that are strictly positive. Notably, subtyping between refinement types reduces to logical implication: $\{v\!:\!\mathtt{int} \mid P(v)\} <: \{v\!:\!\mathtt{int} \mid Q(v)\}$ holds when $P(v) \Rightarrow Q(v)$ is valid. Because the predicates are drawn from a decidable theory (typically quantifier-free linear arithmetic), this implication check can be delegated to an SMT solver.
+Refinement types~\cite{Rondon2008Liquid} are a practical restriction of full dependent types in which a base type is decorated with a logical predicate drawn from a decidable logic. For example, the type $\{v\!:\!\mathtt{int} \mid v > 0\}$ classifies integers that are strictly positive. Notably, subtyping between refinement types reduces to logical implication:
+\[
+  \{v\!:\!\mathtt{int} \mid P(v)\} <: \{v\!:\!\mathtt{int} \mid Q(v)\} \text{ holds when } P(v) \Rightarrow Q(v) \text{ is valid}
+\]
+% $\{v\!:\!\mathtt{int} \mid P(v)\} <: \{v\!:\!\mathtt{int} \mid Q(v)\}$ holds when $P(v) \Rightarrow Q(v)$ is valid. 
+Because the predicates are drawn from a decidable theory (typically quantifier-free linear arithmetic), this implication check can be delegated to an SMT solver.
 
-A particularly useful special case is the singleton type, written $\mathtt{int}(n)$, which is inhabited by exactly the integer $n$. Singleton types arise naturally from Xi and Pfenning's work on Dependent ML~\cite{Xi1999DML}, where integer index expressions are used to track array sizes and loop bounds. Singleton types can propagate exact values through arithmetic: if $x : \mathtt{int}(3)$ and $y : \mathtt{int}(5)$, then $x + y : \mathtt{int}(8)$. This enables compile-time verification of array bounds when indices are statically known.
+A particularly useful special case is the singleton type, written $\mathtt{int}(n)$, which is inhabited by exactly the integer $n$. Singleton types arise naturally from Xi and Pfenning's work on Dependent ML~\cite{Xi1999DML}, where integer index expressions are used to track array sizes and loop bounds. Singleton types can propagate exact values through arithmetic:
+\begin{verbatim}
+  x : int(3)
+  y : int(5)
+  x + y : int(8)
+\end{verbatim}
+% if $x : \mathtt{int}(3)$ and $y : \mathtt{int}(5)$, then $x + y : \mathtt{int}(8)$. 
+This enables compile-time verification of array bounds when indices are statically known.
 
 % TODO: [because of advantages] Veritas' type system extends a simple base type system (integers, booleans, arrays) with refinement types to encode value-dependent invariants.
 
