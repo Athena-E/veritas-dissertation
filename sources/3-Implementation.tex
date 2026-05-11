@@ -39,6 +39,7 @@ The source code is organised as a single Rust crate with the following top-level
 
 % \textbf{Original work.} The entire compiler, verifier, and test suite were written from scratch for this project. No existing compiler or tutorial was used as a starting point. The project's design draws on the DTAL paper by Xi and Harper~\cite{Xi2001DTAL} for the typed assembly language and on the Liquid Types paper by Rondon et al.~\cite{Rondon2008Liquid} for the refinement type checking approach, but the implementations are original.
 
+% TODO:
 \subsection{Usage}\label{sec:usage}
 
 Veritas programs are written in \texttt{.veri} source files. The compiler and verifier is invoked from the command line. Figure~\ref{fig:cli-help} help output.
@@ -47,24 +48,13 @@ Veritas programs are written in \texttt{.veri} source files. The compiler and ve
 %   veritas <source.veri> [OPTIONS]
 % \end{verbatim}
 
-% By default, the compiler type-checks the source, lowers it through TIR and DTAL, and prints the DTAL output to stdout. The most common options are:
-
-% \begin{itemize}
-%   \item \texttt{-o <file>}: compile to a native ELF executable.
-%   \item \texttt{--verify}: verify the DTAL output before code generation.
-%   \item \texttt{--verify-only}: verify DTAL and exit without producing an executable.
-%   \item \texttt{-O}: enable all optimisations (copy propagation and dead code elimination).
-%   \item \texttt{-v}: verbose mode, showing each compilation stage.
-%   \item \texttt{--tir}: print the TIR (SSA) intermediate representation.
-% \end{itemize}
-
 % For example, compiling and verifying a program end-to-end:
 
 % \begin{verbatim}
 %   veritas bubble_sort.veri --verify -O -o bubble_sort
 % \end{verbatim}
 
-The resulting executable is a statically linked, freestanding ELF binary. The return value of \texttt{main} becomes the process exit code. 
+The resulting executable is a statically linked, freestanding ELF binary. The return value of \texttt{main} becomes the process exit code; I did this to . 
 % The runtime provides five intrinsics overall: \texttt{print\_int(n)}, \texttt{print\_char(c)}, \texttt{read\_int()}, \texttt{port\_in(port)}, and \texttt{port\_out(port, val)}. On the bare-metal target, the type checker admits only the port-I/O intrinsics.
 
 A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.}.
@@ -102,17 +92,17 @@ Debug:
 
 
 \section{Pipeline overview}
-%
-Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, and arrows indicate the transformations between them. Type annotations are preserved through TAST, TIR, and DTAL, and are no longer needed after DTAL verification and final encoding to x86-64.
-%
+
+Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, and arrows indicate the transformations between them. Checked type annotations are preserved through TAST, TIR, and DTAL, and are no longer needed after DTAL verification and final encoding to x86-64.
+
 \begin{figure}[h]
   \centering
   \begin{tcolorbox}[colback=white, colframe=black, width=\textwidth, boxrule=0.5pt]
     \begin{center}
-      \texttt{Source} $\xrightarrow{\text{lex}}$ \texttt{Tokens} $\xrightarrow{\text{parse}}$ \texttt{AST} $\xrightarrow{\text{typecheck}}$ \texttt{\textbf{TAST}} $\xrightarrow{\text{lower}}$ \texttt{\textbf{TIR}} $\xrightarrow{\text{codegen}}$ \texttt{\textbf{DTAL}} $\xrightarrow{\text{optimise}}$ \texttt{\textbf{DTAL}} $\xrightarrow{\text{regalloc}}$ \texttt{\textbf{DTAL}} $\xrightarrow{\text{encode}}$ \texttt{x86-64} $\xrightarrow{\text{encode}}$ \texttt{ELF}
+      \texttt{Source} $\xrightarrow{\text{lex}}$ \texttt{Tokens} $\xrightarrow{\text{parse}}$ \texttt{AST} $\xrightarrow{\text{typecheck}}$ \texttt{\textcolor{blue}{TAST}} $\xrightarrow{\text{lower}}$ \texttt{\textcolor{blue}{TIR}} $\xrightarrow{\text{codegen}}$ \texttt{\textcolor{blue}{DTAL}} $\xrightarrow{\text{optimise}}$ \texttt{\textcolor{blue}{DTAL}} $\xrightarrow{\text{regalloc}}$ \texttt{\textcolor{blue}{DTAL}} $\xrightarrow{\text{encode}}$ \texttt{x86-64} $\xrightarrow{\text{encode}}$ \texttt{ELF}
     \end{center}
   \end{tcolorbox}
-  \caption{The Veritas compilation pipeline. Representations carrying type annotations are shown in bold.}
+  \caption{The Veritas compilation pipeline. Representations carrying checked type annotations are highlighted in blue.}
   \label{fig:pipeline}
 \end{figure}
 %
@@ -191,8 +181,8 @@ The typing context is a tuple $(\phi, \Gamma, \Delta, \Sigma_F)$:
 \begin{itemize}
     \item $\phi$: A set of refinement propositions known to be true (assumptions from branch conditions, preconditions, and refinement types).
     \item $\Gamma$: An immutable variable environment mapping names to types ($x : \tau$).
-    \item $\Delta$: A mutable variable environment mapping names to pairs of a \textit{current type} and a \textit{master type} ($x : (\tau_c, \tau_m)$). We write $(x: \tau_c) \in \Delta$ to extract the current type and $(x: \tau_m) \in \Delta$ for the master type.
-    \item $\Sigma_F$: A global function signature environment (read-only after an initial pass).
+    \item $\Delta$: An environment for mutable variables mapping names to pairs of a \textit{current type} and a \textit{master type} ($x : (\tau_c, \tau_m)$). We write $(x: \tau_c) \in \Delta$ to extract the current type and $(x: \tau_m) \in \Delta$ for the master type.
+    \item $\Sigma_F$: A global function signature environment.
 \end{itemize}
 
 \subsubsection{Master types}
@@ -233,7 +223,7 @@ The type system uses the following bidirectional typing judgements:
     \item \textbf{Provability:} $\phi \vdash P$ --- proposition $P$ is valid under assumptions $\phi$ (decided by SMT).
 \end{itemize}
 
-The checking and synthesis judgements are connected by a subsumption rule. If an expression synthesises type $\tau_1$ and the expected type is $\tau_2$, checking succeeds when $\tau_1 <: \tau_2$:
+\noindent The checking and synthesis judgements are connected by a subsumption rule. If an expression synthesises type $\tau_e$ and the expected type is $\tau$, checking succeeds when $\tau_e <: \tau$:
 
 $$\frac{\phi; \Delta; \Gamma \vdash e \Rightarrow (\phi'; \Delta'; \tau_e) \quad \phi' \vdash \tau_e <: \tau}{\phi; \Delta; \Gamma \vdash e \Leftarrow \tau : (\phi'; \Delta')} \quad (\textsc{T-Sub})$$
 
@@ -268,7 +258,7 @@ P & \text{if } \tau = \{x:\textsf{int} \mid P\} \\
 
 \noindent The function $\textsf{val}$ is used only in premises where $\tau <: \textsf{int}$ has already been established.
 
-Standard rules for literals, variable lookup, comparisons, logical operators, and array creation are given in Appendix~\ref{app:source-rules}. Some of the more non-trivial rules are described below.
+Standard rules for literals, variable lookup, comparisons, logical operators, and array creation are given in Appendix~\ref{app:source-rules}. Some of the more interesting rules are described below.
 
 Arithmetic operations use a $\textsf{join-op}$ function that performs constant folding when both operands are singletons (e.g., $\textsf{join-op}(+, \textsf{int}(1), \textsf{int}(2)) = \textsf{int}(3)$) and otherwise synthesises a refinement type via SMT refinement synthesis (e.g., $\{v\!:\!\textsf{int} \mid v = e_L + e_R\}$):
 
@@ -331,7 +321,7 @@ $$
 
 \subsection{Statement typing rules}\label{sec:stmt-typing-rules}
 
-Standard rules for blocks, let bindings, array assignment, if-statements, and while loops are given in Appendix~\ref{app:source-rules}. Some of the more non-trivial rules are described below.
+Standard rules for blocks, let bindings, array assignment, if-statements, and while loops are given in Appendix~\ref{app:source-rules}. Some of the more interesting rules are described below.
 
 Assignment checks that the new value conforms to the master type:
 
@@ -382,21 +372,15 @@ $$
 
 \subsection{Quantified specifications}
 
-The constraint language supports bounded quantifiers and implication in specification positions:
-
-\begin{itemize}
-    \item $\mathbf{forall}\ x\ \mathbf{in}\ e_\textsf{start}..e_\textsf{end}\ \{P\}$: asserts $\forall x.\; e_\textsf{start} \le x < e_\textsf{end} \Rightarrow P$.
-    \item $\mathbf{exists}\ x\ \mathbf{in}\ e_\textsf{start}..e_\textsf{end}\ \{P\}$: asserts $\exists x.\; e_\textsf{start} \le x < e_\textsf{end} \wedge P$.
-    \item $P \Rightarrow Q$ (implication): enables conditional specifications.
-\end{itemize}
-
-Quantifiers may only appear in specification positions (preconditions, postconditions, refinement predicates), not in runtime code. The type checker enforces this restriction.
+The constraint language supports bounded quantifiers and implication to express properties over finite program ranges. Quantifiers may only appear in specification positions (preconditions, postconditions, refinement predicates), not in runtime code; the type checker enforces this restriction.
 
 An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\!\textsf{int} \mid v \ge 0\}; N]$ automatically satisfies the quantified constraint $\forall i \in [0, N).\; \mathit{arr}[i] \ge 0$. This is achieved by extracting a quantified proposition from the array's element type and adding it to the context when the array is in scope.
 
 \section{The DTAL target language}\label{sec:dtal-target-lang}
 
-As introduced in Section~\ref{sec:dtal-background}, Veritas targets targets a first-order variant of Xi and Harper's DTAL design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system. Veritas builds on this theoretical foundation: the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. This section describes the concrete instruction set and typing judgements of the Veritas DTAL.
+Veritas targets a first-order variant of Xi and Harper's DTAL design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system.
+% the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. 
+This section describes the concrete instruction set and typing judgements of the V-DTAL, which builds on the theoretical foundation of DTAL.
 
 \subsection{Instruction set}\label{sec:dtal-instr-set}
 
@@ -404,7 +388,7 @@ The DTAL instruction set resembles a standard RISC assembly language but is augm
 
 \begin{itemize}
     \item \textbf{Data movement:} \texttt{mov $r_d$, $r_s$} | \texttt{mov $r_d$, $n$} | \texttt{load $r_d$, [$r_b$, $r_i$]} | \texttt{store [$r_b$, $r_i$], $r_s$}
-    \item \textbf{Arithmetic:} \texttt{binop $r_d$, $r_{s1}$ (add, sub, mul, div, mod) | $r_{s2}$} | \texttt{addimm $r_d$, $r_s$, $n$} | \texttt{not $r_d$, $r_s$}
+    \item \textbf{Arithmetic:} \texttt{binop $r_d$, $r_{s1}$, $r_{s2}$} | \texttt{addimm $r_d$, $r_s$, $n$} | \texttt{not $r_d$, $r_s$}
     \item \textbf{Comparison:} \texttt{cmp $r_1$, $r_2$} | \texttt{cmp $r_1$, $n$} | \texttt{setcc $r_d$, \textit{cond}} 
     \item \textbf{Control flow:} \texttt{jmp $L$} | \texttt{branch \textit{cond} $L$} | \texttt{call $L$} | \texttt{ret}
     \item \textbf{Stack:} \texttt{push $r_s$} | \texttt{pop $r_d$} | \texttt{alloca $r_d$, $n$} (stack-allocate an array of $n$ elements)
@@ -416,8 +400,6 @@ The DTAL instruction set resembles a standard RISC assembly language but is augm
 % After register allocation, additional physical instructions are emitted (\texttt{prologue}, \texttt{epilogue}, spill loads/stores, \texttt{cqo}/\texttt{idiv} for division) which are verified but not relevant to the formal typing rules. Crucially, the independent verifier operates on this post-regalloc \textit{physical} DTAL rather than the virtual-register SSA form, meaning it also validates the correctness of register allocation and spilling. This strengthens the safety guarantee: the register allocator, like the rest of the compiler, is untrusted.
 
 \subsection{DTAL type system}
-
-The DTAL type system mirrors the source-level type system but operates over registers rather than variables. Types include:
 
 The DTAL type system largely mirrors the source-level type system: it retains base types, singleton integers $\textsf{int}(N)$, refinement types, and arrays. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, DTAL index expressions may mention constants, register names, arithmetic ($+, -, \times, \div, \%$), and $\textsf{select}(\mathit{arr}, i)$ for array element access.
 
@@ -434,7 +416,7 @@ To make this precise, DTAL index expressions are given by:
 
 \subsection{DTAL typing judgements}
 
-DTAL type checking operates over a \textit{type state} $(\Gamma, \Phi)$ where $\Gamma$ maps registers to their current types and $\Phi$ is a set of constraints known to hold at a given program point. The core judgement for instruction typing is $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, meaning that executing $\textsf{instr}$ under constraints $\Phi$ and register state $\Gamma$ produces a new register state $\Gamma'$.
+DTAL type checking operates over a \textit{type state} $(\Phi, \Gamma)$ where $\Gamma$ maps registers to their current types and $\Phi$ is a set of constraints known to hold at a given program point. The core judgement for instruction typing is $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, meaning that executing $\textsf{instr}$ under constraints $\Phi$ and register state $\Gamma$ produces a new register state $\Gamma'$.
 
 \paragraph{Move Immediate}
 Loading a constant into a register assigns it a singleton type:
@@ -784,7 +766,7 @@ Array loads and stores are the most critical instructions for the verifier. For 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black]
   \paragraph{Write axiom.} $\mathit{arr}_{\mathit{new}}[\texttt{offset}] = \texttt{value}$ \\
 
-  \textsc{Frame axiom.} $\forall k \ne \texttt{offset}.\; \mathit{arr}_{\mathit{new}}[k] = \mathit{arr}_{\mathit{old}}[k]$
+  \paragraph{Frame axiom.} $\forall k \ne \texttt{offset}.\; \mathit{arr}_{\mathit{new}}[k] = \mathit{arr}_{\mathit{old}}[k]$
 \end{tcolorbox}
 The array is tracked with a version number that increments on each store, ensuring that the SMT solver can distinguish array states before and after mutations.
 
