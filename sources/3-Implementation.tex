@@ -39,44 +39,67 @@ The source code is organised as a single Rust crate with the following top-level
 
 % \textbf{Original work.} The entire compiler, verifier, and test suite were written from scratch for this project. No existing compiler or tutorial was used as a starting point. The project's design draws on the DTAL paper by Xi and Harper~\cite{Xi2001DTAL} for the typed assembly language and on the Liquid Types paper by Rondon et al.~\cite{Rondon2008Liquid} for the refinement type checking approach, but the implementations are original.
 
-\noindent The third-party crates used in the implementation are:
-
-\begin{itemize}
-  \item \texttt{z3}\footnote{\url{https://docs.rs/z3/latest/z3/}} (v0.19, MIT): Rust bindings for the Z3 SMT solver~\cite{DeMoura2008Z3} (MIT-licensed), used for proof obligations in both the type checker and verifier.
-  \item \texttt{chumsky}\footnote{\url{https://docs.rs/chumsky/latest/chumsky/}} (v1.0.0-alpha.8, MIT): Parser combinator library used for the lexer and parser; it provides the parsing infrastructure, but all grammar rules are original.
-  \item \texttt{im}\footnote{\url{https://docs.rs/im/latest/im/}} (v15.1, MPL-2.0+): Persistent (structurally shared) data structures, used for efficient context cloning during type checking.
-  \item \texttt{ariadne}\footnote{\url{https://docs.rs/ariadne/latest/ariadne/}} (v0.5, MIT): Diagnostic rendering library used for formatting error messages with source-location highlights; it handles the presentation layer only.
-\end{itemize}
-
-
 \subsection{Usage}\label{sec:usage}
 
-Veritas programs are written in \texttt{.veri} source files. The compiler is invoked from the command line:
+Veritas programs are written in \texttt{.veri} source files. The compiler and verifier is invoked from the command line. Figure~\ref{fig:cli-help} help output.
 
+% \begin{verbatim}
+%   veritas <source.veri> [OPTIONS]
+% \end{verbatim}
+
+% By default, the compiler type-checks the source, lowers it through TIR and DTAL, and prints the DTAL output to stdout. The most common options are:
+
+% \begin{itemize}
+%   \item \texttt{-o <file>}: compile to a native ELF executable.
+%   \item \texttt{--verify}: verify the DTAL output before code generation.
+%   \item \texttt{--verify-only}: verify DTAL and exit without producing an executable.
+%   \item \texttt{-O}: enable all optimisations (copy propagation and dead code elimination).
+%   \item \texttt{-v}: verbose mode, showing each compilation stage.
+%   \item \texttt{--tir}: print the TIR (SSA) intermediate representation.
+% \end{itemize}
+
+% For example, compiling and verifying a program end-to-end:
+
+% \begin{verbatim}
+%   veritas bubble_sort.veri --verify -O -o bubble_sort
+% \end{verbatim}
+
+The resulting executable is a statically linked, freestanding ELF binary. The return value of \texttt{main} becomes the process exit code. 
+% The runtime provides five intrinsics overall: \texttt{print\_int(n)}, \texttt{print\_char(c)}, \texttt{read\_int()}, \texttt{port\_in(port)}, and \texttt{port\_out(port, val)}. On the bare-metal target, the type checker admits only the port-I/O intrinsics.
+
+A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.}.
+
+\begin{figure}[h]
+\footnotesize
 \begin{verbatim}
-  veritas <source.veri> [OPTIONS]
+Veritas Compiler
+
+Usage: veritas <source_file> [OPTIONS]
+
+Output:
+  -o <file>            Compile to native ELF executable
+  --native             Print x86-64 assembly to stdout
+  --target-bare-metal  Generate Multiboot ELF for bare-metal/QEMU:
+                       qemu-system-x86_64 -kernel <binary> -serial stdio
+
+Verification:
+  --verify             Verify DTAL before code generation
+  --verify-only        Verify DTAL and exit (no codegen)
+  --verify-dtal        Verify a standalone .dtal file
+
+Optimisation:
+  -O, --optimize       Enable all optimisations
+
+Debug:
+  -v, --verbose        Show compilation stages
+  -q, --quiet          Suppress non-error output
+  --bench              Output benchmark JSON
+  -h, --help           Show this help message
 \end{verbatim}
+\label{fig:cli-help}
+\caption{Veritas CLI help menu.}
+\end{figure}
 
-By default, the compiler type-checks the source, lowers it through TIR and DTAL, and prints the DTAL output to stdout. The most common options are:
-
-\begin{itemize}
-  \item \texttt{-o <file>}: compile to a native ELF executable.
-  \item \texttt{--verify}: verify the DTAL output before code generation.
-  \item \texttt{--verify-only}: verify DTAL and exit without producing an executable.
-  \item \texttt{-O}: enable all optimisations (copy propagation and dead code elimination).
-  \item \texttt{-v}: verbose mode, showing each compilation stage.
-  \item \texttt{--tir}: print the TIR (SSA) intermediate representation.
-\end{itemize}
-
-For example, compiling and verifying a program end-to-end:
-
-\begin{verbatim}
-  veritas bubble_sort.veri --verify -O -o bubble_sort
-\end{verbatim}
-
-The resulting executable is a statically linked, freestanding ELF binary. The return value of \texttt{main} becomes the process exit code. The runtime provides five intrinsics overall: \texttt{print\_int(n)}, \texttt{print\_char(c)}, \texttt{read\_int()}, \texttt{port\_in(port)}, and \texttt{port\_out(port, val)}. On the bare-metal target, the type checker admits only the port-I/O intrinsics.
-
-A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source, demonstrating that the verifier operates independently of the compiler frontend. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.}.
 
 \section{Pipeline overview}
 %
@@ -489,7 +512,11 @@ The implementation provides an explicit synthesis combinator, \texttt{synth\_exp
 
 Statement checking (\texttt{check\_stmts}) updates the typing context according to each statement's effect: \texttt{let} bindings extend $\Gamma$ or $\Delta$, assignments update the current type in $\Delta$, and loops are checked by proving that their invariants hold on entry and are preserved by the body, as described in the statement typing rules for loops in Section~\ref{sec:stmt-typing-rules}.
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!60!black,title=\textsc{Core checker interfaces}]
+\begin{figure}[h]
+\begin{tcolorbox}[
+    sharp corners,
+    boxrule=0pt
+]
 \begin{center}
 \begin{cminted}{rust}
 synth_expr(ctx, expr) -> Result<(typed_expr, ty), TypeError>
@@ -499,6 +526,8 @@ check_program(program) -> Result<typed_program, TypeError>
 \end{cminted}
 \end{center}
 \end{tcolorbox}
+\caption{Core checker functions for bidirectional type checking.}  
+\end{figure}
 
 \subsubsection{Singleton propagation and refinement synthesis}
 
@@ -584,7 +613,7 @@ Lowering begins from the typed AST: each function arrives with typed parameters,
 
 \begin{figure}[H]
 \centering
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!60!black,title=\textsc{TIR syntax}]
+\begin{tcolorbox}
 \begin{center}
 \begin{cminted}{text}
 block       ::= phi_node* instruction* terminator
@@ -659,7 +688,7 @@ The implementation enables several different optimisation passes that operate on
   \item \textbf{Load-op fusion} is a Veritas-specific backend pass that recognises a \texttt{Load} whose result is used exactly once by a following arithmetic instruction and rewrites the pair to a single \texttt{LoadOp}. This is intended to exploit x86-64 memory operands in the final encoder.
 \end{itemize}
 
-The passes run in a fixed order: constant folding, peephole optimisation, copy propagation, dead code elimination, followed by LICM and load-fusion. This sequence is iterated to a fixed point, bounded to ten iterations in the current implementation.
+\noindent The passes run in the order presented above, followed by LICM and load-fusion. This sequence is iterated to a fixed point, bounded to ten iterations in the current implementation.
 
 The passes must preserve the verification structure of the program. In particular, constraint assertions are treated as verifier-visible effects and are never eliminated, while rewritten instructions continue to carry the type information required by the verifier.
 
@@ -751,7 +780,13 @@ Array loads and stores are the most critical instructions for the verifier. For 
   \item If the proof succeeds, it derives the element type $\tau$ for \texttt{rd} and emits a \textit{select axiom}: $\texttt{rd} = \mathit{arr}[\texttt{offset}]$, linking the loaded value to the array's logical representation.
 \end{enumerate}
 
-Stores additionally emit a \textit{write axiom} ($\mathit{arr}_{\mathit{new}}[\texttt{offset}] = \texttt{value}$) and a \textit{frame axiom} ($\forall k \ne \texttt{offset}.\; \mathit{arr}_{\mathit{new}}[k] = \mathit{arr}_{\mathit{old}}[k]$). The array is tracked with a version number that increments on each store, ensuring that the SMT solver can distinguish array states before and after mutations.
+\noindent Stores additionally emit two axioms: 
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black]
+  \paragraph{Write axiom.} $\mathit{arr}_{\mathit{new}}[\texttt{offset}] = \texttt{value}$ \\
+
+  \textsc{Frame axiom.} $\forall k \ne \texttt{offset}.\; \mathit{arr}_{\mathit{new}}[k] = \mathit{arr}_{\mathit{old}}[k]$
+\end{tcolorbox}
+The array is tracked with a version number that increments on each store, ensuring that the SMT solver can distinguish array states before and after mutations.
 
 \subsection{Interprocedural contract verification}
 

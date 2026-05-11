@@ -31,13 +31,24 @@ Type systems exist on a spectrum of expressiveness. At one end, simply typed lan
 
 \subsection{Dependent types and refinement types}\label{sec:dependent-types}
 
-In a dependently typed language, types may depend on terms. The canonical example is the type of vectors indexed by their length, $\mathrm{Vec}(A, n)$, where $n$ is a natural number. A function that accesses the $i$-th element can require in its type that $0 \le i < n$, statically ruling out out-of-bounds accesses. Full dependent type systems, such as those in Coq and Agda~\cite{Bove2009Agda}, can express arbitrary propositions in higher-order logic as types (via the Curry--Howard correspondence), but this generality comes at a cost: type checking is expensive and may require the programmer to construct explicit proof terms.
-% TODO: coq, agda: higher-order logic
-% \[
-%   \mathrm{lookup} : \forall A, n.; \mathrm{Vec}(A,n) \to \mathrm{Fin}(n) \to A
-% \] where Fin(n) is the type of all valid indices n
+In a dependently typed language, types may depend on terms. In general,  a dependent type is a function with codomain \textsf{Set}, the collection of all ordinary types. The canonical example is the type of vectors indexed by their length:
 
-Refinement types~\cite{Rondon2008Liquid} are a practical restriction of full dependent types in which a base type is decorated with a logical predicate drawn from a decidable logic. For example, the type $\{v\!:\!\mathtt{int} \mid v > 0\}$ classifies integers that are strictly positive. Notably, subtyping between refinement types reduces to logical implication:
+\begin{alltt}
+  \(\textsf{Vec} : \textsf{Set} \rightarrow \mathbb{N} \rightarrow \textsf{Set}\)
+  \(\textsf{Fin} : \mathbb{N} \rightarrow \textsf{Set}\)
+  \(\textsf{lookup} : \forall A, n.; \textsf{Vec}(A,n) \to \textsf{Fin}(n) \to A\)
+\end{alltt}
+
+\noindent The type $\textsf{Vec}(A,n)$ corresponds to sequences of $A$ of length $n$ and $\textsf{Fin}(n)$ corresponds to numbers less than $n$. The function \textsf{lookup} returns the element from a vector at a specified index. We can see that the type signature requires the index to be within range of the vector's length, which statically rules out out-of-bounds accesses.
+
+Full dependent type systems, such as those in Coq and Agda~\cite{Bove2009Agda}, can express arbitrary propositions in higher-order logic as types (via the Curry--Howard correspondence), but this generality comes at a cost: type checking is expensive and may require the programmer to construct explicit proof terms.
+
+% TODO: practical restriction
+Refinement types~\cite{Rondon2008Liquid} are a decidable subset of dependent pairs:
+\[
+  \{v : \mathtt{int} \mid P(v)\} \simeq (v : \mathtt{int}) \times P(v)
+\]
+They are a practical restriction of full dependent types in which a base type is decorated with a logical predicate. For example, the type $\{v\!:\!\mathtt{int} \mid v > 0\}$ classifies integers that are strictly positive. Notably, subtyping between refinement types reduces to logical implication:
 \[
   \{v\!:\!\mathtt{int} \mid P(v)\} <: \{v\!:\!\mathtt{int} \mid Q(v)\} \text{ holds when } P(v) \Rightarrow Q(v) \text{ is valid}
 \]
@@ -60,9 +71,9 @@ This enables compile-time verification of array bounds when indices are statical
 Bidirectional type checking~\cite{Pierce2000Local}, structures a type system into two mutually recursive judgements: \textit{checking} and \textit{synthesis}:
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black]
-  \paragraph{Type checking} takes a context $\Gamma$, program $e$ and type $\tau$ as input and produces a true/false output reflecting whether $e$ is well-typed: $\Gamma \vdash e \leftarrow \tau$. \\
+  \textsc{Type checking} takes a context $\Gamma$, program $e$ and type $\tau$ as input and produces a true/false output reflecting whether $e$ is well-typed: $\Gamma \vdash e \leftarrow \tau$. \\
 
-  \paragraph{Type synthesis} takes a context $\Gamma$ and program $e$ as input and produces a types $\tau$ as output: $\Gamma \vdash e \Rightarrow \tau$.
+  \textsc{Type synthesis} takes a context $\Gamma$ and program $e$ as input and produces a types $\tau$ as output: $\Gamma \vdash e \Rightarrow \tau$.
 \end{tcolorbox}
 % \begin{itemize}
 %   \item \emph{Type checking} takes a context $\Gamma$, program $e$ and type $\tau$ as input and produces a true/false output reflecting whether $e$ is well-typed: $\Gamma \vdash e \leftarrow \tau$
@@ -79,33 +90,158 @@ $$
 
 % Alternative approaches have significant drawbacks. Full type inference in the style of Hindley--Milner requires unification, which does not extend naturally to subtyping or refinement types; the lattice structure of refinement types means there is no unique principal type for many expressions. At the other extreme, requiring complete type annotations on every expression is impractical. Bidirectional checking offers a middle ground where the programmer annotates introduction forms (function signatures, let-bindings) and the system infers the rest.
 
-For refinement types, the bidirectional structure is particularly well-suited. Synthesis produces the most precise type available from the immediate structure of an expression---for integer literals, this is a singleton type; for arithmetic, it is a refinement capturing the exact relationship between the result and its operands. Checking then verifies subtyping against the expected type. The programmer only needs to annotate types at function boundaries and mutable variable declarations; the type checker infers intermediate refinement types automatically. Bidirectional type-checking offers a middle ground between Hindley-Milner full type inference and the need for complete type annotations on every expression.
+\noindent For refinement types, the bidirectional structure is particularly well-suited. Synthesis produces the most precise type available from the immediate structure of an expression---for integer literals, this is a singleton type; for arithmetic, it is a refinement capturing the exact relationship between the result and its operands. Checking then verifies subtyping against the expected type. The programmer only needs to annotate types at function boundaries and mutable variable declarations; the type checker infers intermediate refinement types automatically. Bidirectional type-checking offers a middle ground between Hindley-Milner full type inference and the need for complete type annotations on every expression.
 
+% TODO: move to design decisions/impl?
 In Veritas, the bidirectional structure also threads the typing context through the judgements. Both synthesis and checking accept a context and return an updated context, reflecting changes from mutable variable assignments and newly learned refinement propositions.
 
 \subsection{SMT-based verification}
 \label{sec:smt-based-ver}
-% TODO: diagram of SMT-solver with formulae
 
-Satisfiability Modulo Theories are an extension of boolean satisfiability (SAT) to richer logics. An SMT solver decides the satisfiability of first-order formulae over a combination of background theories. The theories relevant to program verification include linear integer arithmetic (LIA), which supports addition, subtraction, and comparison of integers; the theory of arrays, which models arrays as functions from indices to values with \texttt{select} and \texttt{store} operations; and uninterpreted functions, which allow reasoning about function applications without knowing their implementation. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. I chose it for its maturity and reliability, having won numerous SMT-COMP competitions \cite{Barrett2013SMTCOMP}. Z3 is also precedent in other similar verification systems that have influenced Veritas' design such as Liquid Haskell, Dafny, and F*.
+Satisfiability Modulo Theories are an extension of boolean satisfiability (SAT) to richer logics. An SMT solver decides the satisfiability of first-order formulae over a combination of background theories. Theories relevant to program verification include:
+\begin{itemize}
+  \item \textbf{Linear Integer Arithmetic (LIA)}: supports addition, subtraction, and comparison of integers for reasoning about numeric relationsips e.g., bounds, offsets, loop indices.
+  \item \textbf{Boolean logic}: provides conjunction, disjunction, negation, and implication for combining and structuring propositions.
+  \item \textbf{Bounded quantifiers}: permits universally and existentially quantified statements over finite ranges for expressing array-wide and loop-related properties.
+  \item \textbf{Array theory}: models arrays as functions from indices to values for reasoning about reads and updates to indexed memory-like structures.
+  \item \textbf{Uninterpreted functions}: allow reasoning about function applications without knowing their implementation.
+\end{itemize}
+% TODO: array theory select and store
 
-The technique for using an SMT solver as a refinement type checker is \textit{proof by refutation}~\cite{Rondon2008Liquid}. To check whether a judgement $\phi \vdash P$ holds (i.e., whether the proposition $P$ follows from the set of known assumptions $\phi$), we assert all propositions in $\phi$, assert $\lnot P$, and check for unsatisfiability. If the solver returns \textsc{unsat}, then $\phi \wedge \lnot P$ has no model, meaning $P$ must hold under $\phi$. If the solver returns \textsc{sat}, a countermodel exists and the proof obligation fails---the type checker reports an error.
+% linear integer arithmetic (LIA), which supports addition, subtraction, and comparison of integers; the theory of arrays, which models arrays as functions from indices to values with \texttt{select} and \texttt{store} operations; and uninterpreted functions, which allow reasoning about function applications without knowing their implementation.
 
-This approach means that the \textit{discharge} of proof obligations is fully automatic: the programmer never constructs proof terms. However, the programmer must still supply the specifications from which these obligations arise---type annotations, function contracts, and loop invariants. The automation lies in checking, not in specification.
-% TODO: state that annotations are not a burden, but guidance, minimise programmer error, clarifies logic/control flow?
+\noindent The technique for using an SMT solver as a refinement type checker is \textit{proof by refutation}~\cite{Rondon2008Liquid}. Figure~\ref{fig:smt-refutation} shows the stages for checking whether a proposition $P$ follows from the set of known assumptions $\phi$.
+% judgement $\phi \vdash P$ holds (i.e., whether the proposition $P$ follows from the set of known assumptions $\phi$), we assert all propositions in $\phi$, assert $\lnot P$, and check for unsatisfiability. If the solver returns \textsc{unsat}, then $\phi \wedge \lnot P$ has no model, meaning $P$ must hold under $\phi$. If the solver returns \textsc{sat}, a countermodel exists and the proof obligation fails---the type checker reports an error.
 
+\begin{figure}[h]
+  \centering
+  \begin{tikzpicture}[
+      node distance=1.2cm,
+      box/.style={
+          rectangle,
+          draw,
+          rounded corners,
+          align=center,
+          minimum width=2.3cm,
+          minimum height=1.5cm,
+          font=\small
+        },
+      result/.style={
+          rectangle,
+          draw,
+          rounded corners,
+          align=center,
+          minimum width=2.5cm,
+          minimum height=0.9cm,
+          font=\small
+        },
+      example/.style={
+          rectangle,
+          draw,
+          dashed,
+          rounded corners,
+          align=center,
+          minimum width=2.3cm,
+          minimum height=1.1cm,
+          font=\scriptsize
+        },
+      arrow/.style={->, thick}
+    ]
+
+    \node[box] (source) {
+      Annotated\\
+      program state
+    };
+
+    \node[box, right=of source] (vc) {
+    Verification\\ condition\\
+    {\footnotesize $\phi \vdash P$}
+    };
+
+    \node[box, right=of vc] (query) {
+    SMT query\\
+    {\footnotesize assert $\phi \land \neg P$}
+    };
+
+    \node[box, right=of query] (solver) {
+      SMT solver
+    };
+
+    \node[result, above right=-0.5cm and 1cm of solver, fill=green!12] (unsat) {
+    \textsc{unsat}\\
+    {\footnotesize no model}
+    };
+
+    \node[result, below right=-0.5cm and 1cm of solver, fill=red!12] (sat) {
+    \textsc{sat}\\
+    {\footnotesize countermodel}
+    };
+
+    \draw[arrow] (source) --
+    node[above, font=\scriptsize, align=center] {generate}
+    (vc);
+
+    \draw[arrow] (vc) --
+    node[above, font=\scriptsize, align=center] {negate\\goal}
+    (query);
+
+    \draw[arrow] (query) -- (solver);
+    \draw[arrow] (solver) -- (unsat);
+    \draw[arrow] (solver) -- (sat);
+
+    % Example row
+    \node[example, below=1cm of source, fill=yellow!12] (ex-source) {
+      \texttt{x:\{v:int|v>0\}}\\
+      \texttt{x+1:\{v:int|v>0\}}
+    };
+
+    \node[example, below=1cm of vc, fill=yellow!12] (ex-vc) {
+      $x > 0 \vdash x + 1 > 0$
+    };
+
+    \node[example, below=1cm of query, fill=yellow!12] (ex-query) {
+      $x > 0 \land \neg(x+1>0)$\\
+      $\equiv x > 0 \land x+1 \le 0$
+    };
+
+    \node[example, below=1cm of solver, fill=yellow!12] (ex-solver) {
+      check\\satisfiability
+    };
+
+    \node[example, below=0.5cm of sat, fill=yellow!12] (ex-unsat) {
+      \textsc{unsat}\\
+      obligation holds
+    };
+
+    \node[font=\scriptsize, anchor=east]
+    at ([xshift=-0.4cm, yshift=0.3cm]ex-source.north) {Example:};
+
+  \end{tikzpicture}
+
+  \caption{
+    To check whether the judgement $\phi \vdash P$, the solver is asked whether
+    $\phi \land \neg P$ is satisfiable. An \textsc{unsat} result shows that no
+    counterexample exists and therefore the proof obligation holds; a
+    \textsc{sat} result yields a countermodel and the obligation fails.
+  }
+  \label{fig:smt-refutation}
+\end{figure}
+
+\noindent This approach means that the \textit{discharge} of proof obligations is fully automatic: the programmer never constructs proof terms. However, the programmer must still supply the specifications from which these obligations arise---type annotations, function contracts, and loop invariants. The automation lies in checking, not in specification.
+% state that annotations are not a burden, but guidance, minimise programmer error, clarifies logic/control flow?
+
+% TODO: move to design decisions/impl?
 In Veritas, the SMT solver is invoked at several points: subtyping checks between refinement types (where the solver verifies that one predicate implies another), array bounds verification (where the solver must prove that an index lies within $[0, N)$), and function contract verification (where preconditions and postconditions are checked at call sites and return points respectively).
 
-% For quantified specifications such as $\forall i \in [0, n).\; \mathit{arr}[i] \ge 0$, the translation uses Z3's built-in quantifier support: $\forall i.\; (0 \le i \wedge i < n) \Rightarrow \mathit{arr}[i] \ge 0$, where the array is represented as a Z3 array sort. Existential quantifiers are handled dually, asserting $\exists i.\; (a \le i \wedge i < b) \wedge P$. While quantified formulae move outside the decidable fragment of LIA, Z3's E-matching and model-based quantifier instantiation heuristics handle the bounded quantifiers that arise in practice effectively.
+\subsection{Proof-carrying code and type-preserving compilation}\label{sec:pcc-background}
 
-\subsection{Type-preserving compilation}\label{sec:type-pres-background}
+The idea of shipping machine code together with a checkable proof of its safety was formalised by Necula as proof-carrying code (PCC)~\cite{Necula1997PCC}. In PCC, the code producer (i.e., compiler) generates both executable code and a safety proof; the code consumer (e.g., an operating system loader) checks the proof against a safety policy before executing the code. The proof checker is small and can be verified more quickly and easily than the entire compiler.
 
-Conventional compilers erase types after type checking, discarding the safety guarantees established by the type system. The generated machine code is subsequently trusted on the basis that the compiler is correct, an assumption that is difficult to verify for large, complex compilers. Type-preserving compilation~\cite{Morrisett1999SystemF} retains type information through every intermediate representation in the pipeline. This enables the property that the compiled output can be independently verified without trusting the compiler. If a bug in the compiler produces type-incorrect code, the type annotations on the output will be inconsistent, and the verifier will reject it.
+Type-preserving compilation can be seen as a particular instance of PCC where the `proof' takes the form of type annotations, which are rich enough to carry safety-relevant information. Conventional compilers erase types after type checking, discarding the safety guarantees established by the type system.
+% The generated machine code is subsequently trusted on the basis that the compiler is correct, an assumption that is difficult to verify for large, complex compilers. 
+Type-preserving compilation~\cite{Morrisett1999SystemF} retains type information through every intermediate representation in the pipeline. This enables the property that the compiled output can be independently verified without trusting the compiler. If a bug in the compiler produces type-incorrect code, the type annotations on the output will be inconsistent, and the verifier will reject it.
 % TODO: give examples of what attacks from an adversarial compiler can be detected
 
-\subsection{Proof-carrying code}\label{sec:pcc-background}
-
-The idea of shipping machine code together with a checkable proof of its safety was formalised by Necula as proof-carrying code (PCC)~\cite{Necula1997PCC}. In PCC, the code producer (i.e., compiler) generates both executable code and a safety proof; the code consumer (e.g., an operating system loader) checks the proof against a safety policy before executing the code. The proof checker is small and can be verified more quickly and easily than the entire compiler. Type-preserving compilation can be seen as a particular instance of PCC where the `proof' takes the form of type annotations.
 
 \subsection{Dependently Typed Assembly}\label{sec:dtal-background}
 
@@ -117,7 +253,11 @@ Xi and Harper introduced DTAL as a target for type-preserving compilation from D
 
 \noindent The following excerpt from Xi and Harper~\cite{Xi2001DTAL} shows the loop header of a DTAL copy function. The label signature binds index variables $m$, $n$, $i$ and declares register types in terms of them:
 
-\begin{verbatim}
+\begin{tcolorbox}[
+    sharp corners,
+    boxrule=0pt
+  ]
+  \begin{verbatim}
   loop:  {m:nat, n:nat | m <= n, i:nat}
          [r1: int array(m), r2: int array(n), r3: int(m), r4: int(i)]
          sub   r5, r4, r3       // r5 <- i - m
@@ -126,11 +266,9 @@ Xi and Harper introduced DTAL as a target for type-preserving compilation from D
          store r2(r4), r5       // safe: i < n (since m <= n)
          add   r4, r4, 1
          jmp   loop
-\end{verbatim}
-
+  \end{verbatim}
+\end{tcolorbox}
 \noindent The branch \texttt{bgte r5, finish} refines the type state: on the fall-through path, the type system knows $i < m$, which makes the subsequent \texttt{load} and \texttt{store} provably safe without any runtime bounds check. Xi and Harper proved that well-typed DTAL programs cannot violate the constraints of the type system.
-
-Veritas implements its own DTAL variant based on Xi and Harper's design, extended to support the Veritas refinement type system and targeting x86-64. The compiler translates the source language through a typed intermediate representation (TIR) to DTAL, preserving refinement types at each stage, and finally emits x86-64 machine code as an ELF executable. Hereafter, `DTAL' refers to this Veritas-specific variant unless otherwise noted; the original is referred to as `Xi and Harper's DTAL'.
 
 \section{Related work and Design Influences}
 \label{sec:related-work}
@@ -139,13 +277,15 @@ Veritas implements its own DTAL variant based on Xi and Harper's design, extende
 The design of Veritas makes use of several established approaches to software verification. Rather than relying on a single paradigm, it synthesises techniques from functional verification, systems programming, and proof-carrying code.
 
 \subsection{Refinement Types and Automated Verification}
-The use of an SMT solver to discharge type-level proof obligations is heavily inspired by Liquid Haskell~\cite{Vazou2014Refinement} and the broader Liquid Types framework~\cite{Rondon2008Liquid}. While Liquid Haskell targets a pure, lazy functional language, Veritas applies this automated refinement checking to an imperative systems language. Similarly, Dafny~\cite{Leino2010Dafny} relies on SMT solvers (via the Boogie intermediate language) to verify imperative function contracts and loop invariants. However, both Dafny and Liquid Haskell erase their proofs during compilation. Veritas mirrors the automated reasoning of these tools but preserves the resulting constraints down to the assembly level.
+The use of an SMT solver to discharge type-level proof obligations is heavily inspired by Liquid Haskell~\cite{Vazou2014Refinement} and the broader Liquid Types framework~\cite{Rondon2008Liquid}. While Liquid Haskell targets a pure, lazy functional language, Veritas applies this automated refinement checking to an imperative systems language. Similarly, Dafny~\cite{Leino2010Dafny} relies on SMT solvers
+% (via the Boogie intermediate language) 
+to verify imperative function contracts and loop invariants. However, both Dafny and Liquid Haskell erase their proofs during compilation. Veritas mirrors the automated reasoning of these tools but preserves the resulting constraints down to the assembly level.
 
 \subsection{Foundational and Dependent Verification}
-At the more expressive end of the spectrum are systems based on full dependent types or separation logic. F*~\cite{Swamy2016Dependent} supports dependent types and can extract code to C or WebAssembly. RefinedC~\cite{Sammler2021RefinedC} applies refinement and ownership types to existing C code, producing foundational, machine-checked proofs in Coq. While these systems offer stronger theoretical guarantees (foundational proofs rather than SMT-based trust), they generally require the programmer to construct explicit proof terms or interact with a proof assistant. Veritas restricts its logic to the decidable fragments supported by Z3, so that proof obligations are discharged automatically once specifications are provided.
+At the more expressive end of the spectrum are systems based on full dependent types or separation logic. F*~\cite{Swamy2016Dependent} supports dependent types and can extract code to C or WebAssembly. RefinedC~\cite{Sammler2021RefinedC} applies refinement and ownership types to existing C code, producing foundational, machine-checked proofs in Rocq. While these systems offer stronger theoretical guarantees (foundational proofs rather than SMT-based trust), they generally require the programmer to construct explicit proof terms or interact with a proof assistant. Veritas restricts its logic to the decidable fragments supported by Z3, so that proof obligations are discharged automatically once specifications are provided.
 
 \subsection{Verifiable Systems Languages}
-The most direct predecessor to Veritas's goals is ATS (Applied Type System)~\cite{Xi2003Applied}, which also targets systems programming using dependent types with zero runtime overhead. The difference lies in the compilation architecture. ATS performs all theorem proving at compile time and then compiles to standard C, meaning the C compiler and the ATS compiler are both in the trusted computing base. In contrast, Veritas uses the architecture of DTAL. By preserving types through to the backend, Veritas ensures that the target code can be audited independently.
+The most direct predecessor to Veritas's goals is ATS (Applied Type System)~\cite{Xi2003Applied}, which also targets systems programming using dependent types with zero runtime overhead. The difference lies in the compilation architecture. ATS performs all theorem proving at compile time and then compiles to standard C, meaning the C compiler and the ATS compiler are both in the TCB. In contrast, Veritas uses the architecture of DTAL. By preserving types through to the backend, Veritas ensures that the target code can be audited independently.
 
 Figure~\ref{fig:verification-landscape} summarises the trade-off between expressiveness and automation across the systems discussed above.
 
@@ -231,7 +371,7 @@ Figure~\ref{fig:verification-landscape} summarises the trade-off between express
 
 \section{Design decisions}\label{sec:design-decisions}
 
-Having established the intended trust architecture and the theoretical tools and verification mechanisms available, my next step was to determine how they should be realised in the design of the language, compiler architecture, and trust model. This section describes the key design decisions made during the preparation phase.
+Having established the theoretical tools and verification mechanisms available, I present how they are realised in the design of the language, compiler architecture, and trust model. This section describes the key design decisions made during the preparation phase.
 
 \subsection{Compiler architecture}
 
@@ -256,7 +396,7 @@ I structured the project in phases that progressively reduced the trusted comput
       box/.style={draw, rounded corners, minimum height=1.0cm, minimum width=4.0cm, align=center, font=\small},
       typed/.style={box, fill=blue!10},
       untyped/.style={box, fill=gray!10},
-      trusted/.style={box, fill=green!12},
+      trusted/.style={box, fill=green!12, sharp corners},
       arrow/.style={-Latex, thick}
     ]
     \node[untyped] (src) {Source\\\texttt{.veri}};
@@ -264,17 +404,18 @@ I structured the project in phases that progressively reduced the trusted comput
     \node[typed, right=of tast] (tir) {Typed SSA\\(TIR)};
     \node[typed, right=of tir] (dtal) {DTAL};
 
-    \node[typed, below=1.6cm of dtal] (phys) {Physical DTAL};
-    \node[trusted, left=of phys] (ver) {Independent Verifier};
-    \node[trusted, left=of ver] (enc) {Direct Encoder};
+    \node[typed, below=1.3cm of dtal] (phys) {Physical DTAL};
+    \node[trusted, below=1.3cm of phys] (ver) {Independent Verifier};
+    \node[trusted, left=of phys] (enc) {Direct Encoder};
     \node[untyped, left=of enc] (elf) {ELF / Machine Code};
 
     \draw[arrow] (src) -- (tast);
     \draw[arrow] (tast) -- (tir);
     \draw[arrow] (tir) -- (dtal);
-    \draw[arrow] (dtal) -- node[right=0.35cm, font=\scriptsize, align=left, fill=white, inner sep=1pt] {physalloc\\(untrusted)} (phys);
+    \draw[arrow] (dtal) -- node[right=0.35cm, font=\footnotesize, align=left, fill=white, inner sep=1pt] {physalloc\\(untrusted)} (phys);
     \draw[arrow] (phys) -- (ver);
-    \draw[arrow] (ver) -- (enc);
+    \draw[arrow] (phys) -- (enc);
+    \draw[arrow] (ver) -- node[above left=0.35cm and 0.35cm, font=\footnotesize, align=left, fill=white, inner sep=1pt] {enable} ([yshift=-1.8cm]enc.south) -- (enc);
     \draw[arrow] (enc) -- (elf);
 
     \draw[dashed, rounded corners]
@@ -287,10 +428,16 @@ I structured the project in phases that progressively reduced the trusted comput
     ([xshift=-0.35cm,yshift=-0.35cm]tast.south west) --
     ([xshift=-0.35cm,yshift=0.35cm]tast.north west);
     \node[font=\small, above] at ([yshift=0.35cm]tir.north) {untrusted compiler};
-    \node[draw, dashed, rounded corners, fit=(ver)(enc), inner sep=0.25cm,
-      label={[font=\small]below:trusted core}] {};
+    % \node[draw, dashed, rounded corners, fit=(ver)(enc), inner sep=0.25cm,
+    %   label={[font=\small]below:trusted core}] {};
+    % \draw[dashed, rounded corners]
+    % ([xshift=-0.35cm,yshift=0.35cm]enc.north west) --
+    % ([xshift=0.35cm,yshift=0.35cm]enc.north east) --
+    % ([xshift=-0.75cm,yshift=0.35cm]ver.north west) --
+    % ([xshift=0.35cm,yshift=0.35cm]ver.north east) --
+    % ([xshift=0.35cm,yshift=-0.35cm]ver.south east);
   \end{tikzpicture}
-  \caption{Veritas compilation pipeline and trust boundary.}
+  \caption{Veritas compilation pipeline and trust boundary. The direct encoder and independent verifier are trusted components.}
   \label{fig:trust-pipeline}
 \end{figure}
 
@@ -298,21 +445,35 @@ I structured the project in phases that progressively reduced the trusted comput
 
 Veritas is an imperative language with C-like syntax, taking inspiration from Xi and Harper's Xanadu. I designed it to be minimal but expressive. The language supports integers, booleans, fixed-size arrays, mutable and immutable variables, for-loops, while-loops, and functions.
 
-The type system extends simple types with singleton types, refinement types, function contracts (with bounded quantifiers), and loop invariants. For efficiency, singleton types are represented as a distinct type variant so constant folding on singletons avoids invoking the SMT solver entirely.
+The type system extends simple types with singleton types, refinement types, function contracts (with bounded quantifiers), and loop invariants. For efficiency, I represented singleton types a distinct type variant so constant folding on singletons avoids invoking the SMT solver entirely.
 
-When considering the example programs I wanted Veritas to express, particularly array-based algorithms such as binary search, I needed a way to state array-wide and range-based properties such as sortedness. Scalar refinement types alone cannot express such global invariants, so I extended the specification language with \emph{bounded quantifiers} in specification positions. A precondition such as $\mathbf{forall}\ i\ \mathbf{in}\ 0..n\ \{\ \mathit{arr}[i] \le \mathit{arr}[i + 1]\ \}$ expresses a property over all elements of an array, going beyond scalar refinements to reason about aggregate data structures.
+When considering the example programs I wanted Veritas to express, particularly array-based algorithms such as binary search, I needed a way to state array-wide and range-based properties such as sortedness. Scalar refinement types alone cannot express such global invariants, so I extended the specification language with \emph{bounded quantifiers} in specification positions. A precondition such as:
+\[
+  \mathbf{forall}\ i\ \mathbf{in}\ 0..n\ \{\ \mathit{arr}[i] \le \mathit{arr}[i + 1]\ \}
+\]
+% $\mathbf{forall}\ i\ \mathbf{in}\ 0..n\ \{\ \mathit{arr}[i] \le \mathit{arr}[i + 1]\ \}$ 
+expresses a property over all elements of an array, going beyond scalar refinements to reason about aggregate data structures.
 
 \subsection{DTAL target language design}
 
-The target language is a variant of Xi and Harper's Dependently Typed Assembly Language~\cite{Xi2001DTAL}, extended to support the Veritas refinement type system and targeting x86-64. I designed the core DTAL to resemble a RISC assembly language since simple, explicit instructions are easier to type, easier to verify, and map naturally from the compiler’s SSA-style intermediate representation. The DTAL was then augmented with type annotations on registers, constraint assertions embedded in the instruction stream, and declared type states at basic block entry points.
+The target language is a variant of Xi and Harper's Dependently Typed Assembly Language~\cite{Xi2001DTAL}, extended to support the Veritas refinement type system and targeting x86-64. Hereafter `V-DTAL' refers to the Veritas-specific variant, and `DTAL' will refer to Xi and Harper's DTAL.
+
+I designed the core DTAL to resemble a RISC assembly language since simple, explicit instructions are easier to type, easier to verify, and map naturally from the compiler’s SSA-style intermediate representation. The DTAL was then augmented with type annotations on registers, constraint assertions embedded in the instruction stream, and declared type states at basic block entry points.
 
 I also defined DTAL with its own \textit{physical register model} (registers \texttt{r0}--\texttt{r12}, \texttt{sp}, \texttt{fp}, \texttt{lr}) that maps directly to x86-64 registers. This allows verification to occur \textit{after} register allocation: the register allocator is untrusted, and its output is verified before the final (trivial) encoding to x86-64.
 
 \subsection{Machine code encoding and ELF generation}
 % The final stages of the compilation pipeline translates verified physical DTAL to x86-64 machine code and packages it as a freestanding ELF binary. 
-Rather than emitting assembly text and invoking an external assembler (e.g., NASM or GAS), Veritas encodes x86-64 instructions directly as bytes. I made this design choice to minimise the trusted computing base: an external assembler would be a large, unverified component whose correctness must be assumed. The Veritas encoder comprises three small modules: a one-to-one mapping from physical DTAL instructions to x86-64 instructions, a byte encoder, and an ELF generator. The mapping is deliberately trivial---each DTAL instruction translates to exactly one x86-64 instruction (or a small fixed sequence for prologues/epilogues)---making the entire path amenable to manual audit.
+Rather than emitting assembly text and invoking an external assembler (e.g., NASM or GAS), Veritas encodes x86-64 instructions directly as bytes. I made this design choice to minimise the TCB: an external assembler would be a large, unverified component whose correctness must be assumed. The Veritas encoder comprises three small modules: a one-to-one mapping from physical DTAL instructions to x86-64 instructions, a byte encoder, and an ELF generator. The mapping is deliberately trivial---each DTAL instruction translates to exactly one x86-64 instruction (or a small fixed sequence for prologues/epilogues)---making the entire path amenable to manual audit.
 
 The choice of x86-64 as the target architecture is a pragmatic one: the development machine runs x86-64 Linux, enabling direct execution and testing of compiled binaries without emulation. Targeting a different ISA (e.g., AArch64) would require replacing only the instruction mapping, byte encoder, and register definitions. The DTAL instruction set, type system, verifier, and everything upstream would remain unchanged.
+
+\subsection{Verification via SMT}
+
+I designed the Veritas constraint system such that frontend type checking and low-level verification could be delegated to an SMT solver. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. I chose it for its maturity and reliability, having won numerous SMT-COMP competitions \cite{Barrett2013SMTCOMP}. Z3 is also precedent in other similar verification systems that have influenced Veritas' design such as Liquid Haskell, Dafny, and F*.
+
+% TODO: 
+% For quantified specifications such as $\forall i \in [0, n).\; \mathit{arr}[i] \ge 0$, the translation uses Z3's built-in quantifier support: $\forall i.\; (0 \le i \wedge i < n) \Rightarrow \mathit{arr}[i] \ge 0$, where the array is represented as a Z3 array sort. Existential quantifiers are handled dually, asserting $\exists i.\; (a \le i \wedge i < b) \wedge P$. While quantified formulae move outside the decidable fragment of LIA, Z3's E-matching and model-based quantifier instantiation heuristics handle the bounded quantifiers that arise in practice effectively.
 
 \subsection{Design challenges}\label{sec:design-challenges}
 
@@ -399,15 +560,37 @@ To maintain a manageable scope and clear focus on structural safety, several amb
 \paragraph{Code quality and testing.} To maintain clean code and follow common practices, I set up the CI pipeline to enforce formatting and linting standards (using the \texttt{cargo fmt} and \texttt{cargo clippy} tools). It also validated the suite of example programs, and executed the test suite across both Ubuntu Linux and macOS environments; this covers two primary platforms on which systems programming toolchains are used in practice and ensures the compiler and verifier implementations remain portable and correct across OS environments, libc implementations (relevant to the C-based implementation of Z3), and toolchain versions. Testing was done against both stable and nightly Rust toolchains; stable ensures the project builds with the version most users would have, while nightly provides early warning of upcoming compiler changes or deprecations, and is necessary if any features behind features gates are used.
 % TODO: unit/integration tests
 
+\paragraph{Documentation.} I kept module-level documentation by using Rust inner documentation comments such that crate documentation could be generated for Veritas using \texttt{cargo doc --open}.
+
 
 \subsection{Tools and Technologies}
 The project was implemented in Rust, chosen for its strong type system, pattern matching, and memory safety guarantees without garbage collection. Aspects of its language design and safety features were also inspiration for some of the features I would later come to implement in Veritas, such as the borrowing and ownership model.
 
-The Z3 SMT solver used for the frontend typechecker and DTAL verifier was accessed via the \texttt{z3} Rust crate, which provided high-quality, idiomatic Rust bindings, compared to potential alternatives like CVC5 that have less mature Rust ecosystem support. As mentioned in Section~\ref{sec:smt-based-ver}, Z3 is one of the most widely-deployed, well-audited SMT solvers. In Veritas, Z3 is used by the DTAL verifier and thus forms part of the trusted computing base; it is important to minimise the risk introduced by this trust---using an obscure solver would weaken this argument. Another prominent reason for using Z3 is that it natively supports the theories featured in Veritas: quantifier-free LIA for refinement subtyping, and bounded quantifiers for array specifications.
+The Z3 SMT solver was accessed via the \texttt{z3} Rust crate, which provided high-quality, idiomatic Rust bindings, compared to potential alternatives like CVC5 that have less mature Rust ecosystem support. In Veritas, Z3 forms part of the TCB; it is important to minimise the risk introduced by this trust---using an obscure solver would weaken this argument. Another prominent reason for using Z3 is that it natively supports the theories featured in Veritas (Section~\ref{sec:smt-based-ver}).
 
-Another notable crate used to develop the Veritas compiler was the \texttt{im} crate, which provides persistent (immutable) data structures for the typing context, enabling $O(\log n)$ cloning at control-flow branches. This is important for the functional-style context threading used in bidirectional type checking e.g., where each branch of an \textbf{if-else} receives its own copy of the context.
+Another noteworthy crate used to develop the Veritas compiler was the \texttt{im} crate, which provides persistent (immutable) data structures for the typing context, enabling $O(\log n)$ cloning at control-flow branches. This is important for the functional-style context threading used in bidirectional type checking e.g., where each branch of an \textbf{if-else} receives its own copy of the context.
 
+Table~\ref{tab:veritas-crates} lists all the external Rust crates used in the Veritas implementation.
 
+\begin{table}[H]
+  \centering
+  \small
+  \begin{tabular}{p{0.1\textwidth} p{0.1\textwidth} p{0.1\textwidth} p{0.6\textwidth}}
+    \hline
+    \textbf{Crate}                                                           & \textbf{Version} & \textbf{Licence} & \textbf{Role}                                                                                                                            \\
+    \hline
+    \texttt{z3}\footnote{\url{https://docs.rs/z3/latest/z3/}}                & v0.19            & MIT              & Rust bindings for the Z3 SMT solver~\cite{DeMoura2008Z3}, used for proof obligations in both the type checker and verifier.              \\
+    \hline
+    \texttt{chumsky}\footnote{\url{https://docs.rs/chumsky/latest/chumsky/}} & v1.0.0-alpha.8   & MIT              & Parser combinator library used for the lexer and parser; it provides the parsing infrastructure, but all grammar rules are original.     \\
+    \hline
+    \texttt{im}\footnote{\url{https://docs.rs/im/latest/im/}}                & v15.1            & MPL-2.0+         & Persistent (structurally shared) data structures, used for efficient context cloning during type checking.                               \\
+    \hline
+    \texttt{ariadne}\footnote{\url{https://docs.rs/ariadne/latest/ariadne/}} & v0.5             & MIT              & Diagnostic rendering library used for formatting error messages with source-location highlights; it handles the presentation layer only. \\
+    \hline
+  \end{tabular}
+  \caption{Main external Rust crates used in the Veritas implementation.}
+  \label{tab:veritas-crates}
+\end{table}
 
 \section{Starting point}\label{sec:starting-point}
 
