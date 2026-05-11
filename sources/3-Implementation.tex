@@ -42,7 +42,7 @@ The source code is organised as a single Rust crate with the following top-level
 % TODO:
 \subsection{Usage}\label{sec:usage}
 
-Veritas programs are written in \texttt{.veri} source files. The compiler and verifier is invoked from the command line. Figure~\ref{fig:cli-help} help output.
+Veritas programs are written in \texttt{.veri} source files. The compiler and verifier is invoked from the command line. Figure~\ref{fig:cli-help} shows the help output displayed after running \texttt{veritas --help}.
 
 % \begin{verbatim}
 %   veritas <source.veri> [OPTIONS]
@@ -54,12 +54,13 @@ Veritas programs are written in \texttt{.veri} source files. The compiler and ve
 %   veritas bubble_sort.veri --verify -O -o bubble_sort
 % \end{verbatim}
 
-The resulting executable is a statically linked, freestanding ELF binary. The return value of \texttt{main} becomes the process exit code; I did this to . 
+% The resulting executable is a statically linked, freestanding ELF binary. 
+
 % The runtime provides five intrinsics overall: \texttt{print\_int(n)}, \texttt{print\_char(c)}, \texttt{read\_int()}, \texttt{port\_in(port)}, and \texttt{port\_out(port, val)}. On the bare-metal target, the type checker admits only the port-I/O intrinsics.
 
-A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.}.
+% A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.}.
 
-\begin{figure}[h]
+\begin{figure}[H]
 \footnotesize
 \begin{verbatim}
 Veritas Compiler
@@ -86,8 +87,8 @@ Debug:
   --bench              Output benchmark JSON
   -h, --help           Show this help message
 \end{verbatim}
-\label{fig:cli-help}
 \caption{Veritas CLI help menu.}
+\label{fig:cli-help}
 \end{figure}
 
 
@@ -113,7 +114,11 @@ This section presents the syntax and formal typing rules of the Veritas source l
 
 \subsection{Syntax}
 
-The abstract syntax of Veritas is defined by the following grammar:
+The abstract syntax of Veritas is defined by the grammar in Figure~\ref{fig:veritas-syntax}.
+% consider moving before rules
+The metavariables used in the grammar are as follows: $n$ ranges over integer literals; $x$, $f$ range over identifiers (variables and function names); $N$ ranges over integer expressions that must reduce to a statically known constant (used for array sizes and singleton types). $P$ is the specification language used in refinement predicates, function contracts, and loop invariants, and additionally provides bounded quantifiers. A block $B$ is a sequence of zero or more statements followed by an optional trailing expression. If a block has a trailing expression, its value is the block's result; otherwise, its result is unit. Grey text denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
+
+\begin{figure}[h]
 {\small
 \[
 \renewcommand{\arraystretch}{1.09}
@@ -170,9 +175,10 @@ The abstract syntax of Veritas is defined by the following grammar:
 \end{array}
 \]
 }
+\caption{Veritas' abstract syntax.}
+\label{fig:veritas-syntax}
+\end{figure}
 
-% consider moving before rules
-The metavariables used in the grammar are as follows: $n$ ranges over integer literals; $x$, $f$ range over identifiers (variables and function names); $N$ ranges over integer expressions that must reduce to a statically known constant (used for array sizes and singleton types). $P$ is the specification language used in refinement predicates, function contracts, and loop invariants, and additionally provides bounded quantifiers. A block $B$ is a sequence of zero or more statements followed by an optional trailing expression. If a block has a trailing expression, its value is the block's result; otherwise, its result is unit. Grey text denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
 
 \subsection{Typing contexts}\label{sec:typing-contexts}
 
@@ -384,24 +390,62 @@ This section describes the concrete instruction set and typing judgements of the
 
 \subsection{Instruction set}\label{sec:dtal-instr-set}
 
-The DTAL instruction set resembles a standard RISC assembly language but is augmented with type annotations and constraint assertions. It operates over a set of virtual registers (which are later allocated to x86-64 physical registers) and linear memory. Instructions fall into six categories:
+The DTAL instruction set resembles a standard RISC assembly language but is augmented with type annotations and constraint assertions. DTAL appears in two forms in the pipeline: a virtual-register form emitted by code generation, and a physical-register form produced after register allocation. Both carry verifier-facing type information, and the final verifier checks the physical form. The core instruction categories are:
 
 \begin{itemize}
     \item \textbf{Data movement:} \texttt{mov $r_d$, $r_s$} | \texttt{mov $r_d$, $n$} | \texttt{load $r_d$, [$r_b$, $r_i$]} | \texttt{store [$r_b$, $r_i$], $r_s$}
     \item \textbf{Arithmetic:} \texttt{binop $r_d$, $r_{s1}$, $r_{s2}$} | \texttt{addimm $r_d$, $r_s$, $n$} | \texttt{not $r_d$, $r_s$}
     \item \textbf{Comparison:} \texttt{cmp $r_1$, $r_2$} | \texttt{cmp $r_1$, $n$} | \texttt{setcc $r_d$, \textit{cond}} 
     \item \textbf{Control flow:} \texttt{jmp $L$} | \texttt{branch \textit{cond} $L$} | \texttt{call $L$} | \texttt{ret}
-    \item \textbf{Stack:} \texttt{push $r_s$} | \texttt{pop $r_d$} | \texttt{alloca $r_d$, $n$} (stack-allocate an array of $n$ elements)
+    \item \textbf{Stack and physical support:} \texttt{push $r_s$} | \texttt{pop $r_d$} | \texttt{alloca $r_d$, $n$} 
+      % (stack-allocate an array of $n$ elements), with additional post-register-allocation instructions such as spill loads/stores, prologues/epilogues, and \texttt{cqo}/\texttt{idiv}
     \item \textbf{Annotations:} \texttt{type $r$:$\tau$} (type annotation) | \texttt{assert $C$} (constraint assertion)
 \end{itemize}
 
-\noindent The annotation instructions are the distinguishing feature of DTAL. Every instruction carries a type annotation on its destination register, and \texttt{assert} instructions embed constraint assertions (e.g., bounds proofs, loop invariants) directly into the instruction stream. These annotations serve as verification evidence: the compiler emits them, and the verifier checks them independently.
+\noindent The annotation instructions are the distinguishing feature of DTAL. Destination-producing instructions carry type annotations where needed, and \texttt{type} and \texttt{assert} annotations embed additional verification evidence directly into the instruction stream. These annotations record facts such as bounds proofs and loop invariants.
 
 % After register allocation, additional physical instructions are emitted (\texttt{prologue}, \texttt{epilogue}, spill loads/stores, \texttt{cqo}/\texttt{idiv} for division) which are verified but not relevant to the formal typing rules. Crucially, the independent verifier operates on this post-regalloc \textit{physical} DTAL rather than the virtual-register SSA form, meaning it also validates the correctness of register allocation and spilling. This strengthens the safety guarantee: the register allocator, like the rest of the compiler, is untrusted.
 
+\subsection{DTAL directives}
+
+In addition to executable instructions, the textual DTAL format contains directives that describe function metadata, block entry states, and verifier annotations. Figure~\ref{fig:dtal-directives} shows where these directives appear in a typical DTAL function.
+
+\begin{figure}[H]
+\centering
+\footnotesize
+\begin{verbatim}
+.function f
+.params {r0: int, r1: [int; 10]}       ; function inputs
+.returns int                           ; return type
+.precondition r0 >= 0                  ; optional caller obligation
+.postcondition result >= 0             ; optional return guarantee
+
+f:
+.f_bb0:
+    .entry {r0: int, r1: [int; 10]}    ; expected block-entry state
+    .assume r0 >= 0                    ; block-entry constraint
+    cmp r0, 10
+    bge .f_exit
+
+.f_body:
+    .entry {r0: {v: int | v < 10}, r1: [int; 10]}
+    load r2, [r1 + r0]    : int
+    .assert r2 >= 0                    ; checked before use downstream
+    ret
+
+.f_exit:
+    .entry {r0: int, r1: [int; 10]}
+    ret
+\end{verbatim}
+\caption{DTAL directives describe function signatures, block entry states, and verifier constraints; ordinary instructions perform computation.}
+\label{fig:dtal-directives}
+\end{figure}
+
+Function-level directives define the verifier-facing signature and contract. Block-level directives declare the type state that must hold when control enters a block, and edge checking proves that predecessor states imply these entry states. Constraint directives split into assumptions, which form part of the declared block state, and assertions, which are checked at their program point before being added to the context. Physical directives such as \texttt{.prologue} and \texttt{.epilogue} appear only after register allocation.
+
 \subsection{DTAL type system}
 
-The DTAL type system largely mirrors the source-level type system: it retains base types, singleton integers $\textsf{int}(N)$, refinement types, and arrays. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, DTAL index expressions may mention constants, register names, arithmetic ($+, -, \times, \div, \%$), and $\textsf{select}(\mathit{arr}, i)$ for array element access.
+The DTAL type system largely mirrors the source-level type system: it retains unit, integer and boolean base types, machine-integer types, singleton integers $\textsf{int}(N)$, refinement types, arrays, references, and master types. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, DTAL index expressions may mention constants, register names, arithmetic ($+, -, \times, \div, \%$), and $\textsf{select}(\mathit{arr}, i)$ for array element access.
 
 The most important addition is the use of \textit{existential types} to represent results that are known only symbolically at the assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; C$. This allows the verifier to retain enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
 
@@ -412,11 +456,11 @@ To make this precise, DTAL index expressions are given by:
 \end{aligned}
 \]
 
-\noindent where $n$ ranges over integer constants and $r$ over registers. The DTAL constraint language preserves the same logical fragment used in source-level specifications: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over DTAL index expressions rather than directly as source expressions. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
+\noindent where $n$ ranges over integer constants and $r$ over registers. The DTAL constraint language preserves the same core logical fragment used in source-level specifications: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over DTAL index expressions rather than directly as source expressions, and conversion from source expressions to this constraint language is partial. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
 
 \subsection{DTAL typing judgements}
 
-DTAL type checking operates over a \textit{type state} $(\Phi, \Gamma)$ where $\Gamma$ maps registers to their current types and $\Phi$ is a set of constraints known to hold at a given program point. The core judgement for instruction typing is $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, meaning that executing $\textsf{instr}$ under constraints $\Phi$ and register state $\Gamma$ produces a new register state $\Gamma'$.
+DTAL type checking operates over a \textit{type state}. The rules below show the core part of this state as $(\Phi, \Gamma)$, where $\Gamma$ maps registers to their current types and $\Phi$ is a set of constraints known to hold at a given program point. The implementation also records auxiliary verifier state such as the most recent comparison, the typed stack, array versions, spill slots, and proven assertions. The core judgement for instruction typing is $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, meaning that executing $\textsf{instr}$ under constraints $\Phi$ and register state $\Gamma$ produces a new register state $\Gamma'$.
 
 \paragraph{Move Immediate}
 Loading a constant into a register assigns it a singleton type:
@@ -440,7 +484,7 @@ $$
 \frac{\Gamma(r_b) = [\tau; N] \quad \Phi \vdash 0 \le e_i < N}{\Phi; \Gamma \vdash \textsf{load } r_d, [r_b, r_i] \Rightarrow \Gamma[r_d \mapsto \tau]} \quad (\textsc{D-Load})
 $$
 
-\noindent where $e_i$ is the index expression extracted from the type of $r_i$. Stores are handled symmetrically, with an additional mechanism: the verifier maintains \textit{array versions} so that each store creates a fresh logical name for the array. This enables the SMT solver to reason about array contents using store/select axioms without conflating values written at different program points.
+\noindent where $e_i$ is the index expression extracted from the type of $r_i$. The verifier derives the result type from the array base rather than trusting the annotation, and records a constraint equating $r_d$ with the corresponding versioned array selection. Stores are handled symmetrically, with an additional mechanism: the verifier maintains \textit{array versions} so that each store creates a fresh logical name for the array. It then adds explicit write and frame axioms over versioned $\textsf{select}$ expressions, avoiding conflation between values written at different program points.
 
 \paragraph{Conditional Branching}
 A comparison instruction records the operands whose relationship will later be tested by a branch:
@@ -456,7 +500,9 @@ $$
 }{\Phi; \Gamma \vdash \textsf{cmp } r_1, n \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), n\text{)}} \quad (\textsc{D-CmpImm})
 $$
 
-A subsequent conditional branch refines the constraint context on each outgoing edge. The fall-through path is captured by the verifier's local derivation rule:
+\noindent The auxiliary function $\textsf{idx}(\tau)$ extracts the index expression associated with an integer-like DTAL type, such as a singleton, refined, or existential integer type.
+
+A subsequent conditional branch refines the constraint context on each outgoing edge. The rule below shows the verifier's local fall-through update; the taken edge is checked separately against the target block's declared entry state:
 $$
 \frac{
   \text{last cmp operands: } e_1, e_2
@@ -495,10 +541,6 @@ The implementation provides an explicit synthesis combinator, \texttt{synth\_exp
 Statement checking (\texttt{check\_stmts}) updates the typing context according to each statement's effect: \texttt{let} bindings extend $\Gamma$ or $\Delta$, assignments update the current type in $\Delta$, and loops are checked by proving that their invariants hold on entry and are preserved by the body, as described in the statement typing rules for loops in Section~\ref{sec:stmt-typing-rules}.
 
 \begin{figure}[h]
-\begin{tcolorbox}[
-    sharp corners,
-    boxrule=0pt
-]
 \begin{center}
 \begin{cminted}{rust}
 synth_expr(ctx, expr) -> Result<(typed_expr, ty), TypeError>
@@ -507,7 +549,6 @@ check_stmts(ctx, stmts) -> Result<(typed_stmts, ctx'), TypeError>
 check_program(program) -> Result<typed_program, TypeError>
 \end{cminted}
 \end{center}
-\end{tcolorbox}
 \caption{Core checker functions for bidirectional type checking.}  
 \end{figure}
 
