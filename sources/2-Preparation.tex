@@ -4,7 +4,7 @@
 
 \chapter{Preparation}\label{ch:prep}
 
-This chapter establishes the conceptual and technical background for Veritas. It introduces the relevant type-theoretic foundations (Section~\ref{sec:background}) and places Veritas in the context of related work (Section~\ref{sec:related-work}), leading into the design decisions behind Veritas' implementation (Section~\ref{sec:design-decisions}). We then analyse the requirements Veritas should fulfil to achieve the intended trust architecture, and a sufficient level of language expressivity and compiler practicality in a systems-oriented setting (Section~\ref{sec:requirements-anal}), before presenting the software engineering approach (Section~\ref{sec:software-eng-methodology}) and starting point for the project (Section~\ref{sec:starting-point}).
+This chapter gives the background needed to understand the design of Veritas: the type-system machinery used to express safety properties, the related verification systems that informed the design, and the engineering decisions that fix the project's trust boundary. The aim is to establish only the theory and design context needed for the implementation that follows.
 
 \section{Background}\label{sec:background}
 
@@ -12,10 +12,15 @@ This chapter establishes the conceptual and technical background for Veritas. It
 
 The fundamental theorem that connects type systems to safety is \emph{type soundness}: a well-typed program cannot `go wrong' at runtime~\cite{Milner1978Theory}. Wright and Felleisen formalised this via the \emph{progress} and \emph{preservation} lemmas~\cite{Wright1994Syntactic}:
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black]
-  \paragraph{Progress.} If $\emptyset \vdash e : \tau$, then either $e$ is already a value, or there exists some expression $e'$ such that $e \to e'$.
+\begin{tcolorbox}[colback=gray!5!white,colframe=black!70,title=\textsc{Type soundness}]
+  \textbf{Progress}
 
-  \paragraph{Preservation.} If $\emptyset \vdash e : \tau$ and $e \to e'$, then $\emptyset \vdash e' : \tau$.
+  If $\emptyset \vdash e : \tau$, then either $e$ is already a value, or there exists some expression $e'$ such that $e \to e'$.
+
+  \medskip
+  \textbf{Preservation}
+
+  If $\emptyset \vdash e : \tau$ and $e \to e'$, then $\emptyset \vdash e' : \tau$.
 \end{tcolorbox}
 
 % \textbf{Progress.} If $\emptyset \vdash e : \tau$, then either $e$ is already a value, or there exists some expression $e'$ such that $e \to e'$.
@@ -27,29 +32,60 @@ The fundamental theorem that connects type systems to safety is \emph{type sound
 
 % An important consequence of tractability is that type systems are \emph{sound} but not \emph{complete}: every accepted program is safe, but some safe programs will be rejected. This is a deliberate trade-off---soundness is essential for guarantees, while completeness is sacrificed for decidability. Refinement types push this boundary by encoding richer invariants, but the fundamental incompleteness remains.
 
-Type systems exist on a spectrum of expressiveness. At one end, simply typed languages (such as C) distinguish broad categories like integers, floats, and pointers. This catches type mismatches---such as passing a pointer where an integer is expected---but cannot constrain the values that inhabit a type. Hindley--Milner type systems~\cite{Milner1978Theory}, used in ML and Haskell, add parametric polymorphism and principal type inference, enabling the type checker to infer the most general type for every expression without annotations. However, these systems cannot express properties that depend on values; for instance, that an array index is within bounds, or that a division's denominator is non-zero. These properties lend themselves to safety-critical software, and expressing them requires types that can refer to values: \emph{dependent types} \cite{MARTINLOF1982153}.
+The relevant distinction for Veritas is whether a type system can express facts about values, not only broad categories of values:
+
+\begin{table}[H]
+  \centering
+  \small
+  \begin{tabular}{p{0.24\textwidth} p{0.28\textwidth} p{0.36\textwidth}}
+    \hline
+    \textbf{Type system} & \textbf{Can express} & \textbf{Limitation for Veritas} \\
+    \hline
+    Simple types & Broad categories such as integers, booleans, and pointers & Cannot state that an index is in bounds. \\
+    Hindley--Milner~\cite{Milner1978Theory} & Polymorphic types with strong inference & Still cannot express value-dependent safety facts. \\
+    Refinement types & Predicates over base values & Requires SMT-backed proof obligations. \\
+    Full dependent types~\cite{MARTINLOF1982153} & Arbitrary propositions as types & Often requires explicit proof terms. \\
+    \hline
+  \end{tabular}
+  \caption{Type-system expressiveness relevant to Veritas.}
+  \label{tab:type-system-spectrum}
+\end{table}
 
 \subsection{Dependent types and refinement types}\label{sec:dependent-types}
 
-In a dependently typed language, types may depend on terms. The canonical example is the type of vectors indexed by their length, $\mathrm{Vec}(A, n)$, where $n$ is a natural number. A function that accesses the $i$-th element can require in its type that $0 \le i < n$, statically ruling out out-of-bounds accesses. Full dependent type systems, such as those in Coq and Agda~\cite{Bove2009Agda}, can express arbitrary propositions in higher-order logic as types (via the Curry--Howard correspondence), but this generality comes at a cost: type checking is expensive and may require the programmer to construct explicit proof terms.
+In a dependently typed language, types may depend on terms. The canonical example is the type of vectors indexed by their length, $\mathrm{Vec}(A, n)$, where $n$ is a natural number. A function that accesses the $i$-th element can require in its type that $0 \le i < n$, statically ruling out out-of-bounds accesses:
+\[
+  \mathrm{lookup} :
+  \mathrm{Vec}(A,n) \to
+  \{i\!:\!\mathtt{int} \mid 0 \le i < n\} \to A
+\]
+Full dependent type systems, such as those in Coq and Agda~\cite{Bove2009Agda}, can express arbitrary propositions in higher-order logic as types (via the Curry--Howard correspondence), but this generality comes at a cost: type checking is expensive and may require the programmer to construct explicit proof terms.
 % TODO: coq, agda: higher-order logic
 % \[
 %   \mathrm{lookup} : \forall A, n.; \mathrm{Vec}(A,n) \to \mathrm{Fin}(n) \to A
 % \] where Fin(n) is the type of all valid indices n
 
 Refinement types~\cite{Rondon2008Liquid} are a practical restriction of full dependent types in which a base type is decorated with a logical predicate drawn from a decidable logic. For example, the type $\{v\!:\!\mathtt{int} \mid v > 0\}$ classifies integers that are strictly positive. Notably, subtyping between refinement types reduces to logical implication:
-\[
-  \{v\!:\!\mathtt{int} \mid P(v)\} <: \{v\!:\!\mathtt{int} \mid Q(v)\} \text{ holds when } P(v) \Rightarrow Q(v) \text{ is valid}
-\]
+\begin{tcolorbox}[colback=gray!5!white,colframe=black!70,title=\textsc{Refinement subtyping}]
+  \[
+    \{v\!:\!\mathtt{int} \mid P(v)\}
+    <:
+    \{v\!:\!\mathtt{int} \mid Q(v)\}
+    \quad\text{when}\quad
+    P(v) \Rightarrow Q(v)
+  \]
+\end{tcolorbox}
 % $\{v\!:\!\mathtt{int} \mid P(v)\} <: \{v\!:\!\mathtt{int} \mid Q(v)\}$ holds when $P(v) \Rightarrow Q(v)$ is valid. 
 Because the predicates are drawn from a decidable theory (typically quantifier-free linear arithmetic), this implication check can be delegated to an SMT solver.
 
 A particularly useful special case is the singleton type, written $\mathtt{int}(n)$, which is inhabited by exactly the integer $n$. Singleton types arise naturally from Xi and Pfenning's work on Dependent ML~\cite{Xi1999DML}, where integer index expressions are used to track array sizes and loop bounds. Singleton types can propagate exact values through arithmetic:
-\begin{verbatim}
-  x : int(3)
-  y : int(5)
-  x + y : int(8)
-\end{verbatim}
+\[
+  \begin{array}{rcl}
+    x &:& \mathtt{int}(3) \\
+    y &:& \mathtt{int}(5) \\
+    x + y &:& \mathtt{int}(8)
+  \end{array}
+\]
 % if $x : \mathtt{int}(3)$ and $y : \mathtt{int}(5)$, then $x + y : \mathtt{int}(8)$. 
 This enables compile-time verification of array bounds when indices are statically known.
 
@@ -57,12 +93,12 @@ This enables compile-time verification of array bounds when indices are statical
 
 \subsection{Bidirectional type checking}
 
-Bidirectional type checking~\cite{Pierce2000Local}, structures a type system into two mutually recursive judgements: \textit{checking} and \textit{synthesis}:
+Bidirectional type checking~\cite{Pierce2000Local} structures type checking into two mutually recursive judgements:
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black]
-  \paragraph{Type checking} takes a context $\Gamma$, program $e$ and type $\tau$ as input and produces a true/false output reflecting whether $e$ is well-typed: $\Gamma \vdash e \leftarrow \tau$. \\
+\begin{tcolorbox}[colback=gray!5!white,colframe=black!70,title=\textsc{Bidirectional judgements}]
+  \paragraph{Type checking} verifies that expression $e$ has expected type $\tau$: $\Gamma \vdash e \leftarrow \tau$. \\
 
-  \paragraph{Type synthesis} takes a context $\Gamma$ and program $e$ as input and produces a types $\tau$ as output: $\Gamma \vdash e \Rightarrow \tau$.
+  \paragraph{Type synthesis} infers a type $\tau$ for expression $e$: $\Gamma \vdash e \Rightarrow \tau$.
 \end{tcolorbox}
 % \begin{itemize}
 %   \item \emph{Type checking} takes a context $\Gamma$, program $e$ and type $\tau$ as input and produces a true/false output reflecting whether $e$ is well-typed: $\Gamma \vdash e \leftarrow \tau$
@@ -79,7 +115,7 @@ $$
 
 % Alternative approaches have significant drawbacks. Full type inference in the style of Hindley--Milner requires unification, which does not extend naturally to subtyping or refinement types; the lattice structure of refinement types means there is no unique principal type for many expressions. At the other extreme, requiring complete type annotations on every expression is impractical. Bidirectional checking offers a middle ground where the programmer annotates introduction forms (function signatures, let-bindings) and the system infers the rest.
 
-For refinement types, the bidirectional structure is particularly well-suited. Synthesis produces the most precise type available from the immediate structure of an expression---for integer literals, this is a singleton type; for arithmetic, it is a refinement capturing the exact relationship between the result and its operands. Checking then verifies subtyping against the expected type. The programmer only needs to annotate types at function boundaries and mutable variable declarations; the type checker infers intermediate refinement types automatically. Bidirectional type-checking offers a middle ground between Hindley-Milner full type inference and the need for complete type annotations on every expression.
+For refinement types, synthesis can produce precise local facts---integer literals synthesise singleton types, and arithmetic synthesises refinements relating the result to its operands. Checking then verifies subtyping against the expected type. In Veritas, programmers annotate function boundaries and mutable declarations; intermediate refinements are inferred.
 
 In Veritas, the bidirectional structure also threads the typing context through the judgements. Both synthesis and checking accept a context and return an updated context, reflecting changes from mutable variable assignments and newly learned refinement propositions.
 
@@ -87,9 +123,19 @@ In Veritas, the bidirectional structure also threads the typing context through 
 \label{sec:smt-based-ver}
 % TODO: diagram of SMT-solver with formulae
 
-Satisfiability Modulo Theories are an extension of boolean satisfiability (SAT) to richer logics. An SMT solver decides the satisfiability of first-order formulae over a combination of background theories. The theories relevant to program verification include linear integer arithmetic (LIA), which supports addition, subtraction, and comparison of integers; the theory of arrays, which models arrays as functions from indices to values with \texttt{select} and \texttt{store} operations; and uninterpreted functions, which allow reasoning about function applications without knowing their implementation. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. I chose it for its maturity and reliability, having won numerous SMT-COMP competitions \cite{Barrett2013SMTCOMP}. Z3 is also precedent in other similar verification systems that have influenced Veritas' design such as Liquid Haskell, Dafny, and F*.
+Satisfiability Modulo Theories (SMT) extends boolean satisfiability to richer logics. The theories relevant to Veritas are linear integer arithmetic, arrays, and uninterpreted functions. Z3~\cite{DeMoura2008Z3} is used because it is mature, widely deployed, and already used in systems that influenced Veritas, including Liquid Haskell, Dafny, and F*.
 
-The technique for using an SMT solver as a refinement type checker is \textit{proof by refutation}~\cite{Rondon2008Liquid}. To check whether a judgement $\phi \vdash P$ holds (i.e., whether the proposition $P$ follows from the set of known assumptions $\phi$), we assert all propositions in $\phi$, assert $\lnot P$, and check for unsatisfiability. If the solver returns \textsc{unsat}, then $\phi \wedge \lnot P$ has no model, meaning $P$ must hold under $\phi$. If the solver returns \textsc{sat}, a countermodel exists and the proof obligation fails---the type checker reports an error.
+The technique for using an SMT solver as a refinement type checker is \textit{proof by refutation}~\cite{Rondon2008Liquid}. To check whether $\phi \vdash P$ holds, Veritas checks whether $\phi \wedge \lnot P$ is unsatisfiable:
+
+\begin{tcolorbox}[colback=gray!5!white,colframe=black!70,title=\textsc{SMT proof obligation}]
+\begin{verbatim}
+assume all propositions in phi
+assert not P
+accept the obligation iff Z3 returns UNSAT
+\end{verbatim}
+\end{tcolorbox}
+
+If the solver returns \textsc{unsat}, then $P$ must hold under $\phi$; if it returns \textsc{sat}, the countermodel witnesses a failed proof obligation.
 
 This approach means that the \textit{discharge} of proof obligations is fully automatic: the programmer never constructs proof terms. However, the programmer must still supply the specifications from which these obligations arise---type annotations, function contracts, and loop invariants. The automation lies in checking, not in specification.
 % TODO: state that annotations are not a burden, but guidance, minimise programmer error, clarifies logic/control flow?
@@ -109,13 +155,13 @@ The idea of shipping machine code together with a checkable proof of its safety 
 
 \subsection{Dependently Typed Assembly}\label{sec:dtal-background}
 
-Xi and Harper introduced DTAL as a target for type-preserving compilation from DML (Dependent ML)~\cite{Xi1999DML} and Xanadu~\cite{Xi2000Xanadu}, a dependently typed imperative programming language with C-like syntax. DTAL augments a conventional assembly language with two key forms of type annotation:
+Xi and Harper introduced DTAL as a target for type-preserving compilation from DML~\cite{Xi1999DML} and Xanadu~\cite{Xi2000Xanadu}. DTAL augments assembly with two key forms of type annotation:
 \begin{itemize}
   \item \textbf{Label signatures}: each basic block entry point is annotated with existentially quantified index variables and the types expected for each register on entry, enabling modular, block-by-block verification.
   \item \textbf{Register types}: types may depend on index variables, so that a register's type tracks its exact value (e.g., $\mathtt{int}(i)$) or the size of an array it points to (e.g., $\mathtt{int\;array}(n)$).
 \end{itemize}
 
-\noindent The following excerpt from Xi and Harper~\cite{Xi2001DTAL} shows the loop header of a DTAL copy function. The label signature binds index variables $m$, $n$, $i$ and declares register types in terms of them:
+\noindent A DTAL loop header binds index variables and declares register types in terms of them:
 
 \begin{verbatim}
   loop:  {m:nat, n:nat | m <= n, i:nat}
@@ -132,20 +178,20 @@ Xi and Harper introduced DTAL as a target for type-preserving compilation from D
 
 Veritas implements its own DTAL variant based on Xi and Harper's design, extended to support the Veritas refinement type system and targeting x86-64. The compiler translates the source language through a typed intermediate representation (TIR) to DTAL, preserving refinement types at each stage, and finally emits x86-64 machine code as an ELF executable. Hereafter, `DTAL' refers to this Veritas-specific variant unless otherwise noted; the original is referred to as `Xi and Harper's DTAL'.
 
-\section{Related work and Design Influences}
+\section{Related work and design influences}
 \label{sec:related-work}
 % TODO: include diagram
 
-The design of Veritas makes use of several established approaches to software verification. Rather than relying on a single paradigm, it synthesises techniques from functional verification, systems programming, and proof-carrying code.
+Veritas combines automated refinement checking, systems-language design, and proof-carrying code. The systems below matter because each fixes a different point in the design space: automation, expressiveness, systems orientation, or low-level trust.
 
-\subsection{Refinement Types and Automated Verification}
-The use of an SMT solver to discharge type-level proof obligations is heavily inspired by Liquid Haskell~\cite{Vazou2014Refinement} and the broader Liquid Types framework~\cite{Rondon2008Liquid}. While Liquid Haskell targets a pure, lazy functional language, Veritas applies this automated refinement checking to an imperative systems language. Similarly, Dafny~\cite{Leino2010Dafny} relies on SMT solvers (via the Boogie intermediate language) to verify imperative function contracts and loop invariants. However, both Dafny and Liquid Haskell erase their proofs during compilation. Veritas mirrors the automated reasoning of these tools but preserves the resulting constraints down to the assembly level.
+\subsection{Refinement types and automated verification}
+Liquid Haskell~\cite{Vazou2014Refinement} and Liquid Types~\cite{Rondon2008Liquid} provide the main precedent for SMT-backed refinement checking. Dafny~\cite{Leino2010Dafny} similarly uses SMT solving for imperative contracts and loop invariants. Veritas borrows this style of automatic proof discharge, but preserves the resulting constraints down to assembly rather than erasing them after source-level verification.
 
-\subsection{Foundational and Dependent Verification}
-At the more expressive end of the spectrum are systems based on full dependent types or separation logic. F*~\cite{Swamy2016Dependent} supports dependent types and can extract code to C or WebAssembly. RefinedC~\cite{Sammler2021RefinedC} applies refinement and ownership types to existing C code, producing foundational, machine-checked proofs in Coq. While these systems offer stronger theoretical guarantees (foundational proofs rather than SMT-based trust), they generally require the programmer to construct explicit proof terms or interact with a proof assistant. Veritas restricts its logic to the decidable fragments supported by Z3, so that proof obligations are discharged automatically once specifications are provided.
+\subsection{Foundational and dependent verification}
+F*~\cite{Swamy2016Dependent} and RefinedC~\cite{Sammler2021RefinedC} offer stronger theoretical foundations through dependent types or separation logic. RefinedC, for example, produces machine-checked Coq proofs for existing C code. Veritas deliberately accepts a weaker foundation---SMT-backed checking rather than foundational proof---to keep proof obligations automatic once specifications are supplied.
 
-\subsection{Verifiable Systems Languages}
-The most direct predecessor to Veritas's goals is ATS (Applied Type System)~\cite{Xi2003Applied}, which also targets systems programming using dependent types with zero runtime overhead. The difference lies in the compilation architecture. ATS performs all theorem proving at compile time and then compiles to standard C, meaning the C compiler and the ATS compiler are both in the trusted computing base. In contrast, Veritas uses the architecture of DTAL. By preserving types through to the backend, Veritas ensures that the target code can be audited independently.
+\subsection{Verifiable systems languages}
+ATS (Applied Type System)~\cite{Xi2003Applied} is the closest predecessor in spirit: it targets systems programming with dependent types and zero runtime overhead. The key difference is architectural. ATS proves properties at compile time and then emits C, leaving the ATS and C compilers in the TCB. Veritas instead preserves types into DTAL so that the low-level target can be checked independently.
 
 Figure~\ref{fig:verification-landscape} summarises the trade-off between expressiveness and automation across the systems discussed above.
 
@@ -231,15 +277,15 @@ Figure~\ref{fig:verification-landscape} summarises the trade-off between express
 
 \section{Design decisions}\label{sec:design-decisions}
 
-Having established the intended trust architecture and the theoretical tools and verification mechanisms available, my next step was to determine how they should be realised in the design of the language, compiler architecture, and trust model. This section describes the key design decisions made during the preparation phase.
+The central design task was to realise the trust architecture without making the source language unusable or the trusted backend too large.
 
 \subsection{Compiler architecture}
 
-A central architectural decision is that the compiler is \textit{untrusted}. Rather than proving the compiler correct (as in CompCert~\cite{compcert}), correctness is enforced by a standalone verifier that independently re-checks the compiler's output. This means bugs anywhere in the compiler cannot compromise safety---they can only cause the verifier to reject the output. Figure~\ref{fig:trust-pipeline} illustrates this architecture: type annotations flow through every intermediate representation, and the trust boundary separates the untrusted compiler from the small trusted core.
+A central architectural decision is that the compiler is \textit{untrusted}. Rather than proving the compiler correct, Veritas relies on a standalone verifier that re-checks the compiler's low-level output. Compiler bugs should therefore cause rejection, not unsafely accepted code. Figure~\ref{fig:trust-pipeline} shows the resulting boundary: type information flows through the compiler, but trust begins only at the verifier and direct encoder.
 
 \subsection{Trust model and TCB reduction}
 
-I structured the project in phases that progressively reduced the trusted computing base (TCB), allowing the implementation to proceed incrementally while maintaining a clear trust boundary at each stage. Each phase moved the verification boundary further down the pipeline, removing components from the set of code that must be correct for the safety guarantee to hold:
+The implementation was structured to move the verification boundary progressively lower in the pipeline:
 
 \begin{enumerate}
   \item \textbf{Virtual DTAL verification}: the verifier checks DTAL with virtual registers. The TCB includes the verifier, Z3, register allocation, instruction selection, and the x86-64 encoder.
@@ -296,27 +342,25 @@ I structured the project in phases that progressively reduced the trusted comput
 
 \subsection{Source language design}
 
-Veritas is an imperative language with C-like syntax, taking inspiration from Xi and Harper's Xanadu. I designed it to be minimal but expressive. The language supports integers, booleans, fixed-size arrays, mutable and immutable variables, for-loops, while-loops, and functions.
+Veritas is a small imperative language with C-like syntax, inspired by Xi and Harper's Xanadu. It supports integers, booleans, fixed-size arrays, mutable and immutable variables, loops, and functions. The type system adds singleton types, refinement types, contracts, bounded quantifiers, and loop invariants.
 
-The type system extends simple types with singleton types, refinement types, function contracts (with bounded quantifiers), and loop invariants. For efficiency, singleton types are represented as a distinct type variant so constant folding on singletons avoids invoking the SMT solver entirely.
-
-When considering the example programs I wanted Veritas to express, particularly array-based algorithms such as binary search, I needed a way to state array-wide and range-based properties such as sortedness. Scalar refinement types alone cannot express such global invariants, so I extended the specification language with \emph{bounded quantifiers} in specification positions. A precondition such as $\mathbf{forall}\ i\ \mathbf{in}\ 0..n\ \{\ \mathit{arr}[i] \le \mathit{arr}[i + 1]\ \}$ expresses a property over all elements of an array, going beyond scalar refinements to reason about aggregate data structures.
+The key expressiveness choice was bounded quantification. Scalar refinements can prove facts about individual values, but algorithms such as binary search need array-wide properties such as sortedness. A precondition such as $\mathbf{forall}\ i\ \mathbf{in}\ 0..n\ \{\ \mathit{arr}[i] \le \mathit{arr}[i + 1]\ \}$ expresses such properties while keeping verification close to SMT-friendly fragments.
 
 \subsection{DTAL target language design}
 
-The target language is a variant of Xi and Harper's Dependently Typed Assembly Language~\cite{Xi2001DTAL}, extended to support the Veritas refinement type system and targeting x86-64. I designed the core DTAL to resemble a RISC assembly language since simple, explicit instructions are easier to type, easier to verify, and map naturally from the compiler’s SSA-style intermediate representation. The DTAL was then augmented with type annotations on registers, constraint assertions embedded in the instruction stream, and declared type states at basic block entry points.
+The target language is a variant of Xi and Harper's DTAL~\cite{Xi2001DTAL}, extended for Veritas refinements and x86-64. The core instruction set is deliberately RISC-like: simple instructions are easier to type, verify, and map from the SSA-style intermediate representation. DTAL then adds register type annotations, embedded constraint assertions, and declared type states at basic block entries.
 
 I also defined DTAL with its own \textit{physical register model} (registers \texttt{r0}--\texttt{r12}, \texttt{sp}, \texttt{fp}, \texttt{lr}) that maps directly to x86-64 registers. This allows verification to occur \textit{after} register allocation: the register allocator is untrusted, and its output is verified before the final (trivial) encoding to x86-64.
 
 \subsection{Machine code encoding and ELF generation}
 % The final stages of the compilation pipeline translates verified physical DTAL to x86-64 machine code and packages it as a freestanding ELF binary. 
-Rather than emitting assembly text and invoking an external assembler (e.g., NASM or GAS), Veritas encodes x86-64 instructions directly as bytes. I made this design choice to minimise the trusted computing base: an external assembler would be a large, unverified component whose correctness must be assumed. The Veritas encoder comprises three small modules: a one-to-one mapping from physical DTAL instructions to x86-64 instructions, a byte encoder, and an ELF generator. The mapping is deliberately trivial---each DTAL instruction translates to exactly one x86-64 instruction (or a small fixed sequence for prologues/epilogues)---making the entire path amenable to manual audit.
+Rather than emitting assembly text and invoking NASM or GAS, Veritas encodes x86-64 instructions directly as bytes. This keeps an external assembler out of the TCB. The trusted path below physical DTAL is intentionally small: a one-to-one instruction mapping, a byte encoder, and an ELF generator.
 
-The choice of x86-64 as the target architecture is a pragmatic one: the development machine runs x86-64 Linux, enabling direct execution and testing of compiled binaries without emulation. Targeting a different ISA (e.g., AArch64) would require replacing only the instruction mapping, byte encoder, and register definitions. The DTAL instruction set, type system, verifier, and everything upstream would remain unchanged.
+The choice of x86-64 was pragmatic: it enabled direct execution and testing on the development machine. A different ISA would require replacing the instruction mapping, byte encoder, and register definitions, while leaving the DTAL type system and verifier structure largely unchanged.
 
 \subsection{Design challenges}\label{sec:design-challenges}
 
-Combining refinement types with imperative features, SSA-based compilation, and an untrusted-compiler architecture raised several interacting design challenges that required extending or departing from the approaches in the literature.
+Four design challenges shaped the implementation:
 
 \paragraph{Mutable variables and refinement types.} Refinement type systems such as Liquid Haskell operate over immutable bindings, where a variable's type is fixed at its definition. Supporting mutation introduces a soundness hazard: after \texttt{x = e}, any refinement mentioning \texttt{x} may be invalidated. The solution adopted---\textit{master types}---required designing the mutable context $\Delta$ to track both a current (refinable) type and a fixed master type, with a subtyping check on every assignment.
 
@@ -328,43 +372,24 @@ Combining refinement types with imperative features, SSA-based compilation, and 
 
 \section{Requirements analysis}\label{sec:requirements-anal}
 
-A systematic requirements analysis was conducted during the preparation phase to define the scope of the project. The requirements were categorised using the MoSCoW method (Must-have, Should-have, Could-have, Won't-have) to prioritise features and ensure the core objectives of type-preserving compilation and independent verification were met.
+The requirements were categorised using the MoSCoW method to keep the project focused on type-preserving compilation and independent low-level verification.
 
-\subsection{Must-have}
-To successfully demonstrate the paradigm of proof-carrying code and independent assembly verification, the system must include:
-\begin{itemize}
-  \item A high-level systems language featuring essential constructs (variables, control flow, functions, arrays).
-  \item A dependent type system supporting refinement types and singleton types to express spatial memory safety invariants.
-  \item A compiler frontend with a bidirectional type checker that delegates proof obligations (e.g., array bounds) to an SMT solver.
-  \item A Dependently Typed Assembly Language (DTAL) target capable of embedding type states and constraint assertions.
-  \item A compiler backend that preserves type information through intermediate representations and outputs verified DTAL.
-  \item A standalone DTAL verifier capable of re-verifying the safety of the generated assembly without access to the original source code.
-\end{itemize}
-
-\subsection{Should-have}
-To enhance the practical utility and robustness of the toolchain, the project should ideally include:
-\begin{itemize}
-  \item End-to-end executable generation, translating the verified DTAL into native x86-64 machine code and packaging it as a freestanding ELF binary.
-  \item Advanced function contracts, including postconditions (\texttt{ensures}) and quantified specifications (\texttt{forall}, \texttt{exists}).
-  \item A comprehensive automated test suite capable of systematically testing both compilation success for safe programs and targeted rejection of unsafe programs.
-\end{itemize}
-% TODO: why x86?
-
-\subsection{Could-have}
-Features that would extend the system's capabilities but were not critical to the core proof-of-concept included:
-\begin{itemize}
-  \item Backend compiler optimisations (such as copy propagation and dead code elimination) operating over the typed intermediate representation.
-  \item Extended language semantics, such as structs, generics, and a full ownership model (similar to Rust).
-  \item An interpreter for executing DTAL programs directly.
-\end{itemize}
-
-\subsection{Won't-have}
-To maintain a manageable scope and clear focus on structural safety, several ambitious extensions were explicitly excluded:
-\begin{itemize}
-  \item A foundational, machine-checked proof of compiler correctness (e.g., via Coq or Isabelle). The project's trust model explicitly treats the compiler as untrusted.
-  \item Verification of concurrency properties, such as data race freedom or deadlock avoidance.
-  \item Verification of information flow control or cryptographic protocols.
-\end{itemize}
+\begin{table}[H]
+  \centering
+  \small
+  \begin{tabular}{p{0.16\textwidth} p{0.76\textwidth}}
+    \hline
+    \textbf{Priority} & \textbf{Requirements} \\
+    \hline
+    Must-have & A high-level systems language with variables, control flow, functions, and arrays; a dependent type system with refinement and singleton types; a bidirectional type checker that delegates proof obligations to an SMT solver; a DTAL target with type states and constraint assertions; a compiler backend that preserves type information; and a standalone DTAL verifier that checks generated assembly without access to the source. \\
+    Should-have & End-to-end executable generation to native x86-64 ELF binaries; advanced function contracts, including postconditions and quantified specifications; and automated tests for both safe programs and targeted rejection of unsafe programs. \\
+    Could-have & Backend optimisations over the typed intermediate representation; extended language semantics such as structs, generics, and a full ownership model; and an interpreter for executing DTAL programs directly. \\
+    Won't-have & A foundational, machine-checked proof of compiler correctness, since the compiler is deliberately untrusted; verification of concurrency properties; and verification of information-flow or cryptographic properties. \\
+    \hline
+  \end{tabular}
+  \caption{MoSCoW requirements used to keep the project focused on type-preserving compilation and independent low-level verification.}
+  \label{tab:moscow-requirements}
+\end{table}
 
 % \section{Evaluation plan}
 %
@@ -392,23 +417,23 @@ To maintain a manageable scope and clear focus on structural safety, several amb
 
 \subsection{Methodology}
 
-\paragraph{Development process.} Development followed a hybrid approach. Initial planning resembled a waterfall model in which the compiler pipeline modules, source and target language features and specifications were defined. Software development then followed a spiral approach: the pipeline was built end-to-end with minimal features first (integer arithmetic only), then progressively extended with arrays, mutable variables, refinement types, function contracts, and quantifiers. Work items were planned for two-week sprints and I kept track of tasks using a Kanban board on Jira. Each feature was accompanied by test cases in both positive (should compile) and negative (should produce a specific error) categories. The test suite features unit tests for each significant module and integration tests between the components of the pipeline. I also attended thrice weekly standups with other Computer Science students, organised by my Director of Studies, where we gave brief reports on our project status and upcoming work items.
+\paragraph{Development process.} The implementation followed an incremental pipeline-first strategy. I first built an end-to-end compiler for integer arithmetic, then extended the same path with arrays, mutation, refinements, contracts, and quantifiers. Each feature was accompanied by positive tests that should compile and negative tests that should be rejected with a specific error.
 
-\paragraph{Version control.} Version control was managed using Git, employing a trunk-based development strategy. Features and bug fixes were developed in short-lived branches before being integrated into a central master branch. To maintain code quality and ensure continuous correctness, I set up an automated Continuous Integration (CI) pipeline via GitHub Actions, which triggered on every push to the remote repository.
+\paragraph{Version control.} Version control was managed using Git, with short-lived feature branches merged into the main branch. A GitHub Actions CI pipeline ran on each push.
 
-\paragraph{Code quality and testing.} To maintain clean code and follow common practices, I set up the CI pipeline to enforce formatting and linting standards (using the \texttt{cargo fmt} and \texttt{cargo clippy} tools). It also validated the suite of example programs, and executed the test suite across both Ubuntu Linux and macOS environments; this covers two primary platforms on which systems programming toolchains are used in practice and ensures the compiler and verifier implementations remain portable and correct across OS environments, libc implementations (relevant to the C-based implementation of Z3), and toolchain versions. Testing was done against both stable and nightly Rust toolchains; stable ensures the project builds with the version most users would have, while nightly provides early warning of upcoming compiler changes or deprecations, and is necessary if any features behind features gates are used.
+\paragraph{Code quality and testing.} CI enforced \texttt{cargo fmt} and \texttt{cargo clippy}, validated example programs, and ran the test suite on Ubuntu Linux and macOS. This gave coverage across the main development platforms and different Z3/libc environments.
 % TODO: unit/integration tests
 
 
 \subsection{Tools and Technologies}
-The project was implemented in Rust, chosen for its strong type system, pattern matching, and memory safety guarantees without garbage collection. Aspects of its language design and safety features were also inspiration for some of the features I would later come to implement in Veritas, such as the borrowing and ownership model.
+The project was implemented in Rust, chosen for its type system, pattern matching, and memory safety without garbage collection. Rust's ownership model also influenced the later borrow-oriented parts of Veritas.
 
-The Z3 SMT solver used for the frontend typechecker and DTAL verifier was accessed via the \texttt{z3} Rust crate, which provided high-quality, idiomatic Rust bindings, compared to potential alternatives like CVC5 that have less mature Rust ecosystem support. As mentioned in Section~\ref{sec:smt-based-ver}, Z3 is one of the most widely-deployed, well-audited SMT solvers. In Veritas, Z3 is used by the DTAL verifier and thus forms part of the trusted computing base; it is important to minimise the risk introduced by this trust---using an obscure solver would weaken this argument. Another prominent reason for using Z3 is that it natively supports the theories featured in Veritas: quantifier-free LIA for refinement subtyping, and bounded quantifiers for array specifications.
+The frontend type checker and DTAL verifier use Z3 via the \texttt{z3} Rust crate. Z3 forms part of the TCB, so maturity and wide deployment matter. It also supports the theories Veritas needs: quantifier-free LIA for refinement subtyping and bounded quantifiers for array specifications.
 
-Another notable crate used to develop the Veritas compiler was the \texttt{im} crate, which provides persistent (immutable) data structures for the typing context, enabling $O(\log n)$ cloning at control-flow branches. This is important for the functional-style context threading used in bidirectional type checking e.g., where each branch of an \textbf{if-else} receives its own copy of the context.
+The \texttt{im} crate provides persistent data structures for typing contexts, enabling efficient cloning at control-flow branches.
 
 
 
 \section{Starting point}\label{sec:starting-point}
 
-I had introductory knowledge of dependent type theory (DTT) and proof assistant and verification languages, and was introduced to refinement types via Xi and Harper's DTAL. No external code was used for the compiler or verifier. To successfully complete the project, I had to gain proficiency in several new tools, algorithms and theories: the Rust programming language, typechecking and proof assertion via SMT, Z3 theories, x86-64 machine code encoding, and bidirectional type checking. Key resources included the papers from Xi et al. on DML, Xanadu, and DTAL as well as other existing systems and their theories.
+I began with introductory knowledge of dependent type theory and verification languages, and was introduced to refinement types through Xi and Harper's DTAL. No external compiler or verifier code was used. The main new areas were Rust, SMT-backed type checking, Z3 theories, x86-64 encoding, bidirectional type checking, and the Xi et al. papers on DML, Xanadu, and DTAL.

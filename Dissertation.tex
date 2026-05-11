@@ -12,6 +12,8 @@
 \usepackage{enumitem}
 \setlist{itemsep=0pt,parsep=0pt}
 \linespread{0.95}  
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.6em plus 0.2em minus 0.1em}
 
 \usepackage{url}
 \usepackage{hyperref}
@@ -47,6 +49,11 @@
 
 \newcommand{\kw}[1]{\textcolor{blue!70!black}{\textsf{#1}}}
 \newcommand{\optclause}[1]{\textcolor{gray}{#1}}
+\newcommand{\keyblock}[3][0.15em]{%
+  \par\vspace{#1}%
+  \noindent\textbf{#2}\\%
+  #3\par%
+}
 
 \title{A type-preserving compiler from a systems language to a dependently typed assembly language}
 \author{9615Q}

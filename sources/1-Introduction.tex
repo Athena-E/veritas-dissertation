@@ -7,46 +7,59 @@
 
 \chapter{Introduction}\label{ch:intro}
 
-In his seminal 1977 paper, Leslie Lamport defined \emph{safety} as a property ensuring that ``something bad never happens'' \cite{Lamport1977Proving}. In systems programming, where code written in languages such as C and C++ often runs in privileged environments, \emph{memory safety} translates to a guarantee: no out-of-bounds reads, no null-pointer dereferences, and no other memory-related undefined behaviour (UB). In C and C++, it is the \emph{programmer's} responsibility to uphold these guarantees, since the languages have no managed runtime or mandatory bounds-checking, nor do they have a type system to encode temporal lifetimes or spatial bounds of memory allocation. Promises of memory safety are at the whim of human error, and errors that violate these promises can have catastrophic consequences. The Heartbleed bug (2014) \cite{CVE-2014-0160} was ultimately an unchecked bounds error that leaked sensitive memory contents, and the Code Red worm (2001) exploited a buffer overflow in Microsoft's Internet Information Services (IIS) to compromise 359,000 servers in less than 14 hours \cite{Microsoft2001MS01-033}. So, given (inevitable) human infallibility, what are the available strategies to mitigate, or even eliminate, memory safety bugs in systems programming?
+\section{Motivation}
+
+In his 1977 paper, Leslie Lamport defined \emph{safety} as a property ensuring that ``something bad never happens'' \cite{Lamport1977Proving}. In systems programming, \emph{memory safety} translates to a guarantee: no out-of-bounds reads, no null-pointer dereferences, and no other memory-related \emph{undefined behaviour} (UB). In C and C++, it is the programmer's responsibility to uphold these guarantees, and failures can be severe: Heartbleed (2014) \cite{CVE-2014-0160} was an unchecked bounds error that leaked sensitive memory. This motivates \emph{executable-level memory safety} without relying only on programmer discipline. The central question of this dissertation is not only whether source programs can be checked for memory safety, but where the trust boundary should lie once those programs have been compiled.
 
 % TODO: improvement on C/C++
-One approach, exemplified by languages such as Rust, is to enforce \textbf{safety properties at the source level} using mechanisms such as the borrow checker, which analyses the lifetime of every variable and catches possible out-of-bounds accesses or use-after-frees \emph{at compile-time}. This offers an attractive combination of performance and safety, but we would have to trust that a large and evolving compiler preserves these frontend guarantees during compilation to produce a safe output.
+One approach, exemplified by languages such as Rust, is to enforce safety properties at the source level. This offers an attractive combination of performance and safety, but still trusts a large and evolving compiler to preserve those frontend guarantees during compilation. If a compiler bug miscompiles a safe source program, the resulting executable may no longer preserve the guarantee that was checked at the frontend.
 
-An approach that avoids trusting the compiler is \textbf{verified compilers}: compilers that use formal methods to verify the correctness of the compilation process. One widely known example is CompCert \cite{compcert}: a compiler for a subset of C written in Rocq \cite{RocqRefman}, an interactive theorem prover. CompCert provides a guarantee of \emph{semantic preservation}, which requires trusting Rocq's kernel, though this is small enough to be audited relatively easily. However, given that the language CompCert compiles is C, the trust is still placed on the programmer to uphold memory safety.
+A second approach is \emph{verified compilers}: compilers whose correctness is justified using formal methods. CompCert \cite{compcert}, a compiler for a subset of C written in Rocq \cite{RocqRefman}, provides a guarantee of \emph{semantic preservation} and reduces the \emph{Trusted Computing Base} (TCB) from the entire compiler to just Rocq's kernel. However, since CompCert compiles C, semantic preservation does not by itself make unsafe source programs safe: memory safety remains a property the programmer must establish.
 
-A natural follow-up solution that one might suggest may be to combine the two previous approaches: \textbf{a verified compiler for a language that enforces safety properties at the source level}. This seemingly offers the best of both worlds: semantic preservation and memory safety at the executable level, where the only trusted component would be the kernel of whichever proof assistant was used to formalise the compiler's correctness. However, verifying a compiler comes at the cost of writing thousands of lines of machine-checked mathematical proofs, not to mention all the additional proofs required whenever the compiler is modified or extended.
+Taken together, these approaches point toward a compiler for a safety-enforcing source language whose correctness is itself verified: source-level memory safety, plus semantic preservation through compilation. Verifying such a compiler, however, comes at the cost of writing and maintaining thousands of lines of machine-checked mathematical proofs.
 
 % Modern languages and toolchains address this problem in different ways, but they differ in what must be trusted for the final executable to be assumed safe. 
 % , and then trust the compiler to preserve those guarantees during compilation. 
-% This offers an attractive combination of performance and safety, but places substantial trust in a large and evolving compiler implementation to preserve safety guarantees from the frontend during compilation. A different approach is to reduce trust in the compiler by using a \emph{verified compiler}: compilers that use formal methods to verify the correctness of the compilation process.
+% This offers an attractive combination of performance and safety, but places substantial trust in a large and evolving compiler implementation to preserve safety guarantees from the frontend during compilation. A different approach is to reduce trust in the compiler by using a \textbf{verified compiler}: compilers that use formal methods to verify the correctness of the compilation process.
 % one whose correctness is justified by a machine-checked proof of semantic preservation. 
-% One widely known example is CompCert \cite{compcert}: a compiler for a subset of C written in Rocq \cite{RocqRefman}, an interactive theorem prover. CompCert provides a guarantee of \emph{semantic preservation} but the trust is placed on the programmer to uphold memory safety.
+% One widely known example is CompCert \cite{compcert}: a compiler for a subset of C written in Rocq \cite{RocqRefman}, an interactive theorem prover. CompCert provides a guarantee of \textbf{semantic preservation} but the trust is placed on the programmer to uphold memory safety.
 % Furthermore, the cost of developing and modifying such a compiler involves writing thousands of lines of machine-checked mathematical proofs, the majority of which do not contribute to the compilation process; in the initial prototype of the compiler backend, the Rocq functions representing the compiler itself accounted for only 13\% of the codebase \cite{Xavier2006CompCert}.
 
-Is there a way to guarantee memory safety at the executable level without paying the price of a verified compiler? A middle-ground solution may be found in the ideas behind \textbf{Proof-Carrying Code} (PCC) \cite{Necula1997PCC}. In PCC, the producer of some low-level code also ships evidence that the code obeys a given safety policy, and the consumer checks this evidence before execution. One way to realise this idea is through a form of \emph{type-preserving compilation} in which preserved low-level types carry information about memory safety properties that can be checked alongside low-level instructions by a verifier. In this model, the only component we trust to guarantee memory safety is the verifier. % The idea is to reduce the size of the trusted computing base from a large compiler into a much smaller checker. % Notably, it is possible to independently verify the type safety and memory safety of DTAL code via a type-checker.
+\emph{Proof-carrying code} (PCC) \cite{Necula1997PCC} offers a way to move this trust boundary down to the compiled artifact without verifying the compiler itself: the producer of low-level code also ships evidence that the code obeys a safety policy, and the consumer checks this evidence before execution. One way to realise this idea is \emph{type-preserving compilation}, where type information is preserved from the source language down to assembly. A low-level type system can then encode the relevant safety properties, leaving only the verifier trusted for memory safety. % The idea is to reduce the size of the trusted computing base from a large compiler into a much smaller checker. % Notably, it is possible to independently verify the type safety and memory safety of DTAL code via a type-checker.
 
-This dissertation presents \textbf{Veritas}, a toolchain that
-% attempts to address the compromise between performance and safety by  applying ideas behind PCC. Veritas compiles source programs for a small systems language to a version of DTAL (inspired by Xi and Harper), and then uses a standalone verifier to check the safety properties encoded in the low-level program.
-applies the ideas behind PCC to compile source programs for a small systems language to a version of a Dependently Typed Assembly Language (DTAL), inspired by Xi and Harper \cite{Xi2001DTAL}. Veritas then uses a standalone verifier to check the safety properties encoded in the low-level program.
+The gap addressed by this dissertation is the lack of a small, executable systems-language toolchain that combines source-level refinement checking with independently checkable low-level output, without requiring a fully verified compiler.
+
+This dissertation presents \textbf{Veritas}, a small systems-language toolchain that applies PCC-style low-level checking to a refinement-typed source language. Its pipeline is:
+
+\begin{center}
+\begin{tcolorbox}[colback=white,colframe=black!70,width=0.86\textwidth,boxrule=0.5pt]
+\centering
+\textbf{Veritas source} $\rightarrow$ typed SSA $\rightarrow$ DTAL $\rightarrow$ independent verifier $\rightarrow$ executable
+\end{tcolorbox}
+\end{center}
+
+The target language is a version of Dependently Typed Assembly Language (DTAL), inspired by Xi and Harper \cite{Xi2001DTAL}. The central claim is not that the compiler is correct, but that source-level refinement guarantees are carried into untrusted low-level output and re-checked before execution. This reduces the TCB from the compiler pipeline to the standalone verifier and its dependencies.
 
 
-\section{Technical Approach: the trust model and refinement types}
+\section{Approach and aims}
 
-Veritas consists of four core components:
-\begin{itemize}
-  \item \textbf{The Veritas Language:} a systems language featuring refinement types, loop invariants, and function contracts.
-  \item \textbf{Dependently Typed Assembly Language (DTAL):} a target language based on Xi and Harper's DTAL \cite{Xi2001DTAL} that embeds type states and constraints directly into the instruction stream.
-  \item \textbf{Type-Preserving Compiler Pipeline:} a pipeline that lowers high-level types to a typed SSA (Static Single Assignment) typed intermediate representation to DTAL, preserving the safety invariants that I define in the requirements analysis (Section~\ref{sec:requirements-anal}).
-  \item \textbf{DTAL Verifier:} a tool that checks DTAL programs for compliance with memory safety properties without access to the source code, reducing the trusted computing base to the verifier and its dependencies.
-\end{itemize}
-% The work of Xi and Harper features a \emph{Dependently Typed Assembly Language} (DTAL) \cite{Xi2001DTAL}, designed to be the target for a type-preserving pipeline with low-level verification, in which registers, memory values, and control-flow join points are annotated with types and logical constraints.
+Veritas consists of four core components.
 
-\noindent Figure~\ref{fig:safety-sem-taxonomy} shows some of the aforementioned systems programming toolchains in a taxonomy of executable-level guarantees. The central trust-model claim of Veritas is not that the compiler is correct, but that an untrusted compiler can still produce code whose structural safety is checked independently before execution.
+\keyblock[0pt]{The Veritas Language}{A systems language with refinement types, loop invariants, and function contracts. These annotations give programmers a way to state the source-level safety facts that must survive compilation.}
+
+\keyblock{Dependently Typed Assembly Language}{A target language based on Xi and Harper's DTAL \cite{Xi2001DTAL} that embeds type states and constraints into the instruction stream. DTAL is the low-level artifact checked by the verifier, so it must make the relevant safety evidence explicit.}
+
+\keyblock{Type-preserving compiler pipeline}{A pipeline that lowers source programs through typed SSA (Static Single Assignment) to DTAL while preserving safety invariants. The compiler is not trusted for correctness; its output is accepted only if the verifier can check it.}
+
+\keyblock{DTAL verifier}{A tool that checks DTAL programs without access to the source code. This is the main trust-boundary shift: the final safety decision is made by the verifier rather than by the compiler pipeline.}
+% The work of Xi and Harper features a \textbf{Dependently Typed Assembly Language} (DTAL) \cite{Xi2001DTAL}, designed to be the target for a type-preserving pipeline with low-level verification, in which registers, memory values, and control-flow join points are annotated with types and logical constraints.
+
+\noindent The trust argument above gives two axes for comparing toolchains. Figure~\ref{fig:safety-sem-taxonomy} separates two guarantees that are often conflated: semantic preservation and executable-level memory safety.
 % The compiler is free to optimise, transform, and annotate programs, but the integrity of its output is determined by the verifier, which checks whether the annotations and instructions in the resulting DTAL code are consistent with the intended safety policy.
 
 \begin{figure}[H]
   \centering
-  \resizebox{0.55\textwidth}{!}{
+  \resizebox{0.45\textwidth}{!}{
     \begin{tikzpicture}[
         box/.style={draw, thick, minimum width=4.5cm, minimum height=2.5cm, align=center, font=\sffamily},
         header/.style={font=\sffamily\bfseries, align=center}
@@ -75,14 +88,13 @@ Veritas consists of four core components:
 
 % Veritas focuses on structural guarantees rather than semantic correctness: a program may still compute the wrong result, but it should not violate the required memory and control-flow invariants. To express and discharge these guarantees, Veritas uses refinement types \cite{Rondon2008Liquid}, which decorate ordinary types with logical predicates. For example, a natural number may be typed not just as \texttt{int}, but as $\{v : \mathtt{int} \mid v \ge 0\}$ i.e. a value of type \texttt{int} such that the value is greater than or equal to zero. Programmers provide specifications at key boundaries through type annotations, preconditions, postconditions, and loop invariants, while the compiler discharges the resulting proof obligations using an SMT solver. The preserved specifications in the target code are checked by the verifier at the DTAL level using the same approach. Veritas also synthesises refinements for intermediate arithmetic expressions, allowing the system to preserve precise facts about computed values as they move from source code to assembly.
 
-\section{Aims}
+Together, these components support the core question of the dissertation: whether a small systems-language toolchain can realise the trust model suggested by proof-carrying code, with an untrusted compiler whose low-level output is independently checked before execution. The dissertation evaluates this along two main axes:
 
-The core goal of this project is to investigate whether a small systems-language toolchain can realise the trust model suggested by proof-carrying code: an untrusted compiler whose low-level output is independently checked before execution. The aims can be defined along three main axes:
-\begin{itemize}
-  \item \textbf{Trust architecture:} Veritas should demonstrate that the relevant low-level safety properties of compiled programs can be checked independently at the DTAL level. The design of DTAL for Veritas should be able to express the safety properties in scope. The verifier should also be relatively small in size to reduce the risk of trusting it.
-  \item \textbf{Expressive source language:} the source language should be expressive enough both from a verification perspective as well as from a systems-language perspective, by remaining suitable for realistic imperative and systems-oriented programs.
-  \item \textbf{Practicality:} the overall toolchain should remain usable in practice, by keeping the trusted core substantially smaller than the full compiler and by keeping the additional cost of independent verification acceptable.
-\end{itemize}
+\begin{samepage}
+\keyblock[0pt]{Trust architecture}{Whether the relevant low-level safety properties of compiled programs can be checked independently at the DTAL level, whether DTAL can express the safety properties in scope, and whether the verifier remains small enough to audit without access to the source code or compiler state.}
+
+\keyblock{Expressiveness and practicality}{Whether the source language supports realistic imperative, systems-oriented programs while retaining automatic verification.}
+\end{samepage}
 
 % \noindent The memory-safety and control-flow safety properties covered by verification include: array bounds checking, control-flow/state consistency at joins and branches, function contract checking and loop-invariant preservation. Arithmetic safety properties such as division/modulo safety and integer overflow checking are also supported. While a formal proof of decidability for verification is beyond the scope of this project, the design aims to remain within SMT-friendly logical fragments so that verification succeeds automatically for a broad class of realistic programs. Formally proving the correctness of the verifier is also beyond scope, but its reliability should be supported through extensive testing and program suites.
 
