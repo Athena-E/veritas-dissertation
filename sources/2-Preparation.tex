@@ -4,7 +4,7 @@
 
 \chapter{Preparation}\label{ch:prep}
 
-This chapter establishes the conceptual and technical background for Veritas. It introduces the relevant type-theoretic foundations (Section~\ref{sec:background}) and places Veritas in the context of related work (Section~\ref{sec:related-work}), leading into the design decisions behind Veritas' implementation (Section~\ref{sec:design-decisions}). We then analyse the requirements Veritas should fulfil to achieve the intended trust architecture, and a sufficient level of language expressivity and compiler practicality in a systems-oriented setting (Section~\ref{sec:requirements-anal}), before presenting the software engineering approach (Section~\ref{sec:software-eng-methodology}) and starting point for the project (Section~\ref{sec:starting-point}).
+This chapter gives the background needed to understand the design of Veritas: the type-system machinery used to express safety properties, the related verification systems that informed the design, and the engineering decisions that fix the project's trust boundary. The aim is to establish the theory and design context needed for the implementation that follows.
 
 \section{Background}\label{sec:background}
 
@@ -56,19 +56,20 @@ They are a practical restriction of full dependent types in which a base type is
 Because the predicates are drawn from a decidable theory (typically quantifier-free linear arithmetic), this implication check can be delegated to an SMT solver.
 
 A particularly useful special case is the singleton type, written $\mathtt{int}(n)$, which is inhabited by exactly the integer $n$. Singleton types arise naturally from Xi and Pfenning's work on Dependent ML~\cite{Xi1999DML}, where integer index expressions are used to track array sizes and loop bounds. Singleton types can propagate exact values through arithmetic:
-\begin{verbatim}
-  x : int(3)
-  y : int(5)
-  x + y : int(8)
-\end{verbatim}
-% if $x : \mathtt{int}(3)$ and $y : \mathtt{int}(5)$, then $x + y : \mathtt{int}(8)$. 
+\[
+  \begin{array}{rcl}
+    x     & : & \mathtt{int}(3) \\
+    y     & : & \mathtt{int}(5) \\
+    x + y & : & \mathtt{int}(8)
+  \end{array}
+\]
 This enables compile-time verification of array bounds when indices are statically known.
 
 % TODO: [because of advantages] Veritas' type system extends a simple base type system (integers, booleans, arrays) with refinement types to encode value-dependent invariants.
 
 \subsection{Bidirectional type checking}
 
-Bidirectional type checking~\cite{Pierce2000Local}, structures a type system into two mutually recursive judgements: \textit{checking} and \textit{synthesis}:
+Bidirectional type checking~\cite{Pierce2000Local} structures a type system into two mutually recursive judgements:
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black]
   \textsc{Type checking} takes a context $\Gamma$, program $e$ and type $\tau$ as input and produces a true/false output reflecting whether $e$ is well-typed: $\Gamma \vdash e \leftarrow \tau$. \\
