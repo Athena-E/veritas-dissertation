@@ -390,6 +390,28 @@ The following instructions appear only after register allocation and are verifie
 
 \begin{table}[h]
   \centering
+  \scriptsize
+  \begin{tabular}{p{0.17\textwidth} p{0.17\textwidth} p{0.31\textwidth} p{0.25\textwidth}}
+    \hline
+    \textbf{Kernel} & \textbf{Fixed \texttt{MEDIUM} params} & \textbf{Program / algorithm}                                                       & \textbf{Main features exercised}                                                                     \\
+    \hline
+    Floyd--Warshall & \texttt{N=500}                        & All-pairs shortest paths via dynamic programming over a weighted graph matrix.     & Nested loops, fixed-size 2D arrays, arithmetic updates, regular indexed mutation                     \\
+    Jacobi-1D       & \texttt{N=400}, \texttt{T=100}        & One-dimensional iterative stencil update over an array across repeated time steps. & Structured loop nests, fixed-size arrays, repeated affine indexing, arithmetic recurrence            \\
+    Jacobi-2D       & \texttt{N=250}, \texttt{T=100}        & Two-dimensional iterative stencil computation over a grid.                         & Nested loops, fixed-size 2D arrays, neighbourhood indexing, arithmetic recurrence                    \\
+    Seidel-2D       & \texttt{N=400}, \texttt{T=100}        & In-place two-dimensional smoothing stencil over a grid.                            & Nested loops, in-place array mutation, affine neighbour access, arithmetic accumulation              \\
+    MVT             & \texttt{N=400}                        & Matrix-vector and transposed-matrix-vector multiplication kernel.                  & Fixed-size arrays, matrix/vector indexing, arithmetic accumulation, sequential imperative loops      \\
+    ATAX            & \texttt{M=390}, \texttt{N=410}        & Matrix-transpose-times-vector style kernel with intermediate accumulation.         & Matrix/vector array reasoning, multiple loop phases, arithmetic accumulation, indexed mutation       \\
+    GESUMMV         & \texttt{N=250}                        & Scalar-weighted sum of two matrix-vector products.                                 & Fixed-size arrays, linear-algebra style arithmetic, nested loops, deterministic numeric accumulation \\
+    \hline
+  \end{tabular}
+  \caption{PolyBench-style kernels used in the Veritas evaluation, with their
+    fixed \texttt{MEDIUM}-class parameters, algorithmic role, and the main
+    language/compiler features they exercise.}
+  \label{tab:polybench-kernels}
+\end{table}
+
+\begin{table}[h]
+  \centering
   \small
   \begin{tabular}{p{0.33\textwidth} c c p{0.4\textwidth}}
     \hline

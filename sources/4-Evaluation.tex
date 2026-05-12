@@ -51,31 +51,30 @@ I wrote a suite of 28 programs covering all main program features: arrays, mutab
 \subsection{PolyBench}
 
 % The second suite is the external PolyBench-style kernel suite. 
-PolyBench/C is a widely used benchmark family for evaluating compilers and program-transformation systems on structured numeric kernels, especially in work on loop optimisation, polyhedral compilation, and high-performance array code. Its programs include small kernels with regular control flow, affine array indexing, and deterministic numeric behaviour, making them convenient for both performance and semantic comparison. Unlike the feature suite, whose role is to exercise the particular constructs and proof obligations that Veritas was built to support, the PolyBench-style suite provides a more objective external check on whether the compiler behaves correctly on recognised array- and loop-dominated workloads that are used outside this project.
+PolyBench/C is a widely used benchmark family for evaluating compilers and program-transformation systems on structured numeric kernels, especially in work on loop optimisation, polyhedral compilation, and high-performance array code.
+% Its programs include small kernels with regular control flow, affine array indexing, and deterministic numeric behaviour, making them convenient for both performance and semantic comparison.
+The PolyBench-style suite provides a more objective external check on whether the compiler behaves correctly on recognised array- and loop-dominated workloads that are used outside this project.
+The selected kernels are Floyd--Warshall, Jacobi-1D, Jacobi-2D, Seidel-2D, MVT, ATAX, and GESUMMV. Their fixed \texttt{MEDIUM}-class parameters and features exercised are listed in Appendix~\ref{app:evaluation-supplementary}; they are appropriate for Veritas because they are dominated by fixed-size arrays, structured imperative loops, arithmetic side conditions, and deterministic computation over statically bounded data.
 
-\begin{table}[h]
-  \centering
-  \scriptsize
-  \begin{tabular}{p{0.17\textwidth} p{0.17\textwidth} p{0.31\textwidth} p{0.25\textwidth}}
-    \hline
-    \textbf{Kernel} & \textbf{Fixed \texttt{MEDIUM} params} & \textbf{Program / algorithm}                                                       & \textbf{Main features exercised}                                                                     \\
-    \hline
-    Floyd--Warshall & \texttt{N=500}                        & All-pairs shortest paths via dynamic programming over a weighted graph matrix.     & Nested loops, fixed-size 2D arrays, arithmetic updates, regular indexed mutation                     \\
-    Jacobi-1D       & \texttt{N=400}, \texttt{T=100}        & One-dimensional iterative stencil update over an array across repeated time steps. & Structured loop nests, fixed-size arrays, repeated affine indexing, arithmetic recurrence            \\
-    Jacobi-2D       & \texttt{N=250}, \texttt{T=100}        & Two-dimensional iterative stencil computation over a grid.                         & Nested loops, fixed-size 2D arrays, neighbourhood indexing, arithmetic recurrence                    \\
-    Seidel-2D       & \texttt{N=400}, \texttt{T=100}        & In-place two-dimensional smoothing stencil over a grid.                            & Nested loops, in-place array mutation, affine neighbour access, arithmetic accumulation              \\
-    MVT             & \texttt{N=400}                        & Matrix-vector and transposed-matrix-vector multiplication kernel.                  & Fixed-size arrays, matrix/vector indexing, arithmetic accumulation, sequential imperative loops      \\
-    ATAX            & \texttt{M=390}, \texttt{N=410}        & Matrix-transpose-times-vector style kernel with intermediate accumulation.         & Matrix/vector array reasoning, multiple loop phases, arithmetic accumulation, indexed mutation       \\
-    GESUMMV         & \texttt{N=250}                        & Scalar-weighted sum of two matrix-vector products.                                 & Fixed-size arrays, linear-algebra style arithmetic, nested loops, deterministic numeric accumulation \\
-    \hline
-  \end{tabular}
-  \caption{PolyBench-style kernels used in the Veritas evaluation, with their
-    fixed \texttt{MEDIUM}-class parameters, algorithmic role, and the main
-    language/compiler features they exercise.}
-  \label{tab:polybench-kernels}
-\end{table}
+\subsection{Negative suite}
 
-Table~\ref{tab:polybench-kernels} shows the selected PolyBench kernels for evaluation (instantiated at the standard PolyBench MEDIUM size class). These are appropriate for Veritas given the language and verifier are strongest on the features that dominate such kernels: fixed-size arrays, structured imperative loops, arithmetic side conditions, and deterministic computation over statically bounded data. % requirement to generate efficient native code; removal of array bounds checks
+The \texttt{negative\_suite} contains 35 intentionally invalid Veritas programs. It is used to evaluate source-level rejection across representative failure classes, including type errors, undefined names, invalid calls, array bounds violations, unsatisfied preconditions, invalid quantifier use, invariant failures, division-by-zero risks, and integer overflow or underflow hazards.
+
+\subsection{Verification-stress suite}
+
+The \texttt{verification\_stress\_suite} is a smaller proof-heavy subset of the feature suite. Its purpose is not broad feature coverage, but cost analysis: it collects programs with array initialisation, array assignment, quantifiers, binary search, bubble sort, and sortedness reasoning where source and DTAL proof obligations are expected to be more expensive.
+
+\subsection{Comparison suite}
+
+The \texttt{comparison\_suite} contains six normalised verification tasks implemented in Veritas, Dafny, Liquid Haskell, and Verus: safe division, bounded array access with an offset, array initialisation with a loop invariant, binary search, sorted-head extraction, and overflow-safe midpoint arithmetic. The suite is normalised by verified property rather than by identical data representation, since each language expresses arrays and specifications differently.
+
+\subsection{DTAL tampering corpus}
+
+The DTAL tampering corpus starts from valid compiled DTAL, applies small syntax-preserving mutations, and checks that standalone DTAL verification rejects the result. It is used to test the untrusted-compiler trust boundary directly, with mutations covering structural mismatches, strengthened preconditions, contradictory assertions, bounds failures, arithmetic overflow, ownership violations, mutable aliasing, and entry-state mismatches.
+
+\subsection{Robustness corpus}
+
+The fixed-seed robustness corpus contains generated valid and invalid programs in a small source-language fragment. It is used as engineering robustness evidence, checking deterministic compilation, deterministic failures, crash resistance, and successful DTAL verification for generated valid programs. It is not used as a performance benchmark.
 
 \section{Qualitative analysis}\label{sec:qualitative-analysis}
 
@@ -238,20 +237,15 @@ Table~\ref{tab:verification-safety-properties} shows that Veritas covers the saf
 
 \subsection{Compiler functional correctness}
 
-The project aimed to deliver a compiler that is correct by following standard engineering principles. While the architecture treats the compiler as untrusted, a goal of the project was to show that the Veritas system developed has the potential to be usable as a systems language toolchain in itself. As it is not required that the compiler be formally proved to be semantically correct, the compiler's functional-correctness evaluation for whether it produces executable programs whose behaviour agrees with the intended semantics is empirical and corpus-based.
-
-All 28 programs of the \texttt{feature\_suite} are accepted by the compiler frontend and passes runtime semantic checks. This demonstrates that, within the intended local fragment, the compiler preserves both the proof-relevant structure needed by the trust architecture and the executable behaviour of the compiled programs.
-
-All seven PolyBench kernels pass their defined semantic checks. Correctness was evaluated by deterministic checksum agreement (of the final array or result state of programs) against C baselines.
-
-While these results do not amount to full compiler correctness in the CompCert sense, nor does it imply that every future program in the Veritas fragment will automatically enjoy the same guarantee, it supports a strong suite-bounded claim: for the representative local feature corpus and the committed external kernel corpus, the delivered compiler both preserves verifier-relevant structure and produces binaries whose observed behaviour matches the intended semantics.
+Compiler correctness is evaluated empirically rather than by proof. The 28-program feature suite checks that representative Veritas programs compile and execute successfully, while the seven PolyBench kernels check semantic agreement against C baselines using deterministic checksums. All feature-suite programs and all PolyBench kernels passed their semantic checks. This supports a suite-bounded correctness claim for the implemented compiler, but not a CompCert-style semantic preservation theorem.
 
 \subsection{Compiler and runtime practicality}
 
-Practicality is evaluated at two levels: compilation cost and runtime behaviour of the generated binaries. The curated \texttt{feature\_suite} provides a useful summary of compiler throughput.
-% Table~\ref{tab:feature-compiler-summary} gives the main compiler-side metrics for the cleaned 28-program suite, excluding the independent verifier stage. 
-% The mean source-to-DTAL compilation time is 27.110\,ms, the mean frontend SMT time is 13.097\,ms, and the mean output binary size is 894.4 bytes. The most expensive compile case is the binary search program (\texttt{20\_binary\_search}) at 163.817\,ms. 
-% This is not a claim of production-compiler optimisation quality, but it is enough to show that the implemented toolchain is responsive on the intended corpus rather than prohibitively slow even before broader verification-cost analysis is introduced.
+Practicality is evaluated through compilation cost, runtime behaviour, and emitted artifact size.
+
+\subsubsection{Compiler throughput}
+
+The curated \texttt{feature\_suite} gives a local view of compiler throughput on representative source-language features.
 
 \begin{figure}[h]
   \centering
@@ -262,34 +256,9 @@ Practicality is evaluated at two levels: compilation cost and runtime behaviour 
   \label{fig:feature-suite-compile-cost}
 \end{figure}
 
-% \begin{table}[h]
-%   \centering
-%   \small
-%   \begin{tabular}{l r}
-%     \hline
-%     \textbf{Compiler-side feature-suite metric} & \textbf{Current value}      \\
-%     \hline
-%     Program count                               & 28                          \\
-%     Mean compile time                           & 27.110\,ms                  \\
-%     Mean frontend SMT time                      & 13.097\,ms                  \\
-%     Mean frontend SMT query count               & 9.6                         \\
-%     Mean binary size                            & 894.4 bytes                 \\
-%     Worst compile case                          & \texttt{20\_binary\_search} \\
-%     Worst compile time                          & 163.817\,ms                 \\
-%     \hline
-%   \end{tabular}
-%   \caption{Compiler-side summary of the cleaned feature suite. Independent
-%     DTAL-verifier metrics are omitted here and treated separately later in the
-%     chapter.}
-%   \label{tab:feature-compiler-summary}
-% \end{table}
-
-% Representative per-program compiler-side results are included in the appendix.
 Figure~\ref{fig:feature-suite-compile-cost} makes the dominant cost pattern clear: the binary-search, array-proof, and quantifier-heavy programs are the most expensive to compile, and a significant share of that cost is solver time. Simpler arithmetic- and borrow-oriented cases remain much cheaper. This suggests that compile cost is in part driven by proof obligations, since the most expensive cases are also those with the largest frontend SMT component.
 
-The external PolyBench-style kernels provide a second view of compiler throughput on larger loop- and array-heavy programs.
-Here the compile time is dominated much more by frontend SMT work than in the feature suite. This is because the kernel programs are dense in the forms of reasoning that Veritas discharges through SMT (repeated affine array indexing, nested loop structure, and arithmetic side conditions on statically bounded data), while the feature suite programs are broader in language coverage but less repetitive in proof-obligation structure.
-Figure~\ref{fig:polybench-compile-cost} shows that the fastest of these kernels, Floyd--Warshall, still compiles in under half a second, whereas GESUMMV takes around 7.5\,s, Jacobi-1D around 38\,s, ATAX around 46\,s, and MVT around 84\,s in the current implementation. The most expensive kernels are again dominated by frontend SMT time rather than non-logical compilation work, which suggests that compile-time practicality is driven primarily by solver-heavy proof structure rather than by raw source size alone.
+The PolyBench-style kernels give a second view on larger loop- and array-heavy programs. Figure~\ref{fig:polybench-compile-cost} shows that these kernels are dominated by frontend SMT work, especially in the larger matrix/vector cases. This suggests that compile-time practicality is driven primarily by solver-heavy proof structure rather than by raw source size alone.
 
 \begin{figure}[h]
   \centering
@@ -298,35 +267,9 @@ Figure~\ref{fig:polybench-compile-cost} shows that the fastest of these kernels,
   \label{fig:polybench-compile-cost}
 \end{figure}
 
-% \begin{table}[h]
-%   \centering
-%   \small
-%   \begin{tabular}{l r r}
-%     \hline
-%     \textbf{Kernel}              & \textbf{Compile (ms)} & \textbf{Frontend SMT (ms)} \\
-%     \hline
-%     \texttt{floyd\_warshall\_64} & 315.969               & 15.151                     \\
-%     \texttt{jacobi\_1d\_128\_80} & 6904.686              & 6780.445                   \\
-%     \texttt{jacobi\_2d\_64\_20}  & 502.194               & 93.383                     \\
-%     \texttt{seidel\_2d\_48\_10}  & 876.316               & 125.041                    \\
-%     \texttt{mvt\_96}             & 6643.301              & 6301.495                   \\
-%     \texttt{atax\_96}            & 4521.068              & 3890.807                   \\
-%     \texttt{gesummv\_96}         & 2057.210              & 1609.655                   \\
-%     \hline
-%   \end{tabular}
-%   \caption{Source-to-DTAL compilation cost for the translated PolyBench-style
-%     kernels. These measurements use \texttt{--bench} without explicit physical
-%     verification, so they reflect compiler throughput rather than end-to-end
-%     verifier agreement on the external suite.}
-%   \label{tab:polybench-compile}
-% \end{table}
+\subsubsection{Runtime performance}
 
-Runtime practicality is also evaluated using the PolyBench-style kernel set to assess whether
-% These benchmarks are not the primary evidence for source-language expressiveness or safety, but they are the right place to ask whether 
-compiled verified kernels remain plausible executable programs.
-All included kernels pass semantic validation and runtime performance relative to GCC varies substantially by workload.
-% Figure~\ref{fig:polybench-runtime-absolute} gives absolute runtime view against GCC \texttt{-O3} and the checked C \texttt{-O3} baseline.
-% while Table~\ref{tab:polybench-practicality} summarises the same committed \texttt{MEDIUM}-class suite against GCC \texttt{-O2} for direct comparison with the earlier fixed-baseline discussion.
+Runtime practicality is evaluated using the PolyBench-style kernel set. All included kernels pass semantic validation before timing results are considered.
 
 \begin{figure}[h]
   \centering
@@ -334,13 +277,9 @@ All included kernels pass semantic validation and runtime performance relative t
   \caption{Absolute runtime for the committed \texttt{MEDIUM}-class PolyBench-style suite. The figure compares Veritas against GCC \texttt{-O3} and checked C \texttt{-O3}; all plotted kernels passed checksum-based semantic validation before timing results were accepted.}
   \label{fig:polybench-runtime-absolute}
 \end{figure}
-% Bars show mean wall-clock time over repeated \texttt{hyperfine} runs, with error bars indicating one standard deviation. 
-
 The results in Figure~\ref{fig:polybench-runtime-absolute} show a mixed pattern rather than a uniform slowdown. On the \texttt{MEDIUM}-class PolyBench suite, MVT and GESUMMV are relatively close to the GCC \texttt{-O3} baseline, at roughly 1.55$\times$ and 1.10$\times$ respectively, while Floyd--Warshall, Jacobi-2D, and Seidel-2D are slower by roughly 3.3--5.9$\times$. This shows that runtime performance depends strongly on workload shape rather than following a single fixed overhead pattern.
 
-To test whether the fixed-suite PolyBench results were stable beyond a single committed benchmark size, a follow-up size-sweep experiment was run on the more stable kernels. For each of Floyd--Warshall, Jacobi-2D, Seidel-2D, MVT, and GESUMMV, four problem sizes were measured, each timed for Veritas, GCC \texttt{-O3}, and a checked C \texttt{-O3} baseline, where `checked C' denotes the manually instrumented C program variant with explicit dynamic array-bounds checks in order to provide a baseline for a C program that enforces similar memory safety guarantees as Veritas, which achieves this via static bounds checking.
-% : a smaller point near the lower end of the committed \texttt{MEDIUM} regime, the committed \texttt{MEDIUM} point itself, and two larger follow-up points. 
-% using the same repeated \texttt{hyperfine} methodology as the fixed-suite benchmark.
+To test whether this pattern was stable beyond a single committed benchmark size, a follow-up size sweep was run on Floyd--Warshall, Jacobi-2D, Seidel-2D, MVT, and GESUMMV.
 
 \begin{figure}[h]
   \centering
@@ -349,47 +288,11 @@ To test whether the fixed-suite PolyBench results were stable beyond a single co
   \label{fig:polybench-scaling-absolute}
 \end{figure}
 
-In Figure~\ref{fig:polybench-scaling-absolute}, Floyd--Warshall, Jacobi-2D, and Seidel-2D remain consistently above both C baselines
-throughout the sweep. Among them, Jacobi-2D and Seidel-2D are the most stable qualitatively: their relative separation from GCC remains in a fairly narrow band as the problem size grows, suggesting a persistent overhead on stencil-style 2D kernels rather than a one-off anomaly. Floyd--Warshall also remains slower throughout, but with a noticeably wider spread across sizes, which suggests that its dynamic-programming update pattern is more sensitive to backend code shape and memory behaviour.
+Figure~\ref{fig:polybench-scaling-absolute} confirms that the fixed-size results are broadly stable. The stencil-style kernels remain consistently slower than GCC, while the lighter matrix/vector kernels stay closer to parity. Checked C does not introduce a simple constant penalty because explicit dynamic checks also change code shape, so these results are best read as practicality evidence rather than a pure optimisation comparison.
 
-The lighter matrix/vector kernels remain much closer to the C
-baselines. GESUMMV stays near parity across the sweep and is below GCC
-\texttt{-O3} at the smallest point, while MVT is near or below GCC for the smaller sizes but moves above it at the larger points. This is a useful counterpoint to the stencil kernels: Veritas does not incur one uniform slowdown on all array-heavy programs, and the relative runtime cost depends strongly on the computational pattern being compiled.
+\subsubsection{Binary size}
 
-The experiments show that the checked-C baseline does not behave as a simple constant penalty. For some kernels and sizes it is close to the unchecked GCC baseline, while in others it is modestly slower or occasionally slightly faster. The scaling sweep therefore supports the interpretation that explicit dynamic checks do not produce one uniform overhead, and short-kernel behaviour can be affected by code shape as well as by the checks themselves. The explicit checks also change the generated code shape, which can affect register allocation, scheduling, cache state etc., and on short-running kernels these code-generation differences, together with typical benchmark noise, can outweigh the nominal cost of the added checks.
-
-% These results should be read as supporting practicality evidence rather than as a headline performance claim. First, several kernels are short-running and therefore sensitive to measurement noise. Second, Veritas is not attempting to compete with a mature optimising C toolchain purely on raw runtime. 
-The results of the experiment support the conclusion that the generated code is executable, semantically validated, and often within a small constant factor of compiled C on the tested kernels, while also participating in a verification pipeline that C itself does not provide. In that sense, the results support the claim that Veritas is a plausible research toolchain for verified systems-oriented kernels.
-
-The compiler's output artifacts also matter as part of toolchain evaluation because practicality is not only a question of whether programs run, but also of what kind of binaries the toolchain emits.
-
-Evaluation also considers binary size as a simple proxy for artifact compactness and backend expansion: it shows whether verified programs compile to small standalone executables, whether larger proof-heavy examples cause disproportionate output growth, and how far the current backend is from a mature native compiler in code-density terms.
-% It is therefore a useful supporting metric for the systems-toolchain story, even though in Veritas's current freestanding ELF format it must be interpreted more cautiously than runtime or correctness results.
-
-% \begin{table}[H]
-%   \centering
-%   \small
-%   \begin{tabular}{l r r r r}
-%     \hline
-%     \textbf{Program}           & \textbf{Veritas ELF} & \textbf{Veritas code} & \textbf{GCC -O2 ELF} & \textbf{GCC -O2 \texttt{.text}} \\
-%     \hline
-%     \texttt{simple}            & 631                  & 631                   & 15720                & 265                             \\
-%     \texttt{arrays}            & 811                  & 811                   & 15720                & 265                             \\
-%     \texttt{advanced\_types}   & 770                  & 770                   & 15728                & 265                             \\
-%     \texttt{array\_assignment} & 815                  & 815                   & 15728                & 265                             \\
-%     \texttt{binary\_search}    & 2115                 & 2115                  & 15920                & 441                             \\
-%     \texttt{bubble\_sort}      & 1649                 & 1649                  & 15920                & 441                             \\
-%     \texttt{mutable\_borrow}   & 709                  & 709                   & 15728                & 265                             \\
-%     \texttt{sortedness}        & 805                  & 805                   & 15720                & 265                             \\
-%     \hline
-%   \end{tabular}
-%   \caption{Representative binary-size sample from the full 28-program feature suite. For Veritas, the code-bearing size falls back to total ELF size because the freestanding binaries do not carry a conventional section table.}
-%   \label{tab:binary-size-summary}
-% \end{table}
-
-It should be noted that the total ELF artifacts are not directly comparable in a naive way: Veritas emits very small freestanding binaries, whereas GCC links hosted startup and runtime code, so the GCC ELF column mainly illustrates how much hosted scaffolding dominates those totals. Also, the code-size comparison remains less favourable to Veritas across the completed representative sample: programs compared against a 265-byte GCC \texttt{.text} section typically occupy around 2.7--3.1x that size in Veritas, while the larger algorithmic cases \texttt{binary\_search} and \texttt{bubble\_sort} are around 4.8x and 3.7x larger respectively than GCC's \texttt{.text}. That is consistent with the relative maturity of the backend. The practical result is that Veritas emits compact standalone binaries across the full curated suite, even though its generated code is not yet as dense as GCC's on the directly comparable subset.
-
-Table~\ref{tab:polybench-binary-size-summary} shows that the larger loop-heavy kernels of the PolyBench suite still compile to small freestanding Veritas binaries in absolute terms, typically around 1.4--2.4\,KB. The cross-toolchain comparison between Veritas's code-bearing size and GCC's \texttt{.text} section shows Veritas remains larger across the suite but not by an order of magnitude.
+Binary size is used as a proxy for artifact compactness and backend code density. The comparison is imperfect because Veritas emits freestanding binaries while GCC emits hosted ELF artifacts, so the most meaningful comparison is against GCC's \texttt{.text} section.
 
 \begin{table}[H]
   \centering
@@ -411,29 +314,17 @@ Table~\ref{tab:polybench-binary-size-summary} shows that the larger loop-heavy k
   \label{tab:polybench-binary-size-summary}
 \end{table}
 
+Table~\ref{tab:polybench-binary-size-summary} shows that PolyBench kernels still compile to small freestanding Veritas binaries in absolute terms, typically around 1.4--2.4\,KB. The generated code is consistently larger than GCC's \texttt{.text} section, reflecting the relative immaturity of the backend, but not by an order of magnitude.
+
 \subsection{Verification cost and performance}\label{sec:verification-perf}
 
-This section asks the question of verification cost: how expensive is it to check those properties, where in the pipeline that cost appears, and how Veritas should be compared fairly with source-level verification systems that do not also perform an explicit low-level re-checking stage.
+This section asks how much independent DTAL-level verification costs, where that cost appears, and how Veritas should be compared with source-level verification systems.
 
 \subsubsection{Veritas verification cost breakdown}
 
-The first layer of cost evidence comes from the curated feature suite. These results separate source-to-DTAL compilation cost from the explicit DTAL verification stage. Across the current 28-program suite, mean source-to-DTAL compilation time is 27.110\,ms, mean explicit DTAL verification time is 9.116\,ms, mean frontend SMT time is 13.097\,ms, and mean verifier SMT time is 8.737\,ms. The worst case on both compile and explicit verification cost is \texttt{binary\_search}, at 163.817\,ms and 55.209\,ms respectively.
-For the current supported fragment, the mean explicit verifier cost is materially smaller than the mean frontend source-to-DTAL cost. The extra low-level checking stage is an additional cost, but not one that dominates the overall pipeline uniformly. The most expensive programs are exactly the ones that combine several proof mechanisms at once: binary search is heavy because it mixes loop invariants, symbolic arithmetic, and sortedness-oriented reasoning, while the
-simpler contract and borrow examples remain much cheaper.
+On the 28-program feature suite, mean source-to-DTAL compilation time is 27.110\,ms and mean explicit DTAL verification time is 9.116\,ms. The worst case for both is \texttt{binary\_search}, at 163.817\,ms and 55.209\,ms respectively. The extra low-level checking stage is therefore measurable, but it does not dominate the pipeline uniformly.
 
-The second layer of cost evidence comes from the verification-stress suite, a subset of the feature suite that acts as a proof-oriented stress suite of obligation-heavy programs.
-% , measured using end-to-end \texttt{hyperfine} timings. This is important because the internal \texttt{compile\_ms} and \texttt{verify\_ms} counters do not include all of the user-visible command latency. 
-% Table~\ref{tab:verification-stress-overheads} reports the wall-clock cost of running the compiler with and without explicit DTAL verification.
-
-% \begin{figure}[h]
-%   \centering
-%   \includegraphics[width=\linewidth]{figures/chapter4_verification_stress_overhead.png}
-%   \caption{Stacked wall-clock breakdown for the verification-stress suite. The
-%     lower segment is \texttt{compile\_only}; the upper segment is the added
-%     end-to-end cost of explicit DTAL verification, so the total bar height
-%     matches \texttt{compile\_plus\_verify}.}
-%   \label{fig:verification-stress-overheads}
-% \end{figure}
+The verification-stress suite gives a focused view of obligation-heavy programs.
 
 \begin{table}[h]
   \centering
@@ -455,22 +346,11 @@ The second layer of cost evidence comes from the verification-stress suite, a su
   \label{tab:verification-stress-overheads}
 \end{table}
 
-% Figure~\ref{fig:verification-stress-overheads} and 
-Table~\ref{tab:verification-stress-overheads} show that the cost of the independent verifier is highly program-dependent. \texttt{array\_init} is the clearest outlier, with a 3.521$\times$ overhead ratio, because it generates a particularly obligation-heavy array initialisation pattern.
-% By contrast, \texttt{binary\_search} is already expensive in the frontend, so the extra DTAL re-checking stage adds little relative overhead in end-to-end wall-clock terms. The correct interpretation is therefore not that DTAL verification adds a fixed tax, but that its cost scales with the structure of the proof obligations that survive lowering.
+Table~\ref{tab:verification-stress-overheads} shows that the cost of the independent verifier is highly program-dependent. \texttt{array\_init} is the clearest outlier, with a 3.521$\times$ overhead ratio, because it generates a particularly obligation-heavy array initialisation pattern.
 
 \subsubsection{Cross-system verification-cost comparison}
 
-The comparison suite is designed to support a small empirical contrast with
-Dafny, Liquid Haskell, and Verus on six normalised tasks: safe division,
-bounded array access with an offset, array initialisation with a loop
-invariant, binary search, sorted-head extraction, and overflow-safe midpoint
-arithmetic. Repeated wall-clock timings were collected locally for Veritas in
-both \texttt{compile\_only} and \texttt{compile\_plus\_verify} modes, and for
-Dafny, Liquid Haskell, and Verus using the corresponding source-level
-verification commands.
-
-Figure~\ref{fig:comparison-suite-wallclock} shows the resulting wall-clock times. For Veritas, mean wall-clock time is around 0.038\,s in \texttt{compile\_only} mode and 0.047\,s in \texttt{compile\_plus\_verify} mode when measured over 100 runs with 10 warmups. Dafny averages $\sim$1.016\,s across the same six tasks, Liquid Haskell $\sim$1.227\,s, and Verus $\sim$0.488\,s, with \texttt{binary\_search} again the most expensive case for all systems. Veritas's \texttt{compile\_only} path is much shorter because the same implementation owns parsing, typing, lowering, and SMT discharge for a deliberately small fragment, with no separate general-purpose frontend or proof-oriented standard library layer. Dafny and Liquid Haskell, by contrast, are measured through their normal verification commands, which include the cost of their full source-level verification pipelines: Dafny's Boogie/SMT-based contract checking and Liquid Haskell's GHC-based compilation plus refinement checking plugin. Verus sits between these extremes in the suite: it remains a source-level system, but its executable/spec split and Rust-oriented verification flow produce lower wall-clock times on these particular small tasks.
+Figure~\ref{fig:comparison-suite-wallclock} shows that Veritas is faster on the comparison suite, but the result should be interpreted cautiously because Veritas targets a much smaller language fragment. The important methodological distinction is that Veritas reports both frontend-only and compile-plus-DTAL-verification costs, whereas the other systems primarily report source-level verification cost.
 
 \begin{figure}[h]
   \centering
@@ -483,7 +363,7 @@ Figure~\ref{fig:comparison-suite-wallclock} shows the resulting wall-clock times
   \label{fig:comparison-suite-wallclock}
 \end{figure}
 
-The same six-task suite also gives a small annotation-burden comparison. It is normalised by verified property: Dafny uses heap arrays, Veritas and Verus use fixed-size arrays naturally, and Liquid Haskell uses a more functional representation. Figure~\ref{fig:cross-system-annotation-burden} shows that Veritas is competitive on annotation burden and is particularly light on the loop- and search-heavy tasks.
+The same suite gives a small annotation-burden comparison. Figure~\ref{fig:cross-system-annotation-burden} shows that Veritas is competitive on annotation burden and is particularly light on the loop- and search-heavy tasks.
 
 \begin{figure}[H]
   \centering
@@ -493,137 +373,31 @@ The same six-task suite also gives a small annotation-burden comparison. It is n
   \label{fig:cross-system-annotation-burden}
 \end{figure}
 
-An important distinction is that Veritas incurs two separable verification costs at the source and DTAL level, whereas most related systems primarily incur one.
-% The most important methodological point in this section is that Veritas incurs two separable verification costs, whereas most related systems primarily incur one. A source-level system such as Dafny or Liquid Haskell pays for checking contracts, refinements, and invariants over the source program, and then largely trusts the compiler to preserve those results. Veritas pays that same kind of frontend proof-discharge cost, but can additionally pay for explicit independent DTAL verification after lowering.
-% For that reason, two views of Veritas cost are both legitimate and both necessary. 
-The frontend-only view, approximated by \texttt{compile\_ms} and the frontend SMT metrics, is the fairest comparison point against source-level verification systems. The end-to-end view, measured by \texttt{compile\_plus\_verify} wall-clock timings and \texttt{verify\_ms}, is a more appropriate measure for evaluating the trust architecture.
-% Using only the second view would make Veritas look artificially expensive against systems that are solving a narrower problem; using only the first view would hide the cost of the very mechanism that makes Veritas distinctive.
-% Relative to ordinary frontend verification, Veritas's source-level costs are in the expected range for an SMT-backed verifier on proof-heavy array programs. Relative to its own architectural goals, the additional DTAL-level cost is measurable but manageable
-% , and it buys something the comparison systems do not attempt to provide: a separately checkable low-level artifact that can reject backend mistakes after source-level verification has already succeeded.
-Veritas's extra low-level re-checking stage remains small in this comparison even when measured as an external wall-clock command.
-The other systems report only the source-level verification command because they do not attempt an analogous independently checkable low-level verification stage.
+The frontend-only view is the fairest comparison point against source-level verification systems. The compile-plus-verify view is the relevant measure for Veritas's trust architecture because it includes the extra low-level checking stage that the other systems do not attempt.
 
 \subsection{Verifier functional correctness and reliability}\label{sec:verifier-correctness}
 
-This section evaluates the verifier itself as an independent checking mechanism. The claim is not that the verifier has been proved correct in a formal metatheoretic sense, but that it behaves reliably in practice.
-% across four complementary dimensions: agreement on valid programs, rejection of invalid source programs, rejection of tampered low-level DTAL, and deterministic robustness on a small generated corpus.
+This section evaluates the verifier itself as an independent checking mechanism. The claim is practical reliability, not a formal proof of verifier correctness.
 
 \subsubsection{Verifier agreement on valid programs}
 
-The strongest positive evidence comes from the feature suite. The frontend compiler and the independent physical-DTAL verifier agree on acceptance for all benchmark programs. This agreement is broad across feature categories, including arrays, preconditions, loop invariants, quantifiers, sortedness, shared borrows, mutable borrows, scalar dereferences, and overflow-aware arithmetic. For the supported fragment, the frontend and independent DTAL verifier agree on which valid programs are accepted.
-
-% Table~\ref{tab:verifier-agreement-summary} summarises the current positive agreement evidence.
-
-% \begin{table}[h]
-%   \centering
-%   \small
-%   \begin{tabular}{l r}
-%     \hline
-%     \textbf{Metric}                   & \textbf{Value} \\
-%     \hline
-%     Curated feature-suite size        & 28             \\
-%     Frontend accepted                 & 28             \\
-%     Independent verifier accepted     & 28             \\
-%     Frontend / verifier disagreements & 0              \\
-%     \hline
-%   \end{tabular}
-%   \caption{Verifier agreement on the curated valid-program corpus.}
-%   \label{tab:verifier-agreement-summary}
-% \end{table}
+The frontend compiler and the independent physical-DTAL verifier agree on acceptance for all 28 feature-suite programs. This covers arrays, preconditions, loop invariants, quantifiers, sortedness, shared and mutable borrows, scalar dereferences, and overflow-aware arithmetic.
 
 
 \subsubsection{Rejection of invalid source programs}
 
-The verifier and surrounding pipeline must also reject invalid programs systematically. The curated negative suite provides the complementary source-level rejection corpus. All 35 programs in this suite are rejected, and the suite is grouped by error class as shown in Table~\ref{tab:negative-suite-summary}. The rejection results support the claim that Veritas rejects representative unsafe programs across a broad range of error modes.
-
-% Table~\ref{tab:negative-suite-summary} summarises the current rejection result by class.
-
-% These classes cover the main safety claims made elsewhere in the dissertation:
-% array bounds violations, negative indices, unsatisfied preconditions, invalid
-% quantifier use, invariant establishment and preservation failures,
-% division-by-zero risks, and overflow or underflow hazards. 
+The negative suite provides the complementary source-level rejection evidence. All 35 programs are rejected.
 
 \subsubsection{Rejection of tampered DTAL}
 
-To test the rejection of invalid DTAL directioy, the DTAL tampering
-The most distinctive reliability evidence is the DTAL tampering corpus, since
-it tests the trust boundary directly rather than only the source language. In
-this corpus, a valid curated source program is compiled to DTAL, the baseline
-DTAL is verified successfully, and then a small syntax-preserving mutation is
-applied to the low-level program. The verifier is expected to reject the
-tampered DTAL.
-
-The current corpus contains 14 cases spanning: return-signature mismatches, strengthened preconditions, contradictory assertions, positive and negative out-of-bounds accesses, arithmetic overflow, use-after-drop, ownership duplication, mutable-aliasing violations, and entry state or signature mismatches.
-% Table~\ref{tab:dtal-tampering-summary} summarises these mutation families.
-%
-% \begin{table}[h]
-%   \centering
-%   \small
-%   \begin{tabular}{l r}
-%     \hline
-%     \textbf{Mutation family}          & \textbf{Cases} \\
-%     \hline
-%     Structural / signature mismatches & 3              \\
-%     Contract / assertion failures     & 3              \\
-%     Bounds-check failures             & 4              \\
-%     Ownership / aliasing violations   & 4              \\
-%     Arithmetic overflow tampering     & 1              \\
-%     \hline
-%   \end{tabular}
-%   \caption{Coverage of the DTAL tampering corpus. Some cases exercise more
-%     than one conceptual safety concern, so the grouping is by primary
-%     mutation family.}
-%   \label{tab:dtal-tampering-summary}
-% \end{table}
-% Three short examples make the corpus more concrete. 
-A structural tamper can be as small as changing the declared return type of a function from the valid baseline \texttt{.returns int} to the mutated form \texttt{.returns bool}, which the verifier rejects as a return-type mismatch. A bounds-safety tamper can change an in-bounds index into an invalid one, for example replacing \texttt{mov v4, 0 : int} with \texttt{mov v4, 1 : int(1)} in a one-element shared-borrow dereference example, which turns a proven safe access into a verifier-detected bounds failure. An ownership tamper can replace an ownership-preserving path with an illegal duplicating move, for example inserting \texttt{mov v6, v1 : [int(7); 1]} after a live borrow, which the verifier rejects as an ownership violation.
-% These mutations are intentionally small: the goal is to show that safety-critical backend corruption need not be dramatic to be caught.
-
-% This evidence supports a narrow but important claim. It does not prove that every possible semantic miscompilation is caught, nor that the compiler is correct. 
-This evidence shows that representative low-level corruptions that break the verifier's safety model are rejected even when the original source program was valid.
-% This is exactly the kind of evidence needed for the untrusted-compiler story: safety-critical backend mistakes are not simply trusted away once source-level verification has succeeded.
-
-% \subsection{Robustness evidence}
-%
-% The final layer of reliability evidence comes from the fixed-seed robustness
-% track. This is not a benchmark suite and not a replacement for the curated
-% feature or negative suites. Instead, it asks whether the implementation
-% behaves deterministically and without crashes on a broader range of generated
-% small programs inside a restricted fragment.
-%
-% The current robustness corpus contains 16 generated cases across four families:
-% valid arithmetic programs, valid array programs, invalid type errors, and
-% invalid syntax errors. The accompanying integration test checks three
-% properties:
-% deterministic compilation and DTAL generation for valid programs,
-% successful in-memory and text-DTAL verification for generated valid programs,
-% and deterministic failures with stable diagnostics for generated invalid
-% programs.
-%
-% The current explicit run passes all three properties over the fixed corpus.
-% This does not say much about semantic completeness, but it does provide useful
-% engineering evidence that the implementation is stable under repeated
-% compilation and verification. It also already exposed a real bug during the
-% evaluation work: synthesized refinement names were previously allocated from a
-% global counter that was not reset between compilations, which made repeated
-% compilation of the same source produce drifting generated identifiers. Fixing
-% that issue improved both tool robustness and reproducibility of the DTAL
-% artifacts used elsewhere in the evaluation.
-%
-% Taken together, these four evidence streams support a practical reliability
-% claim for the current implementation. The verifier agrees with the frontend on
-% the supported valid fragment, invalid programs are rejected across a broad
-% range of source-level failure classes, representative tampered low-level
-% artifacts are rejected after compilation, and the implementation behaves
-% deterministically on a fixed generated corpus. That is a substantially
-% stronger trust and reliability story than source-level acceptance alone.
+The DTAL tampering corpus tests the trust boundary directly. All 14 tampered low-level programs are rejected. For example, changing \texttt{.returns int} to \texttt{.returns bool} is rejected as a structural mismatch, while changing an in-bounds singleton index to an out-of-bounds one is rejected as a bounds failure.
 
 \subsection{Trust architecture and trusted computing base}\label{sec:tcb-eval}
 
-This section returns to the dissertation's architectural claim: Veritas should not only verify useful programs, but do so with a smaller and more explicit trust boundary than a source-level-only verification pipeline. The main question here is what remains trusted once independent physical-DTAL verification is in place.
+This section evaluates what remains trusted once independent physical-DTAL verification is in place.
 
 \subsubsection{Trusted computing base analysis}
-In the current design, the frontend, lowering pipeline, register allocator, physical allocation pass, and most backend logic are intentionally untrusted: bugs in those components should be exposed as verification failure. Table~\ref{tab:tcb-summary} separates the measured verifier-side Rust core from the small trusted artifacts that remain below it on the Linux and bare-metal targets.
+Table~\ref{tab:tcb-summary} separates the measured verifier-side Rust core from the small trusted artifacts that remain below it on the Linux and bare-metal targets.
 
 \begin{table}[ht]
   \centering
@@ -648,10 +422,7 @@ In the current design, the frontend, lowering pipeline, register allocator, phys
   \label{tab:tcb-summary}
 \end{table}
 
-The verifier-side Rust core is \num{7864} lines out of \num{42775}, or 18.4\% of the counted Rust implementation.
-While this remains a substantial audit target in absolute terms, it does mean that most of the compiler remains outside the trusted path. The decomposition also shows how I/O changes the trust model. On Linux, adding I/O adds a small trusted runtime blob and its typed interface, while the verifier still re-checks all call sites independently. On the bare-metal target, that runtime layer is largely replaced by DTAL-verified Veritas code, leaving mainly the encoder and the 206-byte bootstrap beneath the verifier.
-
-% This is the main contrast with other trust architectures. Source-level systems such as Dafny, Liquid Haskell, and Verus trust the backend to preserve frontend proofs. A verified compiler such as CompCert instead places a much larger translation algorithm on the trusted path. Veritas takes the middle route: the compiler remains untrusted, while trust is concentrated in an independent low-level checker plus a very small encoding/runtime substrate. For the dissertation's scope, that is the main payoff of the DTAL architecture.
+The verifier-side Rust core is \num{7864} lines out of \num{42775}, or 18.4\% of the counted Rust implementation. This leaves most compiler infrastructure outside the trusted path. The remaining trusted components are the verifier, solver, encoder, and small runtime/bootstrap artifacts.
 
 % \section{Threats to validity and limitations}
 %
