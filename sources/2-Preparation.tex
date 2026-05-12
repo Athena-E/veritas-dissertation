@@ -554,46 +554,6 @@ The requirements of the project were categorised using the MoSCoW method to prio
   \label{tab:moscow-requirements}
 \end{table}
 
-\subsection{Must-have}
-To successfully demonstrate the paradigm of proof-carrying code and independent assembly verification, the system must include:
-\begin{itemize}
-  \item A high-level systems language featuring essential constructs (variables, control flow, functions, arrays).
-  \item A dependent type system supporting refinement types and singleton types to express spatial memory safety invariants.
-  \item A compiler frontend with a bidirectional type checker that delegates proof obligations (e.g., array bounds) to an SMT solver.
-  \item A Dependently Typed Assembly Language (DTAL) target capable of embedding type states and constraint assertions.
-  \item A compiler backend that preserves type information through intermediate representations and outputs verified DTAL.
-  \item A standalone DTAL verifier capable of re-verifying the safety of the generated assembly without access to the original source code.
-  \item Static safety guarantees for the supported core language: type-correct operations, fixed-size array bounds, non-zero division, checked \texttt{i64} overflow, and structurally consistent DTAL control-flow and register states.
-\end{itemize}
-
-\subsection{Should-have}
-To enhance the practical utility and robustness of the toolchain, the project should ideally include:
-\begin{itemize}
-  \item End-to-end executable generation, translating the verified DTAL into native x86-64 machine code and packaging it as a freestanding ELF binary.
-  \item Advanced function contracts, including postconditions (\texttt{ensures}) and quantified specifications (\texttt{forall}, \texttt{exists}).
-  \item A comprehensive automated test suite capable of systematically testing both compilation success for safe programs and targeted rejection of unsafe programs.
-  \item Evaluation evidence that the verifier rejects modified DTAL violating safety obligations, including strengthened preconditions, invalid assertions, bounds failures, arithmetic-safety failures, and entry-state mismatches.
-\end{itemize}
-% TODO: why x86?
-
-\subsection{Could-have}
-Features that would extend the system's capabilities but were not critical to the core proof-of-concept included:
-\begin{itemize}
-  \item Backend compiler optimisations (such as copy propagation and dead code elimination) operating over the typed intermediate representation.
-  \item Extended language semantics, such as structs, generics, and a full ownership model (similar to Rust).
-  \item Safety checks for a scoped reference fragment, including ownership transfer, immutable borrowing, mutable-borrow exclusivity, and typed scalar-reference access.
-  \item An interpreter for executing DTAL programs directly.
-\end{itemize}
-
-\subsection{Won't-have}
-To maintain a manageable scope and clear focus on structural safety, several ambitious extensions were explicitly excluded:
-\begin{itemize}
-  \item A foundational, machine-checked proof of compiler correctness (e.g., via Coq or Isabelle). The project's trust model explicitly treats the compiler as untrusted.
-  \item Verification of concurrency properties, such as data race freedom or deadlock avoidance.
-  \item Verification of information flow control or cryptographic protocols.
-  \item Verification of termination, temporal heap safety for general dynamic allocation, full functional correctness of arbitrary algorithms, or safety of unrestricted external interfaces.
-\end{itemize}
-
 % \section{Evaluation plan}
 %
 % The evaluation aims to assess three dimensions: \textit{correctness}, \textit{overhead} (what is the cost of verification?), and \textit{expressiveness} (what can the type system express, and how large is the trusted computing base?).
@@ -620,22 +580,21 @@ To maintain a manageable scope and clear focus on structural safety, several amb
 
 \subsection{Methodology}
 
-\paragraph{Development process.} Development followed a hybrid approach. Initial planning resembled a waterfall model in which the compiler pipeline modules, source and target language features and specifications were defined. Software development then followed a spiral approach: the pipeline was built end-to-end with minimal features first (integer arithmetic only), then progressively extended with arrays, mutable variables, refinement types, function contracts, and quantifiers. Work items were planned for two-week sprints and I kept track of tasks using a Kanban board on Jira. Each feature was accompanied by test cases in both positive (should compile) and negative (should produce a specific error) categories. The test suite features unit tests for each significant module and integration tests between the components of the pipeline. I also attended thrice weekly standups with other Computer Science students, organised by my Director of Studies, where we gave brief reports on our project status and upcoming work items.
+\paragraph{Development process.} Initial planning resembled a waterfall model for defining compiler pipeline modules, source and target language features and specifications. Software development then followed a spiral approach: the pipeline was built end-to-end to support integer arithmetic, then extended with arrays, mutable variables, refinement types, function contracts, and quantifiers. Work items were planned for two-week sprints managed using Jira. Each feature was accompanied by positive tests that should compile and negative tests that should be rejected with a specific error. I also attended thrice weekly standups with other Computer Science students, organised by my Director of Studies, where we gave reports on project status.
 
-\paragraph{Version control.} Version control was managed using Git, employing a trunk-based development strategy. Features and bug fixes were developed in short-lived branches before being integrated into a central master branch. To maintain code quality and ensure continuous correctness, I set up an automated Continuous Integration (CI) pipeline via GitHub Actions, which triggered on every push to the remote repository.
+\paragraph{Version control.} Version control was managed using Git, following a trunk-based development strategy with short-lived feature branches merged into the main branch. A GitHub Actions CI pipeline ran on each push to ensure continuous correctness.
 
-\paragraph{Code quality and testing.} To maintain clean code and follow common practices, I set up the CI pipeline to enforce formatting and linting standards (using the \texttt{cargo fmt} and \texttt{cargo clippy} tools). It also validated the suite of example programs, and executed the test suite across both Ubuntu Linux and macOS environments; this covers two primary platforms on which systems programming toolchains are used in practice and ensures the compiler and verifier implementations remain portable and correct across OS environments, libc implementations (relevant to the C-based implementation of Z3), and toolchain versions. Testing was done against both stable and nightly Rust toolchains; stable ensures the project builds with the version most users would have, while nightly provides early warning of upcoming compiler changes or deprecations, and is necessary if any features behind features gates are used.
-% TODO: unit/integration tests
+\paragraph{Code quality and testing.} To maintain clean code, the CI pipeline enforced formatting and linting standards using the \texttt{cargo fmt} and \texttt{cargo clippy} tools. It also validated the suite of example programs, and executed the test suite across both Ubuntu Linux and macOS environments; this gave coverage across the main systems development platforms and different Z3/libc environments. The test suite features unit tests for each significant module and integration tests between the components of the pipeline.
+% TODO: unit/integration test coverage (stats)
 
-\paragraph{Documentation.} I kept module-level documentation by using Rust inner documentation comments such that crate documentation could be generated for Veritas using \texttt{cargo doc --open}.
-
+\paragraph{Documentation.} I wrote module-level Rust doc comments and generated crate documentation using \texttt{cargo doc --open}.
 
 \subsection{Tools and Technologies}
-The project was implemented in Rust, chosen for its strong type system, pattern matching, and memory safety guarantees without garbage collection. Aspects of its language design and safety features were also inspiration for some of the features I would later come to implement in Veritas, such as the borrowing and ownership model.
+The project was implemented in Rust, chosen for its type system, pattern matching, and memory safety without garbage collection. Rust's ownership model also influenced the later borrow-oriented parts of Veritas.
 
-The Z3 SMT solver was accessed via the \texttt{z3} Rust crate, which provided high-quality, idiomatic Rust bindings, compared to potential alternatives like CVC5 that have less mature Rust ecosystem support. In Veritas, Z3 forms part of the TCB; it is important to minimise the risk introduced by this trust---using an obscure solver would weaken this argument. Another prominent reason for using Z3 is that it natively supports the theories featured in Veritas (Section~\ref{sec:smt-based-ver}).
+The frontend type checker and DTAL verifier use Z3 via the \texttt{z3} Rust crate, which provided high-quality, idiomatic Rust bindings. In Veritas, Z3 forms part of the TCB; it is important to minimise the risk introduced by this trust---using an obscure solver would weaken this argument. Z3 also natively supports the theories featured in Veritas (Section~\ref{sec:smt-based-ver}).
 
-Another noteworthy crate used to develop the Veritas compiler was the \texttt{im} crate, which provides persistent (immutable) data structures for the typing context, enabling $O(\log n)$ cloning at control-flow branches. This is important for the functional-style context threading used in bidirectional type checking e.g., where each branch of an \textbf{if-else} receives its own copy of the context.
+Another noteworthy crate used was the \texttt{im} crate, which provides persistent (immutable) data structures for the typing context, enabling $O(\log n)$ cloning at control-flow branches. This is important for the functional-style context threading used in bidirectional type checking, where each branch of an \textbf{if-else} receives its own copy of the context.
 
 Table~\ref{tab:veritas-crates} lists all the external Rust crates used in the Veritas implementation.
 
@@ -661,4 +620,4 @@ Table~\ref{tab:veritas-crates} lists all the external Rust crates used in the Ve
 
 \section{Starting point}\label{sec:starting-point}
 
-I had introductory knowledge of dependent type theory (DTT) and proof assistant and verification languages, and was introduced to refinement types via Xi and Harper's DTAL. No external code was used for the compiler or verifier. To successfully complete the project, I had to gain proficiency in several new tools, algorithms and theories: the Rust programming language, typechecking and proof assertion via SMT, Z3 theories, x86-64 machine code encoding, and bidirectional type checking. Key resources included the papers from Xi et al. on DML, Xanadu, and DTAL as well as other existing systems and their theories.
+I began with introductory knowledge of dependent type theory and verification languages, and was introduced to refinement types through Xi and Harper's DTAL. No external compiler or verifier code was used. The main new areas with steeper learning curves included programming with Rust, SMT-backed type-checking, Z3 theories, x86-64 encoding, bidirectional type checking, and typed assembly. The Type Theory and Optimising Compilers courses from Part II of the Computer Science Tripos provided useful foundations.
