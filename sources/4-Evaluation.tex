@@ -151,16 +151,12 @@ This makes DTAL less elegant than the idealised presentation, but it moves more 
 
 \subsection{Veritas as a systems-language toolchain}\label{sec:veritas-sys-eval}
 
-This section evaluates Veritas from the angle of a systems language toolchain. A core goal of the project was to apply the defined trust architecture in a systems-oriented context in order to address the challenges of upholding memory safety properties. This adds new requirements and expectations beyond those for independent low-level verification; systems languages commonly support imperative control flow, mutable state, pointers/references, and predictable data representation, while their compilers generate efficient native code and preserve the intended resource and safety behaviour of programs through the backend. While Veritas is currently far less mature than widely-used systems toolchains in language breadth, tooling, and ecosystem, the evaluation focuses on whether within the intended fragment, Veritas behaves like a plausible and pragmatic systems-language design which could be built on further.
-
-% The previous section evaluated DTAL as a mechanism that supports the trust architecture. This section evaluates Veritas from the angle of a systems-language toolchain that happens to incorporate verification, rather than as a verification system that happens to emit code. This distinction matters because the project claims more than source-level proof automation. It claims to provide a small systems-oriented language that can compile to executable programs, support structured numeric kernels, and preserve safety relevant information through the backend. The evaluation therefore considers language-level systems features, compiler functional correctness, and the practical behaviour of the generated code.
+This subsection evaluates whether Veritas has enough systems-language structure to make the later compiler and runtime measurements meaningful. The comparison is deliberately scoped: Veritas is not a mature C/Rust competitor, but it should support enough low-level imperative programming to justify evaluation as a small verified systems-language toolchain.
 
 \subsubsection{Systems-language feature comparison}
 
 Compared with C and Rust, Veritas currently occupies an intermediate position. Like both languages, it supports first-order functions, mutable local state, fixed-size arrays, explicit integer reasoning, loop-based imperative control flow, and compilation to native code. Like Rust, it also has an ownership- and borrow-aware safety story rather than relying purely on unrestricted memory
 manipulation. Unlike both, however, its design is centred around carrying verification-relevant information through the compilation pipeline. This makes Veritas less general-purpose than C or Rust as a production systems language, but also gives it a stronger explicit safety and trust architecture within its supported fragment.
-
-% Table~\ref{tab:systems-language-comparison} summarises this position at a high level.
 
 \begin{table}[h]
   \centering
@@ -192,38 +188,21 @@ manipulation. Unlike both, however, its design is centred around carrying verifi
   \label{tab:systems-language-comparison}
 \end{table}
 
-The systems-language features that Veritas does share are enough to make Veritas viable for the kind of low-level kernels and array-oriented routines used throughout the evaluation.
-% and they distinguish it from source-only verification languages that do not aim to act as executable systems toolchains. 
-Features that are missing or only partial relative to C and Rust do limit its current generality as a systems language. The lack of a full heap allocation model, unrestricted pointers, rich user-defined data structures, concurrency support, and a substantial interoperability ecosystem means that Veritas is not yet suitable for broad systems programming in the way C and Rust are. Within a narrower fragment centered on structured imperative code with strong safety tracking, it does exhibit recognisably systems-language behaviour while offering a more explicit verification and trust model than conventional toolchains.
+The table shows that Veritas supports the core features needed for the evaluated kernels: mutation, loops, fixed-size arrays, native-code generation, and an ownership-aware safety story. Its main gaps are also clear: no general heap model, no unrestricted pointers, no mature module ecosystem, and no concurrency story. The rest of the evaluation should therefore be read as evidence for a scoped systems-language fragment rather than for a production systems language.
 
 \subsection{Source language expressiveness for verification}\label{sec:source-lang-eval}
 
-This section focuses on the source language as a verification-oriented language. It evaluates what kinds of properties it can express in practice, how that compares with related verification languages, and why the source-level expressiveness story is different in Veritas because the resulting proof-relevant information is preserved into DTAL rather than erased after frontend checking.
+This subsection evaluates Veritas as a verification-oriented source language: what properties it can express, how that compares with related languages, and where the current fragment stops.
 
 \subsubsection{Properties expressible in Veritas}
 
-Within the supported fragment, Veritas can express a substantial set of the properties typically expected from an SMT-backed verification language. In particular:
-preconditions and postconditions, loop invariants, bounded quantified properties, array-bounds and arithmetic safety conditions, sortedness-style functional properties, and ownership-oriented borrowing constraints.
+Within the supported fragment, Veritas can express the properties central to this project: preconditions and postconditions, loop invariants, bounded quantified properties, array-bounds and arithmetic safety conditions, sortedness-style functional properties, and ownership-oriented borrowing constraints.
 
-% \begin{itemize}
-%   \item \textbf{Preconditions and postconditions}: these allow scalar and array-level contracts to be stated directly in function interfaces, so that arithmetic side conditions and call-site obligations become part of the source program. This is visible in \texttt{safe\_division}, where a non-zero precondition justifies division statically.
-%   \item \textbf{Loop invariants}: these allow evolving mutable state to be described across iterations rather than only at function boundaries. This is exercised in \texttt{loop\_invariant} and \texttt{array\_loop\_invariant}, where the correctness of iterative updates depends on preserved inductive facts.
-%   \item \textbf{Bounded quantified properties}: these allow array-wide structure to be stated compactly instead of as a collection of local assertions. This is visible in \texttt{quantifier\_showcase} and \texttt{sortedness}, where bounded quantification expresses global ordering and elementwise constraints.
-%   \item \textbf{Array-bounds and arithmetic-safety conditions}: these allow the language to express the conditions under which indexing and arithmetic remain safe. In \texttt{binary\_search}, sortedness assumptions, symbolic arithmetic, and array access constraints are combined in a single algorithmic example rather than in an isolated toy proof.
-%   \item \textbf{Sortedness-style functional properties}: these allow functional correctness claims over structured array content to be expressed in a lightweight way. This appears in \texttt{binary\_search}, \texttt{bubble\_sort}, and \texttt{sortedness}, where ordering properties drive both correctness and safety reasoning.
-%   \item \textbf{Ownership-oriented borrowing constraints}: these allow shared and exclusive access discipline to be expressed as part of ordinary imperative programming. This is exercised in \texttt{shared\_borrow}, \texttt{mutable\_borrow}, and \texttt{mutable\_scalar\_borrow\_call}, where borrowing rules constrain mutation and aliasing directly.
-% \end{itemize}
-
-Veritas does not yet have the full expressiveness of a mature verification ecosystem.
-% In particular, the currently supported fragment is much stronger on fixed-size arrays, local mutation, contracts, and lexical borrowing than on general heap structure verification, user-defined data structures, or concurrency. 
-But for the intended dissertation scope, it is expressive enough to support a non-trivial suite of array-heavy and proof-heavy programs.
+This is sufficient for the dissertation's array-heavy and proof-heavy examples, but not for the full range of properties supported by mature verification ecosystems.
 
 \subsubsection{Comparison with verification-oriented languages}
 
-The most appropriate comparison points are Dafny, Liquid Haskell, Verus, and ATS. Dafny is the closest imperative SMT-backed verifier, Liquid Haskell is the closest refinement-type automation baseline, Verus is the most relevant modern systems-language verification comparison, and ATS is the clearest historical predecessor for Veritas's broader goals.
-% The key comparison is not whether these languages all have ``verification features'' in the abstract, but which safety properties and constraint classes they support naturally, and whether those guarantees remain source-level only or survive into a separately checkable low-level artifact.
-
-% Table~\ref{tab:verification-safety-properties} summarises that comparison. A broader language-feature matrix is included in the appendix.
+The comparison points are Dafny, Liquid Haskell, Verus, and ATS: respectively, an imperative SMT-backed verifier, a refinement-type baseline, a Rust-oriented systems verifier, and a historical dependent-systems-language predecessor.
 
 \begin{table}[h]
   \centering
@@ -253,100 +232,7 @@ The most appropriate comparison points are Dafny, Liquid Haskell, Verus, and ATS
   \label{tab:verification-safety-properties}
 \end{table}
 
-% This table sharpens the design-space comparison. At the source level, Veritas is in a strong family rather than a unique one: 
-
-Table~\ref{tab:verification-safety-properties} makes the current limits of Veritas clearer: the implemented fragment is strong on array-heavy safety properties, arithmetic side conditions, contracts, and borrow-aware reasoning, but weak on heap-shaped invariants, recursive proof patterns, concurrency properties, and more protocol-oriented ghost-state verification. Where Veritas starts to diverge is in its ability to preserve the checked constraints in the fragments it does support below the source language.
-
-% Small matched examples make these stylistic differences clearer. The
-% \texttt{safe\_division} task from the comparison suite is expressed in Veritas with a refinement-style argument type:
-%
-% \begin{quote}
-%   \begin{verbatim}
-% fn safe_divide(a: int, b: {v: int | v != 0}) -> int {
-%     a / b
-% }
-%   \end{verbatim}
-% \end{quote}
-%
-% Dafny phrases the same property as an imperative contract:
-%
-% \begin{quote}
-%   \begin{verbatim}
-% method SafeDivide(a: int, b: int) returns (q: int)
-%   requires b != 0
-%   ensures q == a / b
-% {
-%   q := a / b;
-% }
-%   \end{verbatim}
-% \end{quote}
-%
-% Verus uses Rust-flavoured contracts:
-%
-% \begin{quote}
-%   \begin{verbatim}
-% fn safe_divide(a: int, b: int) -> (q: int)
-%     requires b != 0,
-%     ensures q == a / b,
-% {
-%     a / b
-% }
-%   \end{verbatim}
-% \end{quote}
-%
-% ATS is stylistically different again, making the proof obligation an explicit
-% part of the function interface:
-%
-% \begin{quote}
-%   \begin{verbatim}
-% fun safe_divide
-%   {b:int | b != 0}
-%   (a: int, b: int b): int = a / b
-%   \end{verbatim}
-% \end{quote}
-
-% These examples are enough to show the main stylistic split. Veritas, Dafny, Liquid Haskell, and Verus all rely heavily on SMT-backed discharge once the relevant specifications are present, though they package those specifications differently. ATS is closer to a proof-oriented static programming discipline in which rich types are central but the automation story is less solver-driven.
-
-The cross-system comparison suite contains six normalised tasks: preconditioned safe division, bounded array access with an offset, array initialisation with a loop invariant, binary search over a sorted collection, returning the head of a sorted array, and overflow-safe midpoint arithmetic. The suite is normalised by verified property: Dafny uses heap arrays, Veritas and Verus use fixed-size arrays naturally, and Liquid Haskell uses a more functional representation. Within this small suite, Figure~\ref{fig:cross-system-annotation-burden} shows Veritas is competitive on annotation burden and is particularly light on the loop- and search-heavy tasks.
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\linewidth]{figures/chapter4_annotation_burden.png}
-  \caption{Annotation-to-code ratios across the normalised six-task
-    cross-system comparison suite.}
-  \label{fig:cross-system-annotation-burden}
-\end{figure}
-
-% This means the expressiveness comparison should not be read as a simple league table. Veritas is not more expressive overall than Verus or F*, nor does it match the ecosystem maturity of Dafny or Liquid Haskell. Its distinctive point in the design space is narrower: it supports a useful SMT-verifiable imperative fragment with contracts, arrays, invariants, quantifiers, and borrow-aware reasoning, while also preserving enough of that information for low-level re-checking.
-
-% \subsection{Source-level verification versus DTAL-level verification}
-%
-% This last point is the most important distinction between Veritas and the
-% other verification-oriented languages considered here. Dafny, Liquid Haskell,
-% and Verus all perform their main verification work at the source level. Once a
-% program has passed the frontend verifier, the generated low-level artifact is
-% typically trusted to preserve the proved properties, modulo the trust placed in
-% the compiler and backend. Veritas, by contrast, is designed so that the
-% frontend does not have the last word: contracts, symbolic arithmetic facts,
-% bounds obligations, ownership operations, and block-entry states are preserved
-% into DTAL and re-checked there by an independent verifier.
-%
-% This difference is not only architectural; it changes the interpretation of
-% the language's expressiveness. In most source-level verification systems, a
-% feature such as a loop invariant or array-bounds proof is an input to the
-% frontend verifier and then largely disappears from the compiled artifact. In
-% Veritas, the same proof obligation survives in a lower-level form that can
-% still fail if the compiler backend mishandles it. This is why the feature
-% suite and the DTAL tampering corpus belong to the same overall story: the
-% source language is expressive enough to specify interesting safety properties,
-% and the DTAL layer is expressive enough to preserve and independently re-check
-% them after lowering.
-%
-% For the dissertation's design-space argument, this is the key result. Veritas
-% is not simply another refinement-typing frontend, nor simply another typed
-% assembly experiment. Its source-language expressiveness matters precisely
-% because it is carried below the source level into an independently verifiable
-% low-level representation.
+Table~\ref{tab:verification-safety-properties} shows that Veritas covers the safety properties central to this project: bounds, arithmetic side conditions, contracts, loop invariants, quantifiers, sortedness-style properties, and ownership/aliasing constraints. It is weaker on heap-shaped invariants, recursive proof patterns, concurrency, and ghost-state-heavy protocols. Its distinctive contribution is therefore not maximum source-language expressiveness, but preservation of a useful verification fragment into independently checkable DTAL.
 
 \section{Quantitative analysis}\label{sec:quantitative-analysis}
 
@@ -369,8 +255,10 @@ Practicality is evaluated at two levels: compilation cost and runtime behaviour 
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.8\textwidth]{figures/chapter4_feature_suite_compile_cost.png}
-  \caption{Compile-cost structure across the curated feature suite.}
+  \includegraphics[width=0.8\textwidth]{figures/chapter4_feature_suite_compile_cost_subset.png}
+  \caption{Compile-cost structure for a representative subset of the curated
+    feature suite. The complete feature-suite graph is included in
+    Appendix~\ref{app:evaluation-supplementary}.}
   \label{fig:feature-suite-compile-cost}
 \end{figure}
 
@@ -593,6 +481,16 @@ Figure~\ref{fig:comparison-suite-wallclock} shows the resulting wall-clock times
     warmups; the external-system results use the corresponding repeated local
     verification-command measurements.}
   \label{fig:comparison-suite-wallclock}
+\end{figure}
+
+The same six-task suite also gives a small annotation-burden comparison. It is normalised by verified property: Dafny uses heap arrays, Veritas and Verus use fixed-size arrays naturally, and Liquid Haskell uses a more functional representation. Figure~\ref{fig:cross-system-annotation-burden} shows that Veritas is competitive on annotation burden and is particularly light on the loop- and search-heavy tasks.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figures/chapter4_annotation_burden.png}
+  \caption{Annotation-to-code ratios across the normalised six-task
+    cross-system comparison suite.}
+  \label{fig:cross-system-annotation-burden}
 \end{figure}
 
 An important distinction is that Veritas incurs two separable verification costs at the source and DTAL level, whereas most related systems primarily incur one.
