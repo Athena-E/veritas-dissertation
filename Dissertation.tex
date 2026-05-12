@@ -41,6 +41,22 @@
   {\normalfont\Large\scshape}}
 \makeatother
 
+\makeatletter
+\renewcommand\subsection{\@startsection
+  {subsection}{2}{0pt}
+  {0.4\baselineskip}   % space before
+  {0.2\baselineskip}   % space after
+  {\normalfont\large\scshape}}
+\makeatother
+
+\makeatletter
+\renewcommand\paragraph{\@startsection
+  {paragraph}{4}{0pt}
+  {0.5ex}      % space before
+  {-1em}       % negative => run-in heading
+  {\normalfont\scshape}}
+\makeatother
+
 \usepackage{tcolorbox}
 \usepackage{docmute}
 
