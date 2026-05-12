@@ -464,8 +464,9 @@ The choice of x86-64 as the target architecture was pragmatic: the development m
 
 \subsection{Verification via SMT}
 
-I designed the Veritas constraint system such that frontend type checking and low-level verification could be delegated to an SMT solver.
-The safety obligations Veritas supports are naturally expressed as arithmetic and logical implications over program values and SMT-solving provides an automated way to discharge these obligations without requiring manual proofs for routine constraints. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. I chose it for its maturity and reliability, having won numerous SMT-COMP competitions \cite{Barrett2013SMTCOMP}.
+I designed the Veritas constraint system such that frontend type checking and low-level verification could be delegated to an SMT solver. The safety obligations Veritas supports are naturally expressed as arithmetic and logical implications over program values and SMT-solving provides an automated way to discharge these obligations without requiring manual proofs for routine constraints.
+
+The SMT solver forms part of the TCB; it is important to minimise the risk introduced by this trust---using an obscure solver would weaken this argument. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. I chose it for its maturity and reliability, having won numerous SMT-COMP competitions \cite{Barrett2013SMTCOMP}. Z3 also natively supports the theories featured in Veritas (Section~\ref{sec:smt-based-ver}).
 
 % TODO: 
 % For quantified specifications such as $\forall i \in [0, n).\; \mathit{arr}[i] \ge 0$, the translation uses Z3's built-in quantifier support: $\forall i.\; (0 \le i \wedge i < n) \Rightarrow \mathit{arr}[i] \ge 0$, where the array is represented as a Z3 array sort. Existential quantifiers are handled dually, asserting $\exists i.\; (a \le i \wedge i < b) \wedge P$. While quantified formulae move outside the decidable fragment of LIA, Z3's E-matching and model-based quantifier instantiation heuristics handle the bounded quantifiers that arise in practice effectively.
@@ -591,10 +592,6 @@ The requirements of the project were categorised using the MoSCoW method to prio
 
 \subsection{Tools and Technologies}
 The project was implemented in Rust, chosen for its type system, pattern matching, and memory safety without garbage collection. Rust's ownership model also influenced the later borrow-oriented parts of Veritas.
-
-The frontend type checker and DTAL verifier use Z3 via the \texttt{z3} Rust crate, which provided high-quality, idiomatic Rust bindings. In Veritas, Z3 forms part of the TCB; it is important to minimise the risk introduced by this trust---using an obscure solver would weaken this argument. Z3 also natively supports the theories featured in Veritas (Section~\ref{sec:smt-based-ver}).
-
-Another noteworthy crate used was the \texttt{im} crate, which provides persistent (immutable) data structures for the typing context, enabling $O(\log n)$ cloning at control-flow branches. This is important for the functional-style context threading used in bidirectional type checking, where each branch of an \textbf{if-else} receives its own copy of the context.
 
 Table~\ref{tab:veritas-crates} lists all the external Rust crates used in the Veritas implementation.
 

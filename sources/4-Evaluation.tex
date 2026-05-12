@@ -116,7 +116,7 @@ Veritas also extends DTAL in directions not targeted by Xi and Harper. First, so
   \begin{verbatim}
 div v2, v0, v1    : {_synth_0: int | _synth_0 == (a / b) }
 load v10, [v1 + v9]    : int(7)
-  \end{verbatim}
+\end{verbatim}
 \end{quote}
 These obligations are not trusted as compiler-issued certificates; they are re-checked by the verifier against the emitted low-level code. This provides broader source-to-low-level continuity for the fragment Veritas supports, including bounds facts, contract-style obligations, and borrow-related safety constraints. Carrying more annotations gives an untrusted compiler more ways to emit inconsistent DTAL, but this increases the risk of false rejection rather than false acceptance.
 
@@ -127,7 +127,7 @@ Second, Veritas adds explicit ownership and borrow-aware operations. This pushes
 alias_borrow v3, v1    : &[int(7); 1]
 load v5, [v3 + v4]     : int
 borrow_end v3          : &[int(7); 1]
-  \end{verbatim}
+\end{verbatim}
 \end{quote}
 
 Here, \texttt{alias\_borrow} creates the shared borrowed view \texttt{v3}, the \texttt{load} uses that view, and \texttt{borrow\_end} terminates it. The verifier checks that the access occurs through a live borrow and that the borrow is ended consistently with the source-language ownership discipline.

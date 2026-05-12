@@ -1,7 +1,6 @@
 \chapter{Implementation}\label{ch:impl}
-%
-This chapter describes the implementation of the Veritas toolchain: a type-preserving compiler, an independent DTAL verifier, a compact runtime, and a bare-metal unikernel target. The chapter begins with a repository overview (Section~\ref{sec:repo-overview}). It then presents the formal definitions of the source language (Section~\ref{sec:source-language}) and DTAL target language~\ref{sec:dtal-target-lang}, then the compilation pipeline (Sections~\ref{sec:frontend}--\ref{sec:backend}), the verifier (Section~\ref{sec:verifier}), and the runtime and bare-metal components (Sections~\ref{sec:runtime}--\ref{sec:unikernel}). Finally, Section~\ref{sec:worked-example} traces a binary search program through the full pipeline as a worked example. 
-%
+
+This chapter describes the implementation of the Veritas toolchain. It presents the implementation of the core components---the source and target DTAL language, a type-preserving compiler, and an independent DTAL verifier---and the extensions made to them. It also presents the major extensions implemented: a borrowing and ownership model, region-backed array allocation, a compact runtime, and a bare-metal unikernel target. The chapter concludes by tracing a binary search program through the full pipeline as a worked example. 
 
 \section{Repository overview}\label{sec:repo-overview}
 %
@@ -103,7 +102,7 @@ Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named repres
       \texttt{Source} $\xrightarrow{\text{lex}}$ \texttt{Tokens} $\xrightarrow{\text{parse}}$ \texttt{AST} $\xrightarrow{\text{typecheck}}$ \texttt{\textcolor{blue}{TAST}} $\xrightarrow{\text{lower}}$ \texttt{\textcolor{blue}{TIR}} $\xrightarrow{\text{codegen}}$ \texttt{\textcolor{blue}{DTAL}} $\xrightarrow{\text{optimise}}$ \texttt{\textcolor{blue}{DTAL}} $\xrightarrow{\text{regalloc}}$ \texttt{\textcolor{blue}{DTAL}} $\xrightarrow{\text{encode}}$ \texttt{x86-64} $\xrightarrow{\text{encode}}$ \texttt{ELF}
     \end{center}
   \end{tcolorbox}
-  \caption{The Veritas compilation pipeline. Representations carrying checked type annotations are highlighted in blue.}
+  \caption{The Veritas compilation pipeline. Representations carrying checked type annotations are in blue.}
   \label{fig:pipeline}
 \end{figure}
 %
@@ -118,7 +117,7 @@ The abstract syntax of Veritas is defined by the grammar in Figure~\ref{fig:veri
 % consider moving before rules
 The metavariables used in the grammar are as follows: $n$ ranges over integer literals; $x$, $f$ range over identifiers (variables and function names); $N$ ranges over integer expressions that must reduce to a statically known constant (used for array sizes and singleton types). $P$ is the specification language used in refinement predicates, function contracts, and loop invariants, and additionally provides bounded quantifiers. A block $B$ is a sequence of zero or more statements followed by an optional trailing expression. If a block has a trailing expression, its value is the block's result; otherwise, its result is unit. Grey text denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
 
-\begin{figure}[h]
+\begin{figure}[H]
 {\small
 \[
 \renewcommand{\arraystretch}{1.09}
@@ -193,12 +192,7 @@ The typing context is a tuple $(\phi, \Gamma, \Delta, \Sigma_F)$:
 
 \subsubsection{Master types}
 
-The master type $\tau_m$ is set at declaration and never changes; the current type $\tau_c$ may be refined through control flow but must remain a subtype of $\tau_m$. 
-
-% Mutable variables present a challenge for refinement types: an assignment \texttt{x = e} changes the value of \texttt{x}, potentially invalidating refinements that mention it. Veritas addresses this with \textit{master types}. 
-To demonstrate: when a mutable variable is declared as \texttt{let mut x: T = e}, the type $T$ is recorded as the variable's master type $T_m$. The variable's \textit{current type} $T_c$ may be narrowed through assignments and control flow (e.g., after \texttt{if x > 0}, the current type narrows to $\{v\!:\!\mathtt{int} \mid v > 0\}$), but every assignment must satisfy $\tau_e <: T_m$. At control-flow joins, current types from each branch are merged using the join operation, but the result must remain a subtype of the master type. This prevents the invalidation of refinements if \texttt{x} is reassigned.
-
-The interaction between master types and mutable variables is described in Section~\ref{sec:typechecker}.
+The master type $\tau_m$ is set at declaration and never changes; the current type $\tau_c$ may be refined through control flow but must remain a subtype of $\tau_m$. To demonstrate: when a mutable variable is declared as \texttt{let mut x:T = e}, the type $T$ is recorded as the variable's master type $T_m$. The variable's \textit{current type} $T_c$ may be narrowed through assignments and control flow (e.g., after \texttt{if x > 0}, the current type narrows to $\{v\!:\!\mathtt{int} \mid v > 0\}$), but every assignment must satisfy $\tau_e <: T_m$. At control-flow joins, current types from each branch are merged using the join operation, but the result must remain a subtype of the master type. This prevents the invalidation of refinements if \texttt{x} is reassigned. The interaction between master types and mutable variables is described in Section~\ref{sec:typechecker}.
 
 \subsection{Context joining}\label{sec:context-joining}
 
@@ -530,7 +524,7 @@ The type checker is the most substantial frontend component. It implements the b
 
 \subsubsection{Architecture}
 
-The type checker is structured around the \texttt{TypingContext} $(\phi, \Gamma, \Delta, \Sigma_F)$ defined in Section~\ref{sec:typing-contexts}. Contexts are immutable values as opposed to shared global state where each judgement takes a context as input and returns an updated context as output. This design is made practical by the \texttt{im} crate, which provides persistent (structurally shared) data structures: cloning a context at a control-flow branch is $O(\log n)$ rather than $O(n)$.
+The type checker is structured around the \texttt{TypingContext} $(\phi, \Gamma, \Delta, \Sigma_F)$ defined in Section~\ref{sec:typing-contexts}. Contexts are immutable values as opposed to shared global state where each judgement takes a context as input and returns an updated context as output. This design is made practical by the \texttt{im} crate, which provides persistent (structurally shared) data structures: cloning a context at a control-flow branch is $O(\log n)$ rather than $O(n)$. This is important for the functional-style context threading used in the bidirectional type checking implementation, where each branch of an \textbf{if-else} receives its own copy of the context.
 
 The type checker operates in two passes. The first collects all function signatures into $\Sigma_F$, enabling mutual recursion and allowing functions to be defined in any order. The second type-checks each function body against its signature.
 
@@ -578,6 +572,14 @@ An important feature is \textit{refinement lifting}: when an array has a refined
 \subsection{Error reporting}
 
 Type errors are represented as structured values (\texttt{TypeError} variants) carrying source spans, expected and actual types, and contextual information. A separate reporting module formats these into diagnostics using the \texttt{ariadne} library, highlighting the relevant source location and explaining the failed proof obligation, including the propositions that were assumed and the goal that could not be proved.
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[scale=0.5]{figures/ariadne_error_message.png}
+  \end{center}
+  \caption{Example of a type error output formatted using the \texttt{ariadne} library.}
+  \label{fig:type-error-message}
+\end{figure}
 
 % \section{Borrowing and ownership extension}\label{sec:ownership-extension}
 %
@@ -961,6 +963,7 @@ The preceding sections describe each pipeline stage in isolation. This section d
 %
 The source program searches a sorted 10-element array for a target value, returning its index or $-1$ if not found:
 %
+\begin{quote}
 \begin{verbatim}
 fn binary_search(arr: [int; 10], target: int) -> int
     requires forall i in 0..9 { arr[i] <= arr[i + 1] }
@@ -993,6 +996,7 @@ fn binary_search(arr: [int; 10], target: int) -> int
     result
 }
 \end{verbatim}
+\end{quote}
 %
 Several features are worth highlighting:
 %
@@ -1131,6 +1135,7 @@ The DTAL output preserves the block structure of the TIR, augmented with entry-s
 %
 \subsubsection{Virtual DTAL: midpoint computation and array access}
 %
+\begin{quote}
 \begin{verbatim}
 .binary_search_bb4:
     .assume v8 < v7
@@ -1143,11 +1148,13 @@ The DTAL output preserves the block structure of the TIR, augmented with entry-s
     .assert true
     load v20, [v0 + v19] : int
 \end{verbatim}
+\end{quote}
 %
 This virtual DTAL is still close to the source-level reasoning. The branch constraints and invariant have already been translated into register-based assumptions, and the midpoint arithmetic is represented symbolically through the synthesised refinement types on \texttt{v16}, \texttt{v18}, and \texttt{v19}. At this level it is easy to see how the array-bounds proof is carried forward: the load of \texttt{v20} depends on the facts $v11 \ge 0$, $v10 < 10$, and $v11 \le v10$, together with the symbolic definition of the midpoint.
 %
 \subsubsection{Physical DTAL: verifier-facing code}
 %
+\begin{quote}
 \begin{verbatim}
 .binary_search_bb2:
     .assert (r0 >= 0 && r4 < 10)
@@ -1177,6 +1184,7 @@ This virtual DTAL is still close to the source-level reasoning. The branch const
     mov r7, r10   : int
     load lr, [lr + r7]    : int
 \end{verbatim}
+\end{quote}
 %
 This is the post-register-allocation DTAL that the final verifier checks. The logical structure is the same as in the virtual DTAL, but the values have been assigned to physical registers and division has been expanded into the x86-64-specific \texttt{cqo}/\texttt{idiv} sequence. This illustrates the key trust-model point of the final implementation: register allocation and target-specific expansion remain untrusted compiler passes, and the verifier validates their output rather than assuming they are correct.
 
@@ -1196,6 +1204,7 @@ Note that these annotations are emitted by the compiler but independently re-der
 %
 \subsubsection{Back edge and state coercion}
 %
+\begin{quote}
 \begin{verbatim}
 .binary_search_bb6:
     mov r3, 1    : int
@@ -1206,6 +1215,7 @@ Note that these annotations are emitted by the compiler but independently re-der
     mov r9, r3   : int
     jmp .binary_search_bb1
 \end{verbatim}
+\end{quote}
 %
 At the physical back edge, the loop counter has been allocated to \texttt{r9}. The block increments it and jumps back to the loop header. The important point is not the specific register names but the state-coercion check performed at the edge: the verifier must show that the exit state of bb6 is compatible with the declared entry state of bb1, including the existential bound on the loop counter and the re-established invariant on the registers holding \texttt{lo} and \texttt{hi}. This is the inductive step of the loop proof in its final, post-register-allocation form.
 %

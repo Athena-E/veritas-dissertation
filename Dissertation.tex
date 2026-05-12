@@ -32,6 +32,10 @@
 % \setlength{\textfloatsep}{4pt plus 1pt minus 1pt}
 % \setlength{\floatsep}{4pt plus 1pt minus 1pt}
 % \setlength{\intextsep}{6pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{-3pt}
+\setlength{\belowcaptionskip}{0pt}
+\setlength{\textfloatsep}{8pt}
+\setlength{\intextsep}{8pt}
 
 \makeatletter
 \renewcommand\section{\@startsection
@@ -47,6 +51,14 @@
   {0.4\baselineskip}   % space before
   {0.2\baselineskip}   % space after
   {\normalfont\large\scshape}}
+\makeatother
+
+\makeatletter
+\renewcommand\subsubsection{\@startsection
+  {subsubsection}{3}{0pt}
+  {0.3\baselineskip}   % space before
+  {0.15\baselineskip}   % space after
+  {\normalfont\normalsize\scshape}}
 \makeatother
 
 \makeatletter
