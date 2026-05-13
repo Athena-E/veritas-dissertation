@@ -253,7 +253,7 @@ $$
 
 \chapter{Complete DTAL typing rules}\label{app:dtal-rules}
 
-This appendix lists the complete set of typing rules implemented by the DTAL verifier. Most rules have the form $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, where $\Phi$ is the constraint context, $\Gamma$ maps registers to types, and $\Gamma'$ is the updated register map. Rules that also touch spill slots, comparison flags, array versions, physical-division metadata, or ownership state extend this judgement with the corresponding auxiliary state. We write $\textsf{idx}(\tau)$ for the index expression extracted from a type (e.g., $\textsf{idx}(\textsf{int}(e)) = e$). Rules marked with $\star$ are also presented in Chapter~\ref{ch:impl}.
+This appendix lists the complete set of typing rules implemented by the DTAL verifier. Most rules have the form $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, where $\Phi$ is the constraint context, $\Gamma$ maps registers to types, and $\Gamma'$ is the updated register map. Rules that also touch spill slots, comparison flags, array versions, physical-division metadata, or ownership state extend this judgement with the corresponding auxiliary state. We write $\textsf{idx}(\tau)$ for the index expression extracted from a type (e.g., $\textsf{idx}(\textsf{int}(e)) = e$), and use $\varphi$ for predicates over integer witnesses. Rules marked with $\star$ are also presented in Chapter~\ref{ch:impl}.
 
 \section*{Data movement}
 
@@ -296,10 +296,10 @@ $$
 $$
   \frac{
     \begin{array}{c}
-      \Gamma(r_1) = \{a\!:\!\textsf{int} \mid \varphi_1\} \quad \Gamma(r_2) = \{b\!:\!\textsf{int} \mid \varphi_2\} \\
-      \textsf{arith-safe}(\oplus,a,b,\Phi \wedge \varphi_1 \wedge \varphi_2) \\
-      C_\oplus = \exists a,b.\; \varphi_1 \wedge \varphi_2 \wedge c = a \oplus b \quad
-      \tau_\textsf{res} = \exists c.\; \textsf{int}(c) \;\mathbf{where}\; C_\oplus
+      \Gamma(r_1) = \{a\!:\!\textsf{int} \mid \varphi_1(a)\} \quad \Gamma(r_2) = \{b\!:\!\textsf{int} \mid \varphi_2(b)\} \\
+      \textsf{arith-safe}(\oplus,a,b,\Phi \wedge \varphi_1(a) \wedge \varphi_2(b)) \\
+      \varphi_\oplus(c) = \exists a,b.\; \varphi_1(a) \wedge \varphi_2(b) \wedge c = a \oplus b \quad
+      \tau_\textsf{res} = \exists c.\; \textsf{int}(c) \;\mathbf{where}\; \varphi_\oplus(c)
     \end{array}
   }{\Phi; \Gamma \vdash \textsf{binop}_\oplus\; r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \tau_\textsf{res}]} \quad (\textsc{D-BinOp-Refined})^\star
 $$
@@ -318,30 +318,44 @@ $$
 
 \section*{Comparison and branching}
 
-$$
-  \frac{
-    \Gamma(r_1) = \tau_1 \quad \Gamma(r_2) = \tau_2
-  }{\Phi; \Gamma; C \vdash \textsf{cmp } r_1, r_2 \Rightarrow \Gamma; C[\textsf{last} \mapsto (\textsf{idx}(\tau_1), \textsf{idx}(\tau_2))]} \quad (\textsc{D-Cmp})
-$$
+\noindent The comparison/flag state $\mathcal{F}$ contains a distinguished field $\textsf{last}$ for the live pair of symbolic operands recorded by the most recent comparison instruction. The field is undefined after any instruction that clobbers machine flags.
+
+\noindent Let $\mathsf{rel}(\textit{cond}, e_1, e_2)$ denote the predicate represented by a target condition code over the most recent comparison operands.
 
 $$
   \frac{
-    \Gamma(r_1) = \tau_1
-  }{\Phi; \Gamma; C \vdash \textsf{cmp } r_1, n \Rightarrow \Gamma; C[\textsf{last} \mapsto (\textsf{idx}(\tau_1), n)]} \quad (\textsc{D-CmpImm})
-$$
-
-$$
-  \frac{}{\Phi; \Gamma \vdash \textsf{setcc } r_d, \textit{cond} \Rightarrow \Gamma[r_d \mapsto \textsf{bool}]} \quad (\textsc{D-SetCC})
+    \Gamma(r_1) = \tau_1 \quad \Gamma(r_2) = \tau_2 \quad e_1=\textsf{idx}(\tau_1) \quad e_2=\textsf{idx}(\tau_2)
+  }{\Phi; \Gamma; \mathcal{F} \vdash \textsf{cmp } r_1, r_2 \Rightarrow \Gamma; \mathcal{F}[\textsf{last} \mapsto (e_1,e_2)]} \quad (\textsc{D-Cmp})
 $$
 
 $$
   \frac{
-    C(\textsf{last}) = (e_1,e_2)
-  }{\Phi; \Gamma; C \vdash \textsf{branch } \textit{cond}\; L \Rightarrow \Gamma; C \quad \text{with } \Phi' = \Phi \wedge \neg(e_1 \textit{ cond } e_2) \text{ (fall-through)}} \quad (\textsc{D-Branch})^\star
+    \Gamma(r_1) = \tau_1 \quad e_1=\textsf{idx}(\tau_1)
+  }{\Phi; \Gamma; \mathcal{F} \vdash \textsf{cmp } r_1, n \Rightarrow \Gamma; \mathcal{F}[\textsf{last} \mapsto (e_1,n)]} \quad (\textsc{D-CmpImm})
 $$
 
-\noindent The taken edge to $L$ carries $\Phi \wedge (e_1 \textit{ cond } e_2)$.
-The comparison state $C$ is invalidated by instructions that clobber the machine flags, so a conditional branch can only consume a live comparison.
+$$
+  \frac{
+    \mathcal{F}(\textsf{last}) = (e_1,e_2)
+  }{\Phi; \Gamma; \mathcal{F} \vdash \textsf{setcc } r_d, \textit{cond} \Rightarrow \Gamma[r_d \mapsto \textsf{bool}]; \mathcal{F}} \quad (\textsc{D-SetCC})
+$$
+
+$$
+  \frac{
+    \begin{array}{c}
+      \mathcal{F}(\textsf{last}) = (e_1,e_2) \\
+      P_c = \mathsf{rel}(\textit{cond}, e_1, e_2) \quad
+      \Phi_T = \Phi \wedge P_c \quad
+      \Phi_F = \Phi \wedge \neg P_c
+    \end{array}
+  }{
+    \Phi; \Gamma; \mathcal{F} \vdash \textsf{branch } \textit{cond}\; L
+    \Rightarrow
+    (L: \Phi_T; \Gamma; \mathcal{F},\; \mathsf{fall}: \Phi_F; \Gamma; \mathcal{F})
+  } \quad (\textsc{D-Branch})^\star
+$$
+
+\noindent Each outgoing state is then checked against the corresponding successor block's declared entry state. The comparison/flag state $\mathcal{F}$ is invalidated by instructions that clobber the machine flags, so \texttt{setcc} and conditional branches can only consume a live comparison.
 
 \section*{Stack and allocation}
 

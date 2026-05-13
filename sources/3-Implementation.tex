@@ -397,7 +397,7 @@ The DTAL instruction set resembles a standard RISC assembly language but is augm
   \tau & ::= &
   \parbox[t]{0.66\textwidth}{
     $\textsf{unit} \,|\, \textsf{int} \,|\, \textsf{i64} \,|\, \textsf{bool} \,|\, [\tau; e_i] \,|\, {}$\\
-    $\textsf{int}(e_i) \,|\, \{x:\textsf{int} \mid C\} \,|\, \exists x.\; \textsf{int}(x)\; \textsf{where}\; C$
+    $\textsf{int}(e_i) \,|\, \{x:\textsf{int} \mid \varphi(x)\} \,|\, \exists x.\; \textsf{int}(x)\; \textsf{where}\; \varphi(x)$
   }
   & \textbf{(Types)} \\[4pt]
   d & ::= &
@@ -475,13 +475,15 @@ Function-level directives define the verifier-facing signature and contract. Blo
 
 The DTAL type system largely mirrors the source-level type system: it retains unit, integer and boolean base types, machine-integer types, singleton integers $\textsf{int}(N)$, refinement types, arrays, and master types. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, DTAL index expressions may mention constants, register names, arithmetic ($+, -, \times, \div, \%$), and $\textsf{select}(\mathit{arr}, i)$ for array element access.
 
-The most important addition is the use of \textit{existential types} to represent results that are known only symbolically at the assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; C$. This allows the verifier to retain enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
+We use $\varphi$ for predicates over integer witnesses; for example, $\{x:\textsf{int} \mid \varphi(x)\}$ and $\exists x.\; \textsf{int}(x)\; \textsf{where}\; \varphi(x)$ both bind $x$ in $\varphi$.
+
+The most important addition is the use of \textit{existential types} to represent results that are known only symbolically at the assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; \varphi(x)$. This allows the verifier to retain enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
 
 The DTAL constraint language preserves the same core logical fragment used in source-level specifications: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over DTAL index expressions rather than directly as source expressions, and conversion from source expressions to this constraint language is partial. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
 
 \subsection{DTAL typing judgements}
 
-DTAL type checking operates over a \textit{type state}. The rules below show the core part of this state as $(\Phi, \Gamma)$, where $\Gamma$ maps registers to their current types and $\Phi$ is a set of constraints known to hold at a given program point. The implementation also records auxiliary verifier state such as the most recent comparison, the typed stack, array versions, spill slots, and proven assertions. The core judgement for instruction typing is $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, meaning that executing $\textsf{instr}$ under constraints $\Phi$ and register state $\Gamma$ produces a new register state $\Gamma'$.
+DTAL type checking operates over a \textit{type state}. The rules below show the core part of this state as $(\Phi, \Gamma)$, where $\Gamma$ maps registers to their current types and $\Phi$ is a set of constraints known to hold at a given program point. The implementation also records auxiliary verifier state such as the comparison/flag state $\mathcal{F}$, the typed stack, array versions, spill slots, and proven assertions. The core judgement for instruction typing is $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, meaning that executing $\textsf{instr}$ under constraints $\Phi$ and register state $\Gamma$ produces a new register state $\Gamma'$. Rules that read or update machine-flag state use $\Phi; \Gamma; \mathcal{F} \vdash \textsf{instr} \Rightarrow \Gamma'; \mathcal{F}'$.
 
 \paragraph{Move Immediate}
 Loading a constant into a register assigns it a singleton type:
@@ -496,7 +498,12 @@ $$
 $$
 
 $$
-\frac{\Gamma(r_1) = \{a\!:\!\textsf{int} \mid \varphi_1\} \quad \Gamma(r_2) = \{b\!:\!\textsf{int} \mid \varphi_2\}}{\Phi; \Gamma \vdash \textsf{add } r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \exists c.\; \textsf{int}(c) \;\mathbf{where}\; \exists a,b.\; \varphi_1 \wedge \varphi_2 \wedge c = a + b]} \quad (\textsc{D-BinOp-Refined})
+\frac{
+  \begin{array}{c}
+    \Gamma(r_1) = \{a\!:\!\textsf{int} \mid \varphi_1(a)\} \quad \Gamma(r_2) = \{b\!:\!\textsf{int} \mid \varphi_2(b)\} \\
+    \varphi_+(c) = \exists a,b.\; \varphi_1(a) \wedge \varphi_2(b) \wedge c = a + b
+  \end{array}
+}{\Phi; \Gamma \vdash \textsf{add } r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \exists c.\; \textsf{int}(c) \;\mathbf{where}\; \varphi_+(c)]} \quad (\textsc{D-BinOp-Refined})
 $$
 
 \paragraph{Memory Access (Bounds Checking)}
@@ -508,29 +515,43 @@ $$
 \noindent where $e_i$ is the index expression extracted from the type of $r_i$. The verifier derives the result type from the array base rather than trusting the annotation, and records a constraint equating $r_d$ with the corresponding versioned array selection. Stores are handled symmetrically, with an additional mechanism: the verifier maintains \textit{array versions} so that each store creates a fresh logical name for the array. It then adds explicit write and frame axioms over versioned $\textsf{select}$ expressions, avoiding conflation between values written at different program points.
 
 \paragraph{Conditional Branching}
-A comparison instruction records the operands whose relationship will later be tested by a branch:
+A comparison instruction updates the verifier's comparison state. We write $\mathcal{F}(\textsf{last})$ for the live pair of symbolic operands recorded by the most recent comparison instruction; this field is undefined after any instruction that clobbers machine flags. The auxiliary function $\textsf{idx}(\tau)$ extracts the index expression associated with an integer-like DTAL type, such as a singleton, refined, or existential integer type:
 $$
 \frac{
-  \Gamma(r_1) = \tau_1 \quad \Gamma(r_2) = \tau_2
-}{\Phi; \Gamma \vdash \textsf{cmp } r_1, r_2 \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), \textsf{idx}(\tau_2)\text{)}} \quad (\textsc{D-Cmp})
+  \Gamma(r_1) = \tau_1 \quad \Gamma(r_2) = \tau_2 \quad e_1=\textsf{idx}(\tau_1) \quad e_2=\textsf{idx}(\tau_2)
+}{\Phi; \Gamma; \mathcal{F} \vdash \textsf{cmp } r_1, r_2 \Rightarrow \Gamma; \mathcal{F}[\textsf{last} \mapsto (e_1,e_2)]} \quad (\textsc{D-Cmp})
 $$
 
 $$
 \frac{
-  \Gamma(r_1) = \tau_1
-}{\Phi; \Gamma \vdash \textsf{cmp } r_1, n \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), n\text{)}} \quad (\textsc{D-CmpImm})
+  \Gamma(r_1) = \tau_1 \quad e_1=\textsf{idx}(\tau_1)
+}{\Phi; \Gamma; \mathcal{F} \vdash \textsf{cmp } r_1, n \Rightarrow \Gamma; \mathcal{F}[\textsf{last} \mapsto (e_1,n)]} \quad (\textsc{D-CmpImm})
 $$
 
-\noindent The auxiliary function $\textsf{idx}(\tau)$ extracts the index expression associated with an integer-like DTAL type, such as a singleton, refined, or existential integer type.
-
-A subsequent conditional branch refines the constraint context on each outgoing edge. The rule below shows the verifier's local fall-through update; the taken edge is checked separately against the target block's declared entry state:
+\noindent The rule for \texttt{setcc} consumes the same comparison state but only assigns a boolean type to the destination register. Branch refinements, rather than boolean-register refinements, are what the verifier uses for path-sensitive bounds proofs:
 $$
 \frac{
-  \text{last cmp operands: } e_1, e_2
-}{\Phi; \Gamma \vdash \textsf{branch } \textit{cond}\; L \Rightarrow \Gamma \quad \text{with } \Phi' = \Phi \wedge \neg(e_1 \textit{ cond } e_2) \text{ (fall-through)}} \quad (\textsc{D-Branch})
+  \mathcal{F}(\textsf{last}) = (e_1,e_2)
+}{\Phi; \Gamma; \mathcal{F} \vdash \textsf{setcc } r_d, \textit{cond} \Rightarrow \Gamma[r_d \mapsto \textsf{bool}]; \mathcal{F}} \quad (\textsc{D-SetCC})
 $$
 
-\noindent The taken edge to $L$ carries the refined constraint context $\Phi \wedge (e_1 \textit{ cond } e_2)$. This is used to verify bounds checks: a comparison followed by a branch-if-greater-or-equal exits the loop, and the fall-through path continues with the assumption that the index is within bounds.
+A subsequent conditional branch refines the constraint context on each outgoing edge. Let $\mathsf{rel}(\textit{cond}, e_1, e_2)$ denote the predicate corresponding to the target condition code:
+$$
+\frac{
+  \begin{array}{c}
+    \mathcal{F}(\textsf{last}) = (e_1,e_2) \\
+    P_c = \mathsf{rel}(\textit{cond}, e_1, e_2) \quad
+    \Phi_T = \Phi \wedge P_c \quad
+    \Phi_F = \Phi \wedge \neg P_c
+  \end{array}
+}{
+  \Phi; \Gamma; \mathcal{F} \vdash \textsf{branch } \textit{cond}\; L
+  \Rightarrow
+  (L: \Phi_T; \Gamma; \mathcal{F},\; \mathsf{fall}: \Phi_F; \Gamma; \mathcal{F})
+} \quad (\textsc{D-Branch})
+$$
+
+\noindent Each outgoing state is then coerced to the successor block's declared entry state. This is used to verify bounds checks: a comparison followed by a branch-if-greater-or-equal exits the loop, and the fall-through path continues with the assumption that the index is within bounds. Instructions that clobber machine flags invalidate $\mathcal{F}(\textsf{last})$, so a branch or \texttt{setcc} can only consume a live comparison.
 
 These rules are representative; the verifier handles all instruction variants listed in Section~\ref{sec:dtal-instr-set}. The complete set of DTAL typing rules is given in Appendix~\ref{app:dtal-rules}.
 
@@ -616,7 +637,7 @@ The TIR is a typed SSA (Static Single Assignment) intermediate representation. E
 
 The choice of SSA was motivated by three properties: liveness analysis (required for register allocation) is straightforward, the one-definition property makes type annotations unambiguous, and phi nodes provide natural points for refinement type joining. At control-flow merge points, phi nodes select between values from different predecessor blocks.
 
-A key extension beyond standard SSA is \textit{existential constraints on phi nodes}. Each phi node may carry an optional existential constraint of the form $\exists v.\; \mathtt{int}(v) \;\mathbf{where}\; C(v)$, which encodes that the phi's value satisfies constraint $C$ without fixing a concrete value. For loop induction variables, this captures the loop bounds: $\exists v.\; \mathtt{int}(v) \;\mathbf{where}\; (v \ge \mathit{start} \wedge v < \mathit{end})$. For mutable variables with refined types, it preserves the refinement predicate across iterations. This mechanism avoids the information loss that would occur if phi nodes were simply widened to the base type.
+A key extension beyond standard SSA is \textit{existential constraints on phi nodes}. Each phi node may carry an optional existential constraint of the form $\exists v.\; \mathtt{int}(v) \;\mathbf{where}\; \varphi(v)$, which encodes that the phi's value satisfies predicate $\varphi$ without fixing a concrete value. For loop induction variables, this captures the loop bounds: $\exists v.\; \mathtt{int}(v) \;\mathbf{where}\; (v \ge \mathit{start} \wedge v < \mathit{end})$. For mutable variables with refined types, it preserves the refinement predicate across iterations. This mechanism avoids the information loss that would occur if phi nodes were simply widened to the base type.
 
 \subsubsection{Representative instruction forms}
 
@@ -827,7 +848,7 @@ The re-derivation in step 2 is central to the untrusted-compiler model. For exam
 State coercion is how the verifier checks compatibility across block boundaries. When block A jumps to block B, it must show that A's exit state is a subtype of B's declared entry state. This reduces to two checks:
 
 \begin{itemize}
-  \item \textbf{Register type subtyping}: for each register in B's entry state, A's exit type must be a subtype. The subtyping relation is constraint-aware: $\mathtt{int}(n) <: \mathtt{int}$ always holds, and $\mathtt{int}(n) <: \exists v.\; \mathtt{int}(v) \;\mathbf{where}\; C(v)$ holds if $C(n)$ is provable from A's constraints.
+  \item \textbf{Register type subtyping}: for each register in B's entry state, A's exit type must be a subtype. The subtyping relation is constraint-aware: $\mathtt{int}(n) <: \mathtt{int}$ always holds, and $\mathtt{int}(n) <: \exists v.\; \mathtt{int}(v) \;\mathbf{where}\; \varphi(v)$ holds if $\varphi(n)$ is provable from A's constraints.
   \item \textbf{Constraint entailment}: every constraint declared in B's entry state must be provable from A's exit constraints.
 \end{itemize}
 
