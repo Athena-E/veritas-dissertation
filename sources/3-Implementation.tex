@@ -365,29 +365,6 @@ The constraint language supports bounded quantifiers and implication to express 
 
 An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\!\textsf{int} \mid v \ge 0\}; N]$ automatically satisfies the quantified constraint $\forall i \in [0, N).\; \mathit{arr}[i] \ge 0$. This is achieved by extracting a quantified proposition from the array's element type and adding it to the context when the array is in scope.
 
-\subsection{Formal scope of the implemented rules}
-
-The rules above and Appendix~\ref{app:source-rules} are a compact model of the implementation rather than a mechanised metatheory. Table~\ref{tab:formal-gap-closure} records the main places where the formal presentation has been tightened to match the scoped guarantee.
-
-\begin{table}[H]
-  \centering
-  \small
-  \begin{tabular}{p{0.24\textwidth} p{0.34\textwidth} p{0.32\textwidth}}
-    \hline
-    \textbf{Issue} & \textbf{Rule treatment} & \textbf{Scope} \\
-    \hline
-    Branch facts & Conditions expose $\mathsf{guard}(e)$, used on then/else and loop paths. & Supports binary-search-style bounds reasoning. \\
-    Symbolic values & Synthesis returns an SMT term $\iota$ for value-dependent obligations. & Avoids treating refinement binders as runtime values. \\
-    Division and arithmetic & $\textsf{arith-safe}$ emits non-zero divisor and implemented signed-range obligations. & Only emitted side conditions are claimed. \\
-    Array mutation & Stores require element compatibility and create a new logical array version. & Full heap/pointer memory safety is outside scope. \\
-    Mutable array subtyping & Mutable arrays are invariant; covariant reasoning is read-only. & Prevents writes through widened mutable views. \\
-    Physical DTAL & Spills, division expansion, branch state, and ownership events are explicit verifier state. & Encoder, runtime, and machine model remain trusted. \\
-    \hline
-  \end{tabular}
-  \caption{Formal-rule clarifications supporting the scoped verifier guarantee.}
-  \label{tab:formal-gap-closure}
-\end{table}
-
 \section{The DTAL target language}\label{sec:dtal-target-lang}
 
 Veritas targets a first-order variant of Xi and Harper's DTAL design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system.
