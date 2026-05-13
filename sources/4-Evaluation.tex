@@ -84,7 +84,7 @@ Veritas is inspired directly by Xi and Harper's DTAL and preserves the mechanism
 \begin{itemize}
   \item \textbf{Dependent block or label state.} This supports control-flow safety by ensuring that jumps and joins are only valid when the incoming machine state matches the target's expected typing context.
   \item \textbf{Singleton integer typing.} This supports arithmetic and indexing safety, since later instructions can rely on those symbolic facts when proving side conditions.
-  \item \textbf{Size-indexed arrays.} This supports memory safety by making out-of-bounds reads and writes statically checkable.
+  \item \textbf{Size-indexed arrays.} This supports array-bounds safety by making out-of-bounds reads and writes statically checkable.
   \item \textbf{Typed stack discipline.} This supports structural safety by preventing ill-typed stack use across calls, returns, and local temporaries.
   \item \textbf{Proof-relevant typed memory access.} This supports static memory-safety guarantees such as array-bound-check elimination.
 \end{itemize}
@@ -383,11 +383,11 @@ Table~\ref{tab:tcb-summary} separates the measured verifier-side Rust core from 
   \small
   \begin{tabular}{l l l c c}
     \hline
-    \textbf{Trusted component} & \textbf{Form}         & \textbf{Size}             & \textbf{Linux} & \textbf{Unikernel} \\
+    \textbf{Trusted component} & \textbf{Form}         & \textbf{Size}             & \textbf{Linux} & \textbf{Bare metal} \\
     \hline
-    DTAL verifier core         & Rust LOC              & 7864 / 42775 (18.4\%)     & \checkmark     & \checkmark         \\
-    Direct encoder             & Rust LOC              & \~309                     & \checkmark     & \checkmark         \\
-    x86 instruction encoder    & Rust LOC              & \~550                     & \checkmark     & \checkmark         \\
+    DTAL verifier core         & Rust LOC              & 7817 / 42996 (18.2\%)     & \checkmark     & \checkmark         \\
+    Direct encoder             & Rust LOC              & \~386                     & \checkmark     & \checkmark         \\
+    x86 instruction encoder    & Rust LOC              & \~1660                    & \checkmark     & \checkmark         \\
     Z3 solver                  & external tool         & large external dependency & \checkmark     & \checkmark         \\
     Runtime blob               & machine code          & 228 bytes                 & \checkmark     & --                 \\
     Multiboot bootstrap        & machine code          & 206 bytes                 & --             & \checkmark         \\
@@ -401,13 +401,13 @@ Table~\ref{tab:tcb-summary} separates the measured verifier-side Rust core from 
   \label{tab:tcb-summary}
 \end{table}
 
-The verifier-side Rust core is \num{7864} lines out of \num{42775}, or 18.4\% of the counted Rust implementation. This leaves most compiler infrastructure outside the trusted path. The remaining trusted components are the verifier, solver, encoder, and small runtime/bootstrap artifacts.
+The verifier-side Rust core is \num{7817} lines out of \num{42996}, or 18.2\% of the counted Rust implementation. This leaves most compiler infrastructure outside the trusted path for the checked safety policy. The remaining trusted components are the verifier, solver, encoder, and small runtime/bootstrap artifacts.
 
 \section{Summary against project aims}
 
-The evaluation supports the three aims set out for Veritas: a DTAL-based trust architecture, a verification-oriented source language with useful expressivity, and a practical enough systems-language toolchain for the supported fragment. The strongest result is architectural: safety-relevant information survives lowering into an independently checkable artifact, and the empirical evidence shows that this artifact can reject both source-level mistakes and representative backend corruptions. The TCB analysis reinforces the same point by showing that most compiler infrastructure is outside the trusted path.
+The evaluation supports the three aims set out for Veritas: a DTAL-based trust architecture, a verification-oriented source language with useful expressivity, and a practical enough systems-language toolchain for the supported fragment. The strongest result is architectural: safety-relevant information survives lowering into an independently checkable artifact, and the empirical evidence shows that this artifact can reject both source-level mistakes and representative backend corruptions. The TCB analysis reinforces the same point by showing that most compiler infrastructure is outside the trusted path for the checked safety policy.
 
-The expressivity results are deliberately scoped. Veritas does not match mature verification ecosystems on heap-shaped data, recursive proofs, concurrency, or protocol-heavy reasoning, but it does cover the contract, array, arithmetic, invariant, quantified, sortedness, and borrowing properties needed to exercise the trust architecture. This is enough to demonstrate the central source-to-DTAL preservation claim without overstating the language as a general-purpose verifier.
+The expressivity results are deliberately scoped. Veritas does not match mature verification ecosystems on heap-shaped data, recursive proofs, concurrency, or protocol-heavy reasoning, but it does cover the contract, array, arithmetic, invariant, quantified, sortedness, and borrowing properties needed to exercise the trust architecture. This is enough to demonstrate the central source-to-DTAL evidence-carrying design without overstating the language as a general-purpose verifier.
 
 The practicality results are positive but qualified in the same way. Veritas produces executable native artifacts and runs non-trivial external kernels, but the evidence is strongest for fixed-size arrays, structured loops, local mutation, contracts, invariants, and borrow-oriented examples. The feature suite is curated rather than exhaustive, the PolyBench results demonstrate behaviour on structured numeric kernels rather than arbitrary systems programs, and the tampering corpus covers representative backend corruptions rather than all possible miscompilations.
 
