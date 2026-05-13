@@ -379,6 +379,75 @@ The following instructions appear only after register allocation and are verifie
   \item \textbf{D-Prologue / D-Epilogue}: Structural markers verified at the function level.
 \end{itemize}
 
+\chapter{Pipeline correspondence tables}\label{app:pipeline-correspondence}
+
+\begin{table}[h]
+  \centering
+  \scriptsize
+  \begin{tabular}{p{0.27\textwidth} p{0.32\textwidth} p{0.32\textwidth}}
+    \hline
+    \textbf{Source construct} & \textbf{TIR representation} & \textbf{DTAL representation} \\
+    \hline
+    Integer / boolean literal
+    & $\rho := n : \tau$
+    & \texttt{mov} into a register with a singleton or base type annotation \\
+    Variable use
+    & Read the virtual register currently bound to the source variable
+    & Use the corresponding virtual or physical register in later instructions \\
+    Immutable binding \texttt{let x:T = e}
+    & Lower $e$ to a fresh virtual register and bind $x$ to that register
+    & Instructions computing $e$, with the result type carried on the destination register \\
+    Mutable assignment \texttt{x = e}
+    & Lower $e$ to a fresh virtual register and update the variable-to-register map
+    & Ordinary computation instructions; SSA reassignment has already been made explicit in TIR \\
+    Arithmetic expression \texttt{e1 op e2}
+    & \texttt{BinOp \{ dst, op, lhs, rhs, ty \}}
+    & Arithmetic instruction such as \texttt{add}, \texttt{sub}, or \texttt{mul}, carrying the derived result type \\
+    Comparison expression
+    & \texttt{BinOp} or branch condition register with true/false constraints
+    & \texttt{cmp} followed by \texttt{setcc} or conditional branch; branch facts refine the verifier context \\
+    Conditional expression / statement
+    & \texttt{Branch \{ cond, true\_target, false\_target, true\_constraint, false\_constraint \}} plus merge phi nodes
+    & \texttt{cmp}/branch instructions and labelled blocks with checked entry states \\
+    Loop
+    & Header/body/exit blocks, loop-carried phi nodes, and translated invariant assertions
+    & Labelled blocks with \texttt{.entry}, \texttt{.assume}, branches, and \texttt{.assert} constraints \\
+    Function call
+    & \texttt{Call \{ dst?, func, args, arg\_types, result\_ty \}}
+    & Argument registers following the calling convention, \texttt{call}, precondition check, and postcondition context update \\
+    Return
+    & \texttt{Return \{ value? \}}
+    & Move result to the return register where needed, then \texttt{ret} \\
+    Array creation
+    & Allocation or initialisation instructions, depending on the source form
+    & Stack/runtime allocation support plus array type information and initialisation facts \\
+    Array read \texttt{a[i]}
+    & \texttt{ArrayLoad \{ dst, base, index, element\_ty, bounds\_constraint \}}
+    & Address computation plus typed \texttt{load}; verifier proves the bounds constraint \\
+    Array write \texttt{a[i] = e}
+    & \texttt{ArrayStore \{ base, index, value, bounds\_constraint \}}
+    & Address computation plus typed \texttt{store}; verifier proves the bounds constraint \\
+    Function precondition
+    & Function-level constraint and call-site proof obligation
+    & \texttt{.precondition}; verifier checks callers establish the required constraint \\
+    Function postcondition
+    & Function-level result constraint
+    & \texttt{.postcondition}; verifier adds the instantiated fact after a verified call \\
+    Loop invariant / assertion
+    & \texttt{AssertConstraint \{ constraint \}}
+    & \texttt{.assert}; checked before being added to the DTAL constraint context \\
+    Path assumption
+    & \texttt{AssumeConstraint \{ constraint \}}
+    & \texttt{.assume}; contributes to the declared block-entry context \\
+    SSA join
+    & \texttt{PhiNode \{ dst, ty, incoming, existential\_constraint \}}
+    & Edge copies plus block-entry type state; existential facts preserve joined refinement information \\
+    \hline
+  \end{tabular}
+  \caption{Correspondence between representative source constructs, TIR forms, and verifier-facing DTAL forms.}
+  \label{tab:source-tir-dtal-correspondence}
+\end{table}
+
 \chapter{Evaluation tables}\label{app:evaluation-supplementary}
 
 \begin{figure}[h]

@@ -384,17 +384,62 @@ This section describes the concrete instruction set and typing judgements of the
 
 \subsection{Instruction set}\label{sec:dtal-instr-set}
 
-The DTAL instruction set resembles a standard RISC assembly language but is augmented with type annotations and constraint assertions. DTAL appears in two forms in the pipeline: a virtual-register form emitted by code generation, and a physical-register form produced after register allocation. Both carry verifier-facing type information, and the final verifier checks the physical form. The core instruction categories are:
+The DTAL instruction set resembles a standard RISC assembly language but is augmented with type annotations and constraint assertions. DTAL appears in two forms in the pipeline: a virtual-register form emitted by code generation, and a physical-register form produced after register allocation. Both carry verifier-facing type information, and the final verifier checks the physical form. The core syntax is summarised in Figure~\ref{fig:dtal-syntax}.
 
-\begin{itemize}
-    \item \textbf{Data movement:} \texttt{mov $r_d$, $r_s$} | \texttt{mov $r_d$, $n$} | \texttt{load $r_d$, [$r_b$, $r_i$]} | \texttt{store [$r_b$, $r_i$], $r_s$}
-    \item \textbf{Arithmetic:} \texttt{binop $r_d$, $r_{s1}$, $r_{s2}$} | \texttt{addimm $r_d$, $r_s$, $n$} | \texttt{not $r_d$, $r_s$}
-    \item \textbf{Comparison:} \texttt{cmp $r_1$, $r_2$} | \texttt{cmp $r_1$, $n$} | \texttt{setcc $r_d$, \textit{cond}} 
-    \item \textbf{Control flow:} \texttt{jmp $L$} | \texttt{branch \textit{cond} $L$} | \texttt{call $L$} | \texttt{ret}
-    \item \textbf{Stack and physical support:} \texttt{push $r_s$} | \texttt{pop $r_d$} | \texttt{alloca $r_d$, $n$} 
-      % (stack-allocate an array of $n$ elements), with additional post-register-allocation instructions such as spill loads/stores, prologues/epilogues, and \texttt{cqo}/\texttt{idiv}
-    \item \textbf{Annotations:} \texttt{type $r$:$\tau$} (type annotation) | \texttt{assert $C$} (constraint assertion)
-\end{itemize}
+\begin{figure}[H]
+{\small
+\[
+\renewcommand{\arraystretch}{1.09}
+\begin{array}{@{}r@{\ }c@{\ }l@{\hspace{1.2em}}p{0.25\textwidth}@{}}
+  R & ::= &
+  r \mid v
+  & \textbf{(Registers)} \\[2pt]
+  e_i & ::= &
+  \parbox[t]{0.66\textwidth}{
+    $n \,|\, R \,|\, e_i + e_i \,|\, e_i - e_i \,|\, e_i \times e_i \,|\, e_i \div e_i \,|\, e_i \bmod e_i \,|\, \textsf{select}(R, e_i)$
+  }
+  & \textbf{(Index expressions)} \\[4pt]
+  C & ::= &
+  \parbox[t]{0.66\textwidth}{
+    $e_i \textsf{ cop } e_i \,|\, C \textsf{ lop } C \,|\, \neg C \,|\, {}$\\
+    $\textsf{forall } x \textsf{ in } e_i..e_i.\; C \,|\, \textsf{exists } x \textsf{ in } e_i..e_i.\; C$
+  }
+  & \textbf{(Constraints)} \\[4pt]
+  \tau & ::= &
+  \parbox[t]{0.66\textwidth}{
+    $\textsf{unit} \,|\, \textsf{int} \,|\, \textsf{i64} \,|\, \textsf{bool} \,|\, [\tau; e_i] \,|\, \&\tau \,|\, \&\textsf{mut } \tau \,|\, {}$\\
+    $\textsf{int}(e_i) \,|\, \{x:\textsf{int} \mid C\} \,|\, \exists x.\; \textsf{int}(x)\; \textsf{where}\; C$
+  }
+  & \textbf{(Types)} \\[4pt]
+  d & ::= &
+  \parbox[t]{0.66\textwidth}{
+    $\texttt{.function } f \,|\, \texttt{.params } \Gamma \,|\, \texttt{.returns } \tau \,|\, \texttt{.precondition } C \,|\, {}$\\
+    $\texttt{.postcondition } C \,|\, \texttt{.entry } \Gamma \,|\, \texttt{.assume } C \,|\, {}$\\
+    $\texttt{.assert } C \,|\, \texttt{type } R : \tau$
+  }
+  & \textbf{(Directives)} \\[4pt]
+  \iota & ::= &
+  \parbox[t]{0.66\textwidth}{
+    $\texttt{mov } R_d, R_s : \tau \,|\, \texttt{mov } R_d, n : \tau \,|\, \texttt{binop } R_d, R_1, R_2 : \tau \,|\, {}$\\
+    $\texttt{addimm } R_d, R_s, n : \tau \,|\, \texttt{not } R_d, R_s : \tau \,|\, {}$\\
+    $\texttt{load } R_d, [R_b + R_i] : \tau \,|\, \texttt{store } [R_b + R_i], R_s \,|\, {}$\\
+    $\texttt{cmp } R_1, R_2 \,|\, \texttt{cmp } R_1, n \,|\, \texttt{setcc } R_d, cc : \tau \,|\, {}$\\
+    $\texttt{jmp } L \,|\, \texttt{branch } cc, L \,|\, \texttt{call } f \,|\, \texttt{ret} \,|\, {}$\\
+    $\texttt{push } R_s \,|\, \texttt{pop } R_d : \tau \,|\, \texttt{alloca } R_d, n : \tau$
+  }
+  & \textbf{(Instructions)} \\[4pt]
+  B & ::= &
+  L :\; d^*\; \iota^*
+  & \textbf{(Blocks)} \\[2pt]
+  F & ::= &
+  d^*\; B^*
+  & \textbf{(Functions)}
+\end{array}
+\]
+}
+\caption{Core V-DTAL syntax. Here $v$ ranges over virtual registers, $r$ over physical registers, $R$ over either kind of register, $L$ over labels, and $\Gamma$ over register type states.}
+\label{fig:dtal-syntax}
+\end{figure}
 
 \noindent The annotation instructions are the distinguishing feature of DTAL. Destination-producing instructions carry type annotations where needed, and \texttt{type} and \texttt{assert} annotations embed additional verification evidence directly into the instruction stream. These annotations record facts such as bounds proofs and loop invariants.
 
@@ -443,14 +488,7 @@ The DTAL type system largely mirrors the source-level type system: it retains un
 
 The most important addition is the use of \textit{existential types} to represent results that are known only symbolically at the assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; C$. This allows the verifier to retain enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
 
-To make this precise, DTAL index expressions are given by:
-\[
-\begin{aligned}
-  e_i ::=\, & n \,|\, r \,|\, e_i + e_i \,|\, e_i - e_i \,|\, e_i \times e_i \,|\, e_i \div e_i \,|\, e_i \bmod e_i \,|\, \textsf{select}(\mathit{arr}, e_i)
-\end{aligned}
-\]
-
-\noindent where $n$ ranges over integer constants and $r$ over registers. The DTAL constraint language preserves the same core logical fragment used in source-level specifications: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over DTAL index expressions rather than directly as source expressions, and conversion from source expressions to this constraint language is partial. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
+The DTAL constraint language preserves the same core logical fragment used in source-level specifications: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over DTAL index expressions rather than directly as source expressions, and conversion from source expressions to this constraint language is partial. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
 
 \subsection{DTAL typing judgements}
 
@@ -621,6 +659,74 @@ TIR is designed to sit close to both the typed source language and the DTAL back
 
 In concrete terms, a TIR function stores its parameters, pre/postconditions, and a map of basic blocks; each block contains entry phi nodes, ordinary instructions, a terminator, and an entry register state. This makes the representation explicit enough for code generation to be largely structural, while still retaining the source-level type information needed for later verification.
 
+\begin{figure}[H]
+{\small
+\[
+\renewcommand{\arraystretch}{1.09}
+\begin{array}{@{}r@{\ }c@{\ }l@{\hspace{1.2em}}p{0.25\textwidth}@{}}
+  \rho & ::= &
+  v
+  & \textbf{(Virtual registers)} \\[2pt]
+  p & ::= &
+  \rho : \tau
+  & \textbf{(Typed parameters)} \\[2pt]
+  \phi & ::= &
+  \rho := \textsf{phi}\; \overrightarrow{(L,\rho)} : \tau\; \optclause{\textsf{where } C}
+  & \textbf{(Phi nodes)} \\[4pt]
+  I & ::= &
+  \parbox[t]{0.66\textwidth}{
+    $\rho := n : \tau \,|\, \rho := \rho' : \tau \,|\, \rho := \rho_1\; \textsf{op}\; \rho_2 : \tau \,|\, {}$\\
+    $\rho := \textsf{unop}\; \rho' : \tau \,|\, \rho := \textsf{load}\; \rho_b[\rho_i] : \tau\; \textsf{where } C \,|\, {}$\\
+    $\textsf{store}\; \rho_b[\rho_i] := \rho_s\; \textsf{where } C \,|\, {}$\\
+    $\optclause{\rho :=}\; \textsf{call}\; f(\overrightarrow{\rho}) : \tau \,|\, \textsf{assume } C \,|\, \textsf{assert } C$
+  }
+  & \textbf{(Instructions)} \\[4pt]
+  K & ::= &
+  \parbox[t]{0.66\textwidth}{
+    $\textsf{jump } L \,|\, \textsf{branch } \rho\; L_t\; L_f\; \textsf{where } C_t, C_f \,|\, \textsf{return}\; \optclause{\rho}$
+  }
+  & \textbf{(Terminators)} \\[4pt]
+  B & ::= &
+  L:\; \phi^*\; I^*\; K
+  & \textbf{(Basic blocks)} \\[2pt]
+  F & ::= &
+  \textsf{fn } f(\overrightarrow{p}) \rightarrow \tau\; \optclause{\textsf{requires } C}\; \optclause{\textsf{ensures } C}\; \{B^*\}
+  & \textbf{(Functions)}
+\end{array}
+\]
+}
+\caption{Veritas' core TIR syntax.}
+\label{fig:tir-syntax}
+\end{figure}
+
+The grammar abstracts over the Rust data structures used in the implementation. Table~\ref{tab:tir-implementation-correspondence} gives the correspondence between the grammar and constructors in the implementation.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{p{0.25\textwidth} p{0.7\textwidth}}
+\hline
+\textbf{Abstract TIR form} & \textbf{Implementation form} \\
+\hline
+$\rho := n : \tau$ & \texttt{LoadImm \{ dst, value, ty \}} \\
+$\rho := \rho' : \tau$ & \texttt{Copy \{ dst, src, ty \}} \\
+$\rho := \rho_1\;\textsf{op}\;\rho_2 : \tau$ & \texttt{BinOp \{ dst, op, lhs, rhs, ty \}} \\
+$\rho := \textsf{unop}\;\rho' : \tau$ & \texttt{UnaryOp \{ dst, op, operand, ty \}} \\
+$\rho := \textsf{load}\;\rho_b[\rho_i] : \tau\;\textsf{where } C$ & \texttt{ArrayLoad \{ dst, base, index, element\_ty, bounds\_constraint \}} \\
+$\textsf{store}\;\rho_b[\rho_i] := \rho_s\;\textsf{where } C$ & \texttt{ArrayStore \{ base, index, value, bounds\_constraint \}} \\
+$\optclause{\rho :=}\;\textsf{call}\;f(\overrightarrow{\rho}) : \tau$ & \texttt{Call \{ dst?, func, args, arg\_types, result\_ty \}} \\
+$\textsf{assume } C$ & \texttt{AssumeConstraint \{ constraint \}} \\
+$\textsf{assert } C$ & \texttt{AssertConstraint \{ constraint \}} \\
+$\rho := \textsf{phi}\; \overrightarrow{(L,\rho)} : \tau$ & \texttt{PhiNode \{ dst, ty, incoming, existential\_constraint \}} \\
+$\textsf{jump } L$ & \texttt{Jump \{ target \}} \\
+$\textsf{branch } \rho\;L_t\;L_f$ & \texttt{Branch \{ cond, true\_target, false\_target, true\_constraint, false\_constraint \}} \\
+$\textsf{return}\;\optclause{\rho}$ & \texttt{Return \{ value? \}} \\
+\hline
+\end{tabular}
+\caption{Correspondence between the abstract TIR syntax and the implementation representation.}
+\label{tab:tir-implementation-correspondence}
+\end{table}
+
 \subsection{Lowering from TAST to TIR}
 
 The lowering pass translates the typed AST to TIR. A \texttt{LoweringContext} maintains a mapping from source-level variable names to virtual registers and tracks the current basic block under construction.
@@ -628,46 +734,13 @@ The lowering pass translates the typed AST to TIR. A \texttt{LoweringContext} ma
 Lowering begins from the typed AST: each function arrives with typed parameters, a typed statement list, and an optional typed trailing expression. For each function, the lowerer:
 
 \begin{enumerate}
-  \item creates an entry block and initialise a fresh \texttt{LoweringContext};
-  \item allocates a fresh virtual register for each parameter and record the corresponding source-variable binding;
+  \item creates an entry block and initialises a fresh \texttt{LoweringContext};
+  \item allocates a fresh virtual register for each parameter and records the corresponding source-variable binding;
   \item lowers the body statements in order, threading the context through the traversal;
   \item lowers the trailing expression, if present, to obtain the function's result register;
   \item closes the current block with a \texttt{Return} terminator;
   \item packages the accumulated basic blocks, phi nodes, entry states, and translated pre/postconditions into a \texttt{TirFunction}.
 \end{enumerate}
-
-\begin{figure}[H]
-\centering
-\begin{tcolorbox}
-\begin{center}
-\begin{cminted}{text}
-block       ::= phi_node* instruction* terminator
-
-phi_node    ::= PhiNode { dst, ty, incoming, existential_constraint? }
-
-instruction ::= LoadImm { dst, value, ty }
-              | Copy { dst, src, ty }
-              | BinOp { dst, op, lhs, rhs, ty }
-              | UnaryOp { dst, op, operand, ty }
-              | ArrayLoad { dst, base, index, element_ty, 
-                            bounds_constraint }
-              | ArrayStore { base, index, value,
-                             bounds_constraint }
-              | Call { dst?, func, args, arg_types, arg_kinds, 
-                       ownership, result_ty }
-              | AssumeConstraint { constraint }
-              | AssertConstraint { constraint }
-
-terminator  ::= Jump { target }
-              | Branch { cond, true_target, false_target,
-                         true_constraint, false_constraint }
-              | Return { value?, ownership }
-\end{cminted}
-\end{center}
-\end{tcolorbox}
-\caption{Representative TIR forms as defined in the implementation. See Appendix~[TODO] for the full definition, which includes ownership-transfer, borrowing, region, and allocation instructions.}
-\label{fig:tir-syntax}
-\end{figure}
 
 \subsubsection{Syntax-directed translation}
 
@@ -719,7 +792,7 @@ The passes must preserve the verification structure of the program. In particula
 
 \subsection{Register allocation}
 
-Register allocation is implemented using standard liveness analysis followed by graph colouring. The default allocator is a Chaitin--Briggs style allocator over the 11 allocatable general-purpose x86-64 registers (excluding \texttt{rsp}, \texttt{rbp}, \texttt{rax}, \texttt{rdx}, and \texttt{r11}). Registers live across function calls are constrained to callee-saved registers (\texttt{rbx}, \texttt{r12}--\texttt{r15}), reflecting the calling convention. For comparison and experimentation, the implementation also includes a linear-scan allocator selectable via the \texttt{VERITAS\_LS=1} environment variable.
+Register allocation is implemented using standard liveness analysis followed by graph colouring. The default allocator is a Chaitin--Briggs style allocator over the 11 allocatable general-purpose x86-64 registers (excluding \texttt{rsp}, \texttt{rbp}, \texttt{rax}, \texttt{rdx}, and \texttt{r11}). Registers live across function calls are constrained to callee-saved registers (\texttt{rbx}, \texttt{r12}--\texttt{r15}), reflecting the calling convention. I initially implemented a simple linear-scan allocator and used this for comparison and experimentation.
 
 \subsection{Physical allocation}\label{sec:physalloc}
 
@@ -750,13 +823,26 @@ Beyond simple register renaming, the physical allocation pass performs several x
 
 \begin{itemize}
   \item \textbf{Function prologues and epilogues}: emits explicit \texttt{Prologue} and \texttt{Epilogue} instructions that push/pop callee-saved registers and allocate a 16-byte-aligned stack frame.
-  \item \textbf{Division expansion}: a single virtual \texttt{div} instruction is expanded to the x86-64 sequence \texttt{mov rax, lhs; cqo; idiv rhs; mov dst, rax} (or \texttt{rdx} for modulo), since \texttt{idiv} requires its operands in the \texttt{rdx:rax} pair.
-  \item \textbf{Caller-saved register management}: at each call site, caller-saved registers that are live across the call are spilled to the stack before argument setup and restored after the call returns.
+  \item \textbf{Division expansion}: a single virtual \texttt{div} instruction is expanded to the x86-64 sequence 
+\begin{center}
+\begin{minipage}{0.35\textwidth}
+\centering
+\begin{minted}[escapeinside=||]{text}
+mov rax, lhs
+cqo
+idiv rhs
+mov dst, rax|\footnotemark|
+\end{minted}
+\end{minipage}
+\end{center}
+\footnotetext{or \texttt{rdx} for modulo.}
+since \texttt{idiv} requires its operands in the \texttt{rdx:rax} pair.
+  \item \textbf{Caller-saved register management}: at each call site, caller-saved registers that are live across the call are spilled to the stack before argument setup and restored after the call returns using explicit \texttt{SpillStore} and \texttt{SpillLoad} instructions, with the verifier checking spill-slot type consistency.
   \item \textbf{Parameter move cycle resolution}: when function parameters must be shuffled between registers (e.g., parameter~0 in \texttt{rdi} must move to \texttt{rsi}, while parameter~1 in \texttt{rsi} must move to \texttt{rcx}), the pass detects cycles and breaks them using \texttt{r11} as a scratch register.
   \item \textbf{Constraint remapping}: all type constraints are rewritten from virtual register names (\texttt{v3}) to physical register names (\texttt{r0}), so the verifier can check the physical program.
 \end{itemize}
 
-\subsection{Direct encoding}
+\subsection{Direct encoding}\label{sec:direct-encoding}
 
 The \textit{direct encoder} translates physically-allocated DTAL to x86-64 machine code. Because the physical allocation pass has already performed all x86-specific expansions (division, calling convention, prologues), the encoder is a near-trivial 1:1 mapping: each DTAL instruction maps to exactly one x86-64 instruction (or a short fixed sequence for prologues and epilogues). The entire module is 309 lines in the current implementation.
 
@@ -833,9 +919,10 @@ To improve performance, constraint provability uses a two-tier approach. A fast 
 
 \subsection{Verification after register allocation}
 
-The compiler supports two pipeline modes. The \textit{legacy pipeline} (\texttt{--legacy-pipeline}) verifies the virtual-register DTAL and then trusts the x86-64 lowering (register allocation, instruction selection, encoding). The \textit{physical pipeline} (the default) defers verification until \textit{after} register allocation has mapped virtual registers to physical x86-64 registers. In the physical pipeline, the verifier checks the physically-allocated DTAL, meaning that register allocation, spill insertion, and calling-convention lowering are all \textit{untrusted}: any bug in these passes manifests as a type derivation mismatch or unprovable constraint in the verified output.
+% The compiler supports two pipeline modes. The \textit{legacy pipeline} (\texttt{--legacy-pipeline}) verifies the virtual-register DTAL and then trusts the x86-64 lowering (register allocation, instruction selection, encoding). The \textit{physical pipeline} (the default) defers verification until \textit{after} register allocation has mapped virtual registers to physical x86-64 registers. In the physical pipeline, 
+In the final implementation, the verifier checks the physically-allocated DTAL, meaning that register allocation, spill insertion, and calling-convention lowering are all \textit{untrusted}: any bug in these passes manifests as a type derivation mismatch or unprovable constraint in the verified output.
 
-This is a deliberate architectural choice. Register allocation is one of the most error-prone compiler passes (it involves liveness analysis, graph colouring, spill heuristics, and calling-convention details), and verifying its output rather than trusting it substantially reduces the trusted computing base.
+This is a deliberate architectural choice. Register allocation is one of the most error-prone compiler passes (it involves liveness analysis, graph colouring, spill heuristics, and calling-convention details), and verifying its output rather than trusting it substantially reduces the trusted computing base, evident in the implementation of the direct encoder (Section~\ref{sec:direct-encoding}).
 
 \subsection{Trust model}
 
@@ -862,7 +949,7 @@ All intrinsics follow the System~V AMD64 calling convention (first argument in \
 \section{Bare-metal target and unikernel}\label{sec:unikernel}
 % TODO: elaborate more on implementation; highlight as extension and purpose to support I/O functionality
 
-The \texttt{--target-bare-metal} flag produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU without an operating system. This extends the trust model by removing the OS from the trusted computing base: the only software running on the machine is the verified Veritas program and the small runtime.
+The \texttt{--target-bare-metal} flag in the Veritas CLI produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.} without an operating system. This extends the trust model by removing the OS from the trusted computing base: the only software running on the machine is the verified Veritas program and the small runtime.
 
 \subsection{Bootstrap}
 
@@ -891,7 +978,7 @@ To demonstrate end-to-end verified I/O on bare metal, the project includes a ser
 The entire driver is type-checked and compiled through the verified DTAL pipeline. When compiled with \texttt{--target-bare-metal --verify -o serial}, the resulting binary boots in QEMU and outputs to the serial console:
 
 \begin{verbatim}
-  qemu-system-x86_64 -kernel serial -serial stdio -display none
+  qemu-system-x86_64 -kernel serial -serial stdio
 \end{verbatim}
 
 This demonstrates the project's long-term direction: a verified unikernel where the application, driver, and boot code are all compiled from a single verified source, with the OS removed from the trusted computing base entirely. Figure~\ref{fig:unikernel-arch} illustrates the architecture of a bare-metal Veritas binary.
