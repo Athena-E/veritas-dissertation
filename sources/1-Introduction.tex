@@ -26,7 +26,10 @@ One might suggest combining the previous two methods: a verified compiler for a 
 
 The gap addressed by this dissertation is the lack of a small, executable systems-language toolchain that combines source-level refinement checking with independently checkable low-level output, without requiring a fully verified compiler.
 
-This dissertation presents \textbf{Veritas}, a toolchain that applies the ideas behind PCC to compile source programs for a small systems language to a version of a Dependently Typed Assembly Language (DTAL) \cite{Xi2001DTAL}. In the supported fragment, Veritas checks: fixed-size array bounds, function preconditions and postconditions, block-entry type-state compatibility, selected arithmetic side conditions, and ownership/borrow-state consistency. Claims that are \emph{out-of-scope} include: full source-to-target semantic preservation, full memory safety in the sense of arbitrary heap and pointer behaviour, correctness of Z3, correctness of the final encoder/runtime, or full Rust-like borrow checking. The central claim is not that the compiler is correct. Rather, the compiler emits low-level output carrying enough type and constraint information for an independent verifier to check a scoped low-level safety policy before execution. This moves much of the compiler pipeline outside the TCB for that policy, while still trusting the verifier and its dependencies.
+This dissertation presents \textbf{Veritas}, a toolchain that applies the ideas behind PCC to compile source programs for a small systems language to a version of Dependently Typed Assembly Language (DTAL) \cite{Xi2001DTAL}.
+In the supported fragment, Veritas checks: fixed-size array bounds, function preconditions and postconditions, block-entry type-state compatibility, selected arithmetic side conditions, and ownership/borrow-state consistency. Claims that are \emph{out-of-scope} are: full source-to-target semantic preservation, full memory safety for arbitrary heap and pointer behaviour, correctness of Z3, correctness of the final encoder/runtime, or full Rust-like borrow checking.
+Unless explicitly qualified otherwise, subsequent claims about independent verification, low-level safety, verifier acceptance, and the compiler being untrusted are claims about the scoped safety policy defined above.
+The central claim is not that the compiler is correct. Rather, the compiler emits low-level output carrying enough type and constraint information for an independent verifier to check a \emph{scoped low-level safety policy} before execution. This moves much of the compiler pipeline outside the TCB for that policy, while still trusting the verifier and its dependencies.
 
 The trust argument that motivates the project gives two axes for comparing toolchains. Figure~\ref{fig:safety-sem-taxonomy} separates two guarantees that are often conflated: semantic preservation and executable-level memory safety.
 
@@ -61,7 +64,7 @@ The trust argument that motivates the project gives two axes for comparing toolc
   \caption{A taxonomy of systems programming toolchains based on their executable-level guarantees.\centering}
   \label{fig:safety-sem-taxonomy}
 \end{figure}
-\footnotetext{RustCompCert \cite{RustCompCert} is an ongoing project to verify an end-to-end compiler for the Rust programming language, but it currently only focuses on a small sequential subset of the language.}
+\footnotetext{RustCompCert \cite{RustCompCert} is an ongoing project to verify an end-to-end compiler a small sequential subset of Rust.}
 
 \section{Approach and Aims}
 
@@ -74,7 +77,7 @@ Veritas consists of four main components:
   \item \textbf{DTAL Verifier:} a tool that checks DTAL programs for compliance with memory safety properties without access to the source code, reducing the trusted computing base to the verifier and its dependencies.
 \end{itemize}
 
-Together, these components support the core question of the dissertation: whether a small systems-language toolchain can realise the trust model suggested by proof-carrying code, with an untrusted compiler whose low-level output is independently checked before execution. The dissertation evaluates this along two main axes:
+These components support the core question of the dissertation: whether a small systems-language toolchain can realise the trust model suggested by proof-carrying code, with an untrusted compiler whose low-level output is independently checked before execution. The dissertation evaluates this along three main axes:
 \begin{itemize}
   \item \textbf{Trust architecture:} Veritas should demonstrate that the relevant low-level safety properties of compiled programs can be checked independently at the DTAL level. The design of DTAL for Veritas should be able to express the safety properties in scope. The verifier should also be substantially small than the full compiler to reduce the risk of trusting it.
   \item \textbf{Expressive source language:} the source language should be expressive enough both from a verification perspective as well as from a systems-language perspective, by remaining suitable for safety verification, and realistic imperative, systems-oriented programs.
