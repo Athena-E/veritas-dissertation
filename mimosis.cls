@@ -16,7 +16,7 @@
   toc=bibliography,
   toc=index,]{scrbook}
 
-\RequirePackage[left=2cm,right=2cm,top=2cm,bottom=2.54cm]{geometry}
+\RequirePackage[left=2cm,right=2cm,top=2cm,bottom=2cm]{geometry}
 
 \RequirePackage{iftex}
 \newif\ifxetexorluatex\xetexorluatexfalse
