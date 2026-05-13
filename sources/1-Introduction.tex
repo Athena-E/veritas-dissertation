@@ -27,11 +27,12 @@ One might suggest combining the previous two methods: a verified compiler for a 
 The gap addressed by this dissertation is the lack of a small, executable systems-language toolchain that combines source-level refinement checking with independently checkable low-level output, without requiring a fully verified compiler.
 
 This dissertation presents \textbf{Veritas}, a toolchain that applies the ideas behind PCC to compile source programs for a small systems language to a version of Dependently Typed Assembly Language (DTAL) \cite{Xi2001DTAL}.
-In the supported fragment, Veritas checks: fixed-size array bounds, function preconditions and postconditions, block-entry type-state compatibility, selected arithmetic side conditions, and ownership/borrow-state consistency. Claims that are \emph{out-of-scope} are: full source-to-target semantic preservation, full memory safety for arbitrary heap and pointer behaviour, correctness of Z3, correctness of the final encoder/runtime, or full Rust-like borrow checking.
-Unless explicitly qualified otherwise, subsequent claims about independent verification, low-level safety, verifier acceptance, and the compiler being untrusted are claims about the scoped safety policy defined above.
-The central claim is not that the compiler is correct. Rather, the compiler emits low-level output carrying enough type and constraint information for an independent verifier to check a \emph{scoped low-level safety policy} before execution. This moves much of the compiler pipeline outside the TCB for that policy, while still trusting the verifier and its dependencies.
+In the supported fragment, Veritas checks: fixed-size array bounds, function preconditions and postconditions, block-entry type-state compatibility, selected arithmetic side conditions, and ownership/borrow-state consistency.
+% Claims that are \emph{out-of-scope} are: full source-to-target semantic preservation, full memory safety for arbitrary heap and pointer behaviour, correctness of Z3, correctness of the final encoder/runtime, or full Rust-like borrow checking.
+Unless explicitly qualified otherwise, subsequent claims about independent verification, low-level safety, verifier acceptance, and the compiler being untrusted are claims about these safety properties.
+The central claim is not that the compiler is correct. Rather, the compiler emits low-level output carrying enough type and constraint information for an independent verifier to check a \emph{scoped low-level safety policy} before execution. This reduces the TCB from the compiler pipeline to the standalone verifier and its dependencies.
 
-The trust argument that motivates the project gives two axes for comparing toolchains. Figure~\ref{fig:safety-sem-taxonomy} separates two guarantees that are often conflated: semantic preservation and executable-level memory safety.
+The trust argument that motivates this project suggests two axes for comparing toolchains. Figure~\ref{fig:safety-sem-taxonomy} separates two guarantees that could be made \emph{at the executable level}: semantic preservation and executable-level memory safety.
 
 \begin{figure}[H]
   \centering

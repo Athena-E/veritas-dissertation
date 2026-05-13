@@ -204,7 +204,7 @@ At control-flow merge points (i.e., after \textbf{if-else} and loops), the typin
     \item Refined types: $\{v \mid P\} \sqcup \{v \mid Q\} = \{v \mid P \vee Q\}$ (disjoin predicates).
     \item Singleton and refined: promote the singleton to $\{v \mid v = N\}$, then disjoin with the refined type's predicate.
     \item Refined and unrefined: $\{v \mid P\} \sqcup \textsf{int} = \textsf{int}$ (widen to base type).
-    \item Arrays: $[\tau_1; N] \sqcup [\tau_2; N] = [\tau_1 \sqcup \tau_2; N]$ (join element types covariantly).
+    \item Arrays: read-only element facts may join as $[\tau_1; N] \sqcup [\tau_2; N] = [\tau_1 \sqcup \tau_2; N]$; mutable array bindings retain their declared writable type and stores update versioned array facts.
     \item Propositions ($\phi$): intersect (keep only propositions provable in both branches).
 \end{itemize}
 
@@ -229,7 +229,7 @@ $$\frac{\phi; \Delta; \Gamma \vdash e \Rightarrow (\phi'; \Delta'; \tau_e) \quad
 
 \subsection{Subtyping rules}
 
-The subtyping relation $\phi \vdash \tau_1 <: \tau_2$ is defined by structural rules (reflexivity, singleton-to-int widening, refined-to-int widening, array covariance, master type transparency --- listed in full in Appendix~\ref{app:source-rules}) and two rules that invoke the SMT solver. In both, the propositions in $\phi$ are asserted as assumptions, the goal is negated, and the solver is checked for unsatisfiability:
+The subtyping relation $\phi \vdash \tau_1 <: \tau_2$ is defined by structural rules (reflexivity, singleton-to-int widening, refined-to-int widening, array subtyping, master type transparency---listed in full in Appendix~\ref{app:source-rules}) and two rules that invoke the SMT solver. Mutable arrays are treated invariantly in the checked fragment; covariant element reasoning is used only for read-only facts. In both solver-backed rules, the propositions in $\phi$ are asserted as assumptions, the goal is negated, and the solver is checked for unsatisfiability:
 
 $$\frac{\phi \vdash P[N/x]}{\phi \vdash \textsf{int}(N) <: \{x: \textsf{int} \mid P\}} \quad (\textsc{Sub-Singleton-Refine})$$
 
@@ -237,26 +237,11 @@ $$\frac{\phi \wedge P_1 \vdash P_2}{\phi \vdash \{x: \textsf{int} \mid P_1\} <: 
 
 \subsection{Expression typing rules}\label{sec:expr-typing-rules}
 
-The expression typing rules use two auxiliary functions on integer-like types. The partial function $\textsf{val}$ extracts the value representative of a singleton or refined integer type, while $\textsf{prop}$ extracts the logical proposition carried by a type:
-
+For expressions whose value is used in a proof obligation, synthesis returns both a type and an SMT-level index term:
 \[
-\begin{array}{c@{\hspace{3em}}c}
-\textsf{val}(\tau) =
-\begin{cases}
-N & \text{if } \tau = \textsf{int}(N) \\
-x & \text{if } \tau = \{x:\textsf{int} \mid P\}
-\end{cases}
-&
-\textsf{prop}(\tau) =
-\begin{cases}
-(v = N) & \text{if } \tau = \textsf{int}(N) \\
-P & \text{if } \tau = \{x:\textsf{int} \mid P\} \\
-\top & \text{otherwise}
-\end{cases}
-\end{array}
+  \phi;\Delta;\Gamma \vdash e \Rightarrow (\phi';\Delta';\tau;\iota)
 \]
-
-\noindent The function $\textsf{val}$ is used only in premises where $\tau <: \textsf{int}$ has already been established.
+The term $\iota$ denotes the expression's value in generated constraints. For a singleton it is the singleton index; for a refinement or existential type it is the symbolic term introduced during synthesis, not merely the binder name in the refinement. Boolean expressions also expose a guard proposition $\mathsf{guard}(e)$, for example $\mathsf{guard}(e_1 < e_2) = \iota_1 < \iota_2$. Conditional and loop rules use this guard rather than $\textsf{prop}(\textsf{bool})$, so branch facts such as \texttt{lo <= hi} enter the corresponding path context.
 
 Standard rules for literals, variable lookup, comparisons, logical operators, and array creation are given in Appendix~\ref{app:source-rules}. Some of the more interesting rules are described below.
 
@@ -265,14 +250,17 @@ Arithmetic operations use a $\textsf{join-op}$ function that performs constant f
 $$
   \frac{
     \begin{array}{c}
-      \phi_0; \Delta_0; \Gamma \vdash e_L \Rightarrow (\phi_1; \Delta_1; \tau_L) \quad \phi_1 \vdash \tau_L <: \textsf{int} \\
-      \phi_1; \Delta_1; \Gamma \vdash e_R \Rightarrow (\phi_2; \Delta_2; \tau_R) \quad \phi_2 \vdash \tau_R <: \textsf{int} \\
+      \phi_0; \Delta_0; \Gamma \vdash e_L \Rightarrow (\phi_1; \Delta_1; \tau_L; \iota_L) \quad \phi_1 \vdash \tau_L <: \textsf{int} \\
+      \phi_1; \Delta_1; \Gamma \vdash e_R \Rightarrow (\phi_2; \Delta_2; \tau_R; \iota_R) \quad \phi_2 \vdash \tau_R <: \textsf{int} \\
+      \textsf{arith-safe}(\textsf{aop}, \iota_L, \iota_R, \phi_2) \quad
       \tau_\textsf{res} = \textsf{join-op}(\textsf{aop}, \tau_L, \tau_R)
     \end{array}
   }{
-    \phi_0; \Delta_0; \Gamma \vdash e_L \textsf{ aop } e_R \Rightarrow (\phi_2; \Delta_2; \tau_\textsf{res})
+    \phi_0; \Delta_0; \Gamma \vdash e_L \textsf{ aop } e_R \Rightarrow (\phi_2; \Delta_2; \tau_\textsf{res}; \iota_L \textsf{ aop } \iota_R)
   } \quad (\textsc{T-Op})
 $$
+
+\noindent $\textsf{arith-safe}$ requires non-zero divisors for division and modulo and includes the signed-64-bit range obligations that the current implementation checks. Arithmetic outside those emitted side conditions is not part of the scoped guarantee.
 
 Array indexing requires a bounds proof obligation, verified by the SMT solver:
 
@@ -280,11 +268,11 @@ $$
   \frac{
     \begin{array}{c}
       (x: [\tau_\textsf{elem}; N]) \in (\Gamma \cup \Delta_0)                                                                              \\
-      \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i) \quad \phi_1 \vdash \tau_i <: \textsf{int} \\
-      \phi_1 \wedge \textsf{prop}(\tau_i) \vdash 0 \le \textsf{val}(\tau_i) < N \quad \text{(Bounds proof)}
+      \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i; \iota_i) \quad \phi_1 \vdash \tau_i <: \textsf{int} \\
+      \phi_1 \vdash 0 \le \iota_i < N \quad \text{(Bounds proof)}
     \end{array}
   }{
-    \phi_0; \Delta_0; \Gamma \vdash x[e_i] \Rightarrow (\phi_1; \Delta_1; \tau_\textsf{elem})
+    \phi_0; \Delta_0; \Gamma \vdash x[e_i] \Rightarrow (\phi_1; \Delta_1; \tau_\textsf{elem}; \textsf{select}(x,\iota_i))
   } \quad (\textsc{T-Array-Idx})
 $$
 
@@ -295,8 +283,9 @@ $$
   \frac{
     \begin{array}{c}
       \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
-      \phi_1 \wedge \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B \Rightarrow (\phi_2; \Delta_2; \tau_2)                      \\
-      \phi_1 \wedge \neg \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B' \Rightarrow (\phi_3; \Delta_3; \tau_3)                \\
+      P_c = \mathsf{guard}(e_\textsf{cond}) \\
+      \phi_1 \wedge P_c; \Delta_1; \Gamma \vdash B \Rightarrow (\phi_2; \Delta_2; \tau_2)                      \\
+      \phi_1 \wedge \neg P_c; \Delta_1; \Gamma \vdash B' \Rightarrow (\phi_3; \Delta_3; \tau_3)                \\
       (\phi_\textsf{join}, \Delta_\textsf{join}, \tau_\textsf{join}) = \textsf{join}(\phi_2, \Delta_2, \tau_2, \phi_3, \Delta_3, \tau_3)
     \end{array}
   }{
@@ -310,9 +299,9 @@ $$
   \frac{
     \begin{array}{c}
       \Sigma_F(f) = ( (x_i:\tau_i)_{i=1}^k \rightarrow \tau_\textsf{ret}\; \textsf{requires } P_\textsf{req} )                                  \\
-      \phi_0; \Delta_0; \Gamma \vdash \vec{e} \Rightarrow (\phi_k; \Delta_k; \vec{\sigma}) \\
+      \phi_0; \Delta_0; \Gamma \vdash \vec{e} \Rightarrow (\phi_k; \Delta_k; \vec{\sigma}; \vec{\iota}) \\
       \forall i \in 1..k,\; \phi_k \vdash \sigma_i <: \tau_i                                                \\
-      \phi_k \wedge \textsf{prop}(\vec{\sigma}) \vdash P_\textsf{req}[\textsf{val}(\vec{\sigma}) / \vec{x}] \quad \text{(Precondition proof)}
+      \phi_k \vdash P_\textsf{req}[\vec{\iota} / \vec{x}] \quad \text{(Precondition proof)}
     \end{array}
   }{
     \phi_0; \Delta_0; \Gamma \vdash f(\vec{e}) \Rightarrow (\phi_k; \Delta_k; \tau_\textsf{ret})
@@ -375,6 +364,29 @@ $$
 The constraint language supports bounded quantifiers and implication to express properties over finite program ranges. Quantifiers may only appear in specification positions (preconditions, postconditions, refinement predicates), not in runtime code; the type checker enforces this restriction.
 
 An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\!\textsf{int} \mid v \ge 0\}; N]$ automatically satisfies the quantified constraint $\forall i \in [0, N).\; \mathit{arr}[i] \ge 0$. This is achieved by extracting a quantified proposition from the array's element type and adding it to the context when the array is in scope.
+
+\subsection{Formal scope of the implemented rules}
+
+The rules above and Appendix~\ref{app:source-rules} are a compact model of the implementation rather than a mechanised metatheory. Table~\ref{tab:formal-gap-closure} records the main places where the formal presentation has been tightened to match the scoped guarantee.
+
+\begin{table}[H]
+  \centering
+  \small
+  \begin{tabular}{p{0.24\textwidth} p{0.34\textwidth} p{0.32\textwidth}}
+    \hline
+    \textbf{Issue} & \textbf{Rule treatment} & \textbf{Scope} \\
+    \hline
+    Branch facts & Conditions expose $\mathsf{guard}(e)$, used on then/else and loop paths. & Supports binary-search-style bounds reasoning. \\
+    Symbolic values & Synthesis returns an SMT term $\iota$ for value-dependent obligations. & Avoids treating refinement binders as runtime values. \\
+    Division and arithmetic & $\textsf{arith-safe}$ emits non-zero divisor and implemented signed-range obligations. & Only emitted side conditions are claimed. \\
+    Array mutation & Stores require element compatibility and create a new logical array version. & Full heap/pointer memory safety is outside scope. \\
+    Mutable array subtyping & Mutable arrays are invariant; covariant reasoning is read-only. & Prevents writes through widened mutable views. \\
+    Physical DTAL & Spills, division expansion, branch state, and ownership events are explicit verifier state. & Encoder, runtime, and machine model remain trusted. \\
+    \hline
+  \end{tabular}
+  \caption{Formal-rule clarifications supporting the scoped verifier guarantee.}
+  \label{tab:formal-gap-closure}
+\end{table}
 
 \section{The DTAL target language}\label{sec:dtal-target-lang}
 

@@ -3,6 +3,14 @@
 
 This appendix lists the complete set of typing rules for the Veritas source language. Rules marked with $\star$ are also presented in Chapter~\ref{ch:impl}; they are repeated here for completeness.
 
+\section*{Notation}
+
+For integer-like expressions, synthesis returns an SMT-level term $\iota$ alongside the type:
+\[
+  \phi;\Delta;\Gamma \vdash e \Rightarrow (\phi';\Delta';\tau;\iota)
+\]
+Rules that do not use the expression value suppress $\iota$ for readability. Variable synthesis uses the variable or register name as the SMT term when the type is integer-like. Boolean conditions expose a guard proposition $\mathsf{guard}(e)$; comparisons set this guard to the corresponding SMT comparison over their operand terms, and guards extend through logical connectives in the expected way. The predicate $\textsf{arith-safe}(\oplus,\iota_1,\iota_2,\phi)$ denotes the arithmetic side conditions emitted by the implementation, including non-zero divisors for division and modulo and the implemented signed-range obligations.
+
 \section*{Subsumption}
 
 $$\frac{\phi; \Delta; \Gamma \vdash e \Rightarrow (\phi'; \Delta'; \tau_e) \quad \phi' \vdash \tau_e <: \tau}{\phi; \Delta; \Gamma \vdash e \Leftarrow \tau : (\phi'; \Delta')} \quad (\textsc{T-Sub})^\star$$
@@ -19,13 +27,15 @@ $$\frac{\phi \vdash P[N/x]}{\phi \vdash \textsf{int}(N) <: \{x: \textsf{int} \mi
 
 $$\frac{\phi \wedge P_1 \vdash P_2}{\phi \vdash \{x: \textsf{int} \mid P_1\} <: \{x: \textsf{int} \mid P_2\}} \quad (\textsc{Sub-Refine-Refine})^\star$$
 
-$$\frac{\phi \vdash \tau_1 <: \tau_2}{\phi \vdash [\tau_1; N] <: [\tau_2; N]} \quad (\textsc{Sub-Array})$$
+$$\frac{}{\phi \vdash [\tau; N] <: [\tau; N]} \quad (\textsc{Sub-Array-Mut})$$
+
+\noindent Mutable arrays are invariant in the checked fragment. Covariant element reasoning is used only for read-only facts extracted from array element types.
 
 $$\frac{\phi \vdash \tau <: \sigma}{\phi \vdash \textsf{master}(\tau) <: \sigma} \quad (\textsc{Sub-Master})$$
 
 \section*{Literals and variables}
 
-$$\frac{}{\phi; \Delta; \Gamma \vdash n \Rightarrow (\phi; \Delta; \textsf{int}(n))} \quad (\textsc{T-Int})$$
+$$\frac{}{\phi; \Delta; \Gamma \vdash n \Rightarrow (\phi; \Delta; \textsf{int}(n); n)} \quad (\textsc{T-Int})$$
 
 $$\frac{}{\phi; \Delta; \Gamma \vdash \textsf{true} \Rightarrow (\phi; \Delta; \textsf{bool})} \quad (\textsc{T-True})
   \qquad
@@ -40,12 +50,13 @@ $$\frac{(x: \tau) \in \Gamma}{\phi; \Delta; \Gamma \vdash x \Rightarrow (\phi; \
 $$
   \frac{
     \begin{array}{c}
-      \phi_0; \Delta_0; \Gamma \vdash e_L \Rightarrow (\phi_1; \Delta_1; \tau_L) \quad \phi_1 \vdash \tau_L <: \textsf{int} \\
-      \phi_1; \Delta_1; \Gamma \vdash e_R \Rightarrow (\phi_2; \Delta_2; \tau_R) \quad \phi_2 \vdash \tau_R <: \textsf{int} \\
+      \phi_0; \Delta_0; \Gamma \vdash e_L \Rightarrow (\phi_1; \Delta_1; \tau_L; \iota_L) \quad \phi_1 \vdash \tau_L <: \textsf{int} \\
+      \phi_1; \Delta_1; \Gamma \vdash e_R \Rightarrow (\phi_2; \Delta_2; \tau_R; \iota_R) \quad \phi_2 \vdash \tau_R <: \textsf{int} \\
+      \textsf{arith-safe}(\textsf{aop}, \iota_L, \iota_R, \phi_2) \\
       \tau_\textsf{res} = \textsf{join-op}(\textsf{aop}, \tau_L, \tau_R)
     \end{array}
   }{
-    \phi_0; \Delta_0; \Gamma \vdash e_L \textsf{ aop } e_R \Rightarrow (\phi_2; \Delta_2; \tau_\textsf{res})
+    \phi_0; \Delta_0; \Gamma \vdash e_L \textsf{ aop } e_R \Rightarrow (\phi_2; \Delta_2; \tau_\textsf{res}; \iota_L \textsf{ aop } \iota_R)
   } \quad (\textsc{T-Op})^\star
 $$
 
@@ -54,11 +65,11 @@ $$
 $$
   \frac{
     \begin{array}{c}
-      \phi_0; \Delta_0; \Gamma \vdash e_L \Rightarrow (\phi_1; \Delta_1; \tau_L) \quad \phi_1 \vdash \tau_L <: \textsf{int} \\
-      \phi_1; \Delta_1; \Gamma \vdash e_R \Rightarrow (\phi_2; \Delta_2; \tau_R) \quad \phi_2 \vdash \tau_R <: \textsf{int}
+      \phi_0; \Delta_0; \Gamma \vdash e_L \Rightarrow (\phi_1; \Delta_1; \tau_L; \iota_L) \quad \phi_1 \vdash \tau_L <: \textsf{int} \\
+      \phi_1; \Delta_1; \Gamma \vdash e_R \Rightarrow (\phi_2; \Delta_2; \tau_R; \iota_R) \quad \phi_2 \vdash \tau_R <: \textsf{int}
     \end{array}
   }{
-    \phi_0; \Delta_0; \Gamma \vdash e_L \textsf{ cop } e_R \Rightarrow (\phi_2; \Delta_2; \textsf{bool})
+    \phi_0; \Delta_0; \Gamma \vdash e_L \textsf{ cop } e_R \Rightarrow (\phi_2; \Delta_2; \textsf{bool}) \quad \mathsf{guard}(e_L \textsf{ cop } e_R) = (\iota_L \textsf{ cop } \iota_R)
   } \quad (\textsc{T-Cmp})
 $$
 
@@ -79,8 +90,7 @@ $$
   \frac{
     \begin{array}{c}
       \phi_0; \Delta_0; \Gamma \vdash e_\textsf{val} \Rightarrow (\phi_1; \Delta_1; \tau_\textsf{val})   \\
-      \phi_1; \Delta_1; \Gamma \vdash e_\textsf{size} \Rightarrow (\phi_2; \Delta_2; \tau_\textsf{size}) \\
-      \phi_2 \vdash \tau_\textsf{size} <: \textsf{int} \quad N = \textsf{val}(\tau_\textsf{size})
+      \phi_1; \Delta_1; \Gamma \vdash e_\textsf{size} \Rightarrow (\phi_2; \Delta_2; \textsf{int}(N); N)
     \end{array}
   }{
     \phi_0; \Delta_0; \Gamma \vdash [e_\textsf{val}; e_\textsf{size}] \Rightarrow (\phi_2; \Delta_2; [\tau_\textsf{val}; N])
@@ -93,11 +103,11 @@ $$
   \frac{
     \begin{array}{c}
       (x: [\tau_\textsf{elem}; N]) \in (\Gamma \cup \Delta_0)                                                               \\
-      \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i) \quad \phi_1 \vdash \tau_i <: \textsf{int} \\
-      \phi_1 \wedge \textsf{prop}(\tau_i) \vdash 0 \le \textsf{val}(\tau_i) < N \quad \text{(Bounds proof)}
+      \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i; \iota_i) \quad \phi_1 \vdash \tau_i <: \textsf{int} \\
+      \phi_1 \vdash 0 \le \iota_i < N \quad \text{(Bounds proof)}
     \end{array}
   }{
-    \phi_0; \Delta_0; \Gamma \vdash x[e_i] \Rightarrow (\phi_1; \Delta_1; \tau_\textsf{elem})
+    \phi_0; \Delta_0; \Gamma \vdash x[e_i] \Rightarrow (\phi_1; \Delta_1; \tau_\textsf{elem}; \textsf{select}(x,\iota_i))
   } \quad (\textsc{T-Array-Idx})^\star
 $$
 
@@ -107,8 +117,9 @@ $$
   \frac{
     \begin{array}{c}
       \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
-      \phi_1 \wedge \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B \Rightarrow (\phi_2; \Delta_2; \tau_2)                              \\
-      \phi_1 \wedge \neg \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B' \Rightarrow (\phi_3; \Delta_3; \tau_3)                        \\
+      P_c = \mathsf{guard}(e_\textsf{cond})                                                                                              \\
+      \phi_1 \wedge P_c; \Delta_1; \Gamma \vdash B \Rightarrow (\phi_2; \Delta_2; \tau_2)                                                \\
+      \phi_1 \wedge \neg P_c; \Delta_1; \Gamma \vdash B' \Rightarrow (\phi_3; \Delta_3; \tau_3)                                          \\
       (\phi_\textsf{join}, \Delta_\textsf{join}, \tau_\textsf{join}) = \textsf{join}(\phi_2, \Delta_2, \tau_2, \phi_3, \Delta_3, \tau_3)
     \end{array}
   }{
@@ -122,9 +133,9 @@ $$
   \frac{
     \begin{array}{c}
       \Sigma_F(f) = ( (x_i:\tau_i)_{i=1}^k \rightarrow \tau_\textsf{ret}\; \textsf{requires } P_\textsf{req} ) \\
-      \phi_0; \Delta_0; \Gamma \vdash \vec{e} \Rightarrow (\phi_k; \Delta_k; \vec{\sigma})                     \\
+      \phi_0; \Delta_0; \Gamma \vdash \vec{e} \Rightarrow (\phi_k; \Delta_k; \vec{\sigma}; \vec{\iota})        \\
       \forall i \in 1..k,\; \phi_k \vdash \sigma_i <: \tau_i                                                   \\
-      \phi_k \wedge \textsf{prop}(\vec{\sigma}) \vdash P_\textsf{req}[\textsf{val}(\vec{\sigma}) / \vec{x}] \quad \text{(Precondition proof)}
+      \phi_k \vdash P_\textsf{req}[\vec{\iota} / \vec{x}] \quad \text{(Precondition proof)}
     \end{array}
   }{
     \phi_0; \Delta_0; \Gamma \vdash f(\vec{e}) \Rightarrow (\phi_k; \Delta_k; \tau_\textsf{ret})
@@ -155,14 +166,17 @@ $$
   \frac{
     \begin{array}{c}
       (x: [\tau_\textsf{elem}; N]) \in \Delta_0                                                                                 \\
-      \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i) \quad \phi_1 \vdash \tau_i <: \textsf{int}     \\
-      \phi_1; \Delta_1; \Gamma \vdash e \Rightarrow (\phi_2; \Delta_2; \tau_v) \quad \phi_2 \vdash \tau_v <: \tau_\textsf{elem} \\
-      \phi_2 \wedge \textsf{prop}(\tau_i) \vdash 0 \le \textsf{val}(\tau_i) < N \quad \text{(Bounds proof)}
+      \phi_0; \Delta_0; \Gamma \vdash e_i \Rightarrow (\phi_1; \Delta_1; \tau_i; \iota_i) \quad \phi_1 \vdash \tau_i <: \textsf{int} \\
+      \phi_1; \Delta_1; \Gamma \vdash e \Rightarrow (\phi_2; \Delta_2; \tau_v; \iota_v) \quad \phi_2 \vdash \tau_v <: \tau_\textsf{elem} \\
+      \phi_2 \vdash 0 \le \iota_i < N \quad \text{(Bounds proof)} \\
+      \Delta_3 = \textsf{array-update}(\Delta_2, x, \iota_i, \iota_v, \tau_\textsf{elem})
     \end{array}
   }{
-    \phi_0; \Delta_0; \Gamma \vdash (x[e_i] = e;) : (\phi_2; \Delta_2; \Gamma)
+    \phi_0; \Delta_0; \Gamma \vdash (x[e_i] = e;) : (\phi_2; \Delta_3; \Gamma)
   } \quad (\textsc{T-Array-Assign})
 $$
+
+\noindent The $\textsf{array-update}$ operation advances the logical array version, records the write axiom for the updated element, and retains frame facts for all other indices.
 
 \section*{Assignment}
 
@@ -213,8 +227,9 @@ $$
   \frac{
     \begin{array}{c}
       \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
-      \phi_1 \wedge \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B : (\phi_2; \Delta_2; \Gamma)                                        \\
-      \phi_1 \wedge \neg \textsf{prop}(\tau_c); \Delta_1; \Gamma \vdash B' : (\phi_3; \Delta_3; \Gamma)                                  \\
+      P_c = \mathsf{guard}(e_\textsf{cond})                                                                                              \\
+      \phi_1 \wedge P_c; \Delta_1; \Gamma \vdash B : (\phi_2; \Delta_2; \Gamma)                                                          \\
+      \phi_1 \wedge \neg P_c; \Delta_1; \Gamma \vdash B' : (\phi_3; \Delta_3; \Gamma)                                                    \\
       (\phi_\textsf{join}, \Delta_\textsf{join}) = \textsf{join}(\phi_2, \Delta_2, \phi_3, \Delta_3)
     \end{array}
   }{
@@ -226,18 +241,19 @@ $$
   \frac{
     \begin{array}{c}
       \phi_0; \Delta_0; \Gamma \vdash e_\textsf{cond} \Rightarrow (\phi_1; \Delta_1; \tau_c) \quad \phi_1 \vdash \tau_c <: \textsf{bool} \\
+      P_c = \mathsf{guard}(e_\textsf{cond})                                                                                              \\
       \phi_0 \vdash \phi_I \quad \text{(Invariant holds on entry)}                                                                       \\
-      \phi_I \wedge \textsf{prop}(\tau_c);\; \Delta_0;\; \Gamma \vdash B : (\phi_2; \Delta_2; \Gamma)                                    \\
+      \phi_I \wedge P_c;\; \Delta_0;\; \Gamma \vdash B : (\phi_2; \Delta_2; \Gamma)                                                      \\
       \phi_2; \Delta_2 \vdash \phi_I \quad \text{(Invariant preserved by body)}
     \end{array}
   }{
-    \phi_0; \Delta_0; \Gamma \vdash (\textsf{while } e_\textsf{cond}\;\{B\}) : (\phi_I \wedge \neg\textsf{prop}(\tau_c); \Delta_0; \Gamma)
+    \phi_0; \Delta_0; \Gamma \vdash (\textsf{while } e_\textsf{cond}\;\{B\}) : (\phi_I \wedge \neg P_c; \Delta_0; \Gamma)
   } \quad (\textsc{T-While})
 $$
 
 \chapter{Complete DTAL typing rules}\label{app:dtal-rules}
 
-This appendix lists the complete set of typing rules implemented by the DTAL verifier. Each rule has the form $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, where $\Phi$ is the constraint context, $\Gamma$ maps registers to types, and $\Gamma'$ is the updated register map. We write $\textsf{idx}(\tau)$ for the index expression extracted from a type (e.g., $\textsf{idx}(\textsf{int}(e)) = e$). Rules marked with $\star$ are also presented in Chapter~\ref{ch:impl}.
+This appendix lists the complete set of typing rules implemented by the DTAL verifier. Most rules have the form $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, where $\Phi$ is the constraint context, $\Gamma$ maps registers to types, and $\Gamma'$ is the updated register map. Rules that also touch spill slots, comparison flags, array versions, physical-division metadata, or ownership state extend this judgement with the corresponding auxiliary state. We write $\textsf{idx}(\tau)$ for the index expression extracted from a type (e.g., $\textsf{idx}(\textsf{int}(e)) = e$). Rules marked with $\star$ are also presented in Chapter~\ref{ch:impl}.
 
 \section*{Data movement}
 
@@ -260,7 +276,8 @@ $$
 $$
   \frac{
     \begin{array}{c}
-      \Gamma(r_b) = [\tau; N] \quad \Phi \vdash 0 \le \textsf{idx}(\Gamma(r_i)) < N \\
+      \Gamma(r_b) = [\tau; N] \quad \Gamma(r_s) = \tau_s \quad \Phi \vdash \tau_s <: \tau \\
+      e_i = \textsf{idx}(\Gamma(r_i)) \quad e_s = \textsf{idx}(\tau_s) \quad \Phi \vdash 0 \le e_i < N \\
       v' = v + 1 \quad \text{(fresh array version)}
     \end{array}
   }{\Phi; \Gamma \vdash \textsf{store } [r_b, r_i], r_s \Rightarrow \Gamma} \quad (\textsc{D-Store})
@@ -272,19 +289,24 @@ $$
 
 $$
   \frac{
-    \Gamma(r_1) = \textsf{int}(e_1) \quad \Gamma(r_2) = \textsf{int}(e_2)
+    \Gamma(r_1) = \textsf{int}(e_1) \quad \Gamma(r_2) = \textsf{int}(e_2) \quad \textsf{arith-safe}(\oplus,e_1,e_2,\Phi)
   }{\Phi; \Gamma \vdash \textsf{binop}_\oplus\; r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \textsf{int}(e_1 \oplus e_2)]} \quad (\textsc{D-BinOp-Singleton})^\star
 $$
 
 $$
   \frac{
-    \Gamma(r_1) = \{a\!:\!\textsf{int} \mid \varphi_1\} \quad \Gamma(r_2) = \{b\!:\!\textsf{int} \mid \varphi_2\}
-  }{\Phi; \Gamma \vdash \textsf{binop}_\oplus\; r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \exists c.\; \textsf{int}(c) \;\mathbf{where}\; \exists a,b.\; \varphi_1 \wedge \varphi_2 \wedge c = a \oplus b]} \quad (\textsc{D-BinOp-Refined})^\star
+    \begin{array}{c}
+      \Gamma(r_1) = \{a\!:\!\textsf{int} \mid \varphi_1\} \quad \Gamma(r_2) = \{b\!:\!\textsf{int} \mid \varphi_2\} \\
+      \textsf{arith-safe}(\oplus,a,b,\Phi \wedge \varphi_1 \wedge \varphi_2) \\
+      C_\oplus = \exists a,b.\; \varphi_1 \wedge \varphi_2 \wedge c = a \oplus b \quad
+      \tau_\textsf{res} = \exists c.\; \textsf{int}(c) \;\mathbf{where}\; C_\oplus
+    \end{array}
+  }{\Phi; \Gamma \vdash \textsf{binop}_\oplus\; r_d, r_1, r_2 \Rightarrow \Gamma[r_d \mapsto \tau_\textsf{res}]} \quad (\textsc{D-BinOp-Refined})^\star
 $$
 
 $$
   \frac{
-    \Gamma(r_s) = \textsf{int}(e)
+    \Gamma(r_s) = \textsf{int}(e) \quad \textsf{arith-safe}(+,e,n,\Phi)
   }{\Phi; \Gamma \vdash \textsf{addimm } r_d, r_s, n \Rightarrow \Gamma[r_d \mapsto \textsf{int}(e + n)]} \quad (\textsc{D-AddImm})
 $$
 
@@ -299,13 +321,13 @@ $$
 $$
   \frac{
     \Gamma(r_1) = \tau_1 \quad \Gamma(r_2) = \tau_2
-  }{\Phi; \Gamma \vdash \textsf{cmp } r_1, r_2 \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), \textsf{idx}(\tau_2)\text{)}} \quad (\textsc{D-Cmp})
+  }{\Phi; \Gamma; C \vdash \textsf{cmp } r_1, r_2 \Rightarrow \Gamma; C[\textsf{last} \mapsto (\textsf{idx}(\tau_1), \textsf{idx}(\tau_2))]} \quad (\textsc{D-Cmp})
 $$
 
 $$
   \frac{
     \Gamma(r_1) = \tau_1
-  }{\Phi; \Gamma \vdash \textsf{cmp } r_1, n \Rightarrow \Gamma \quad \text{(records operands } \textsf{idx}(\tau_1), n\text{)}} \quad (\textsc{D-CmpImm})
+  }{\Phi; \Gamma; C \vdash \textsf{cmp } r_1, n \Rightarrow \Gamma; C[\textsf{last} \mapsto (\textsf{idx}(\tau_1), n)]} \quad (\textsc{D-CmpImm})
 $$
 
 $$
@@ -314,11 +336,12 @@ $$
 
 $$
   \frac{
-    \text{last cmp operands: } e_1, e_2
-  }{\Phi; \Gamma \vdash \textsf{branch } \textit{cond}\; L \Rightarrow \Gamma \quad \text{with } \Phi' = \Phi \wedge \neg(e_1 \textit{ cond } e_2) \text{ (fall-through)}} \quad (\textsc{D-Branch})^\star
+    C(\textsf{last}) = (e_1,e_2)
+  }{\Phi; \Gamma; C \vdash \textsf{branch } \textit{cond}\; L \Rightarrow \Gamma; C \quad \text{with } \Phi' = \Phi \wedge \neg(e_1 \textit{ cond } e_2) \text{ (fall-through)}} \quad (\textsc{D-Branch})^\star
 $$
 
 \noindent The taken edge to $L$ carries $\Phi \wedge (e_1 \textit{ cond } e_2)$.
+The comparison state $C$ is invalidated by instructions that clobber the machine flags, so a conditional branch can only consume a live comparison.
 
 \section*{Stack and allocation}
 
@@ -369,15 +392,90 @@ $$
 
 \section*{Physical instructions (post-regalloc)}
 
-The following instructions appear only after register allocation and are verified for basic consistency:
+\[
+  \frac{
+    \Gamma(r_{\mathtt{ax}}) = \textsf{int}(e_n)
+  }{
+    \Phi; \Gamma; \Pi \vdash \textsf{cqo} \Rightarrow \Gamma; \Pi[\mathsf{dividend} \mapsto e_n]
+  } \quad (\textsc{D-Cqo})
+\]
 
-\begin{itemize}
-  \item \textbf{D-Cqo}: Sign-extends \texttt{rax} into \texttt{rdx:rax}. The type of \texttt{rdx} is set to the type of \texttt{rax}.
-  \item \textbf{D-Idiv}: Divides \texttt{rdx:rax} by the source register. Both \texttt{rax} (quotient) and \texttt{rdx} (remainder) receive type $\textsf{int}$.
-  \item \textbf{D-SpillStore}: Records the type stored at a stack offset.
-  \item \textbf{D-SpillLoad}: Checks that the loaded type matches what was previously stored at that offset.
-  \item \textbf{D-Prologue / D-Epilogue}: Structural markers verified at the function level.
-\end{itemize}
+\[
+  \frac{
+    \begin{array}{c}
+      \Pi(\mathsf{dividend}) = e_n \quad \Gamma(r_s) = \textsf{int}(e_d) \\
+      \Phi \vdash e_d \ne 0 \quad \textsf{arith-safe}(/,e_n,e_d,\Phi)
+    \end{array}
+  }{
+    \Phi; \Gamma; \Pi \vdash \textsf{idiv } r_s \Rightarrow
+    \Gamma[r_{\mathtt{ax}} \mapsto \textsf{int}(e_n \operatorname{div} e_d),
+           r_{\mathtt{dx}} \mapsto \textsf{int}(e_n \operatorname{mod} e_d)];
+    \Pi[\mathsf{dividend} \mapsto \bot]
+  } \quad (\textsc{D-Idiv})
+\]
+
+\noindent If either division operand lacks a singleton term, the implementation weakens the result registers to $\textsf{int}$ while retaining the non-zero-divisor and range checks.
+
+\[
+  \frac{
+    \Gamma(r_s) = \tau
+  }{
+    \Phi; \Gamma; \Sigma_S \vdash \textsf{spill\_store } o, r_s \Rightarrow \Gamma; \Sigma_S[o \mapsto \tau]
+  } \quad (\textsc{D-SpillStore})
+\]
+
+\[
+  \frac{
+    \Sigma_S(o) = \tau
+  }{
+    \Phi; \Gamma; \Sigma_S \vdash \textsf{spill\_load } r_d, o \Rightarrow \Gamma[r_d \mapsto \tau]; \Sigma_S
+  } \quad (\textsc{D-SpillLoad})
+\]
+
+\[
+  \frac{\textsf{frame-ok}(F)}
+       {\Phi; \Gamma; \Sigma_S \vdash \textsf{prologue}(F) \Rightarrow \Gamma; \Sigma_S}
+  \quad
+  \frac{\textsf{frame-ok}(F)}
+       {\Phi; \Gamma; \Sigma_S \vdash \textsf{epilogue}(F) \Rightarrow \Gamma; \Sigma_S}
+  \quad (\textsc{D-Frame})
+\]
+
+\section*{Ownership instructions}
+
+The ownership verifier state $\Omega$ maps object identifiers to an owner, borrow set, and consumed/live status. Joins require compatible $\Omega$ states before merging control-flow paths.
+
+\begin{table}[H]
+  \centering
+  \scriptsize
+  \begin{tabularx}{\linewidth}{p{0.22\linewidth} p{0.36\linewidth} p{0.34\linewidth}}
+    \hline
+    \textbf{Instruction} & \textbf{Required state} & \textbf{Successor state} \\
+    \hline
+    $\textsf{move\_owned } r_d, r_s, o$
+    & $\Omega(o)=\textsf{owned}(r_s)$ and $o$ has no live borrows.
+    & $\Omega(o)=\textsf{owned}(r_d)$; $r_s$ is marked consumed; $\Gamma(r_d)=\Gamma(r_s)$. \\
+    \hline
+    $\textsf{alias\_borrow } b, o$
+    & $o$ is owned and has no live mutable borrow.
+    & Adds shared borrow $b$ for $o$. \\
+    \hline
+    $\textsf{borrow\_mut } b, o$
+    & $o$ is owned and has no live shared or mutable borrows.
+    & Adds the unique mutable borrow $b$ for $o$. \\
+    \hline
+    $\textsf{borrow\_end } b$
+    & $b$ is a live borrow in $\Omega$.
+    & Removes $b$ from the borrow set. \\
+    \hline
+    $\textsf{drop\_owned } o$
+    & $o$ is owned, live, and unborrowed.
+    & Marks $o$ consumed and removes its owner. \\
+    \hline
+  \end{tabularx}
+  \caption{Ownership and borrow-state transitions checked by the DTAL verifier.}
+  \label{tab:dtal-ownership-rules}
+\end{table}
 
 \chapter{Preservation proof sketch}\label{app:preservation-sketch}
 
