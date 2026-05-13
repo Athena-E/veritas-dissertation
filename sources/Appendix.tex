@@ -379,6 +379,90 @@ The following instructions appear only after register allocation and are verifie
   \item \textbf{D-Prologue / D-Epilogue}: Structural markers verified at the function level.
 \end{itemize}
 
+\chapter{Preservation proof sketch}\label{app:preservation-sketch}
+
+This appendix gives a structured proof sketch for the claim that Veritas preserves verifier-facing type evidence through the compilation pipeline. The claim is intentionally scoped: it is not a formal source-to-target semantic-preservation theorem, and it does not prove that the generated machine code computes the same value as the source program. Instead, it justifies the engineering claim that the compiler is designed to carry the evidence needed by the final physical-DTAL verifier.
+
+\section*{Claim and assumptions}
+
+\paragraph{Claim.}
+If a Veritas source program is accepted by the source checker, the compiler emits physical DTAL, and the independent physical-DTAL verifier accepts that artifact, then the safety evidence relevant to the checked policy has been preserved into the verifier-facing low-level program. The checked policy covers fixed-size array bounds, function preconditions and postconditions, block-entry type-state compatibility, selected arithmetic side conditions, and the supported ownership/borrowing discipline.
+
+\paragraph{Assumptions.}
+The argument assumes that the verifier implementation, its SMT translation, Z3, the direct encoder, runtime intrinsics, and target machine model behave according to their intended specifications. The compiler stages before physical-DTAL verification are not trusted for the checked safety policy: if they corrupt safety-relevant evidence in a way that violates the DTAL rules, the final verifier should reject the artifact. A type-consistent semantic miscompilation can still pass, because the verifier checks the scoped safety policy rather than full program equivalence.
+
+\section*{Pass invariants}
+
+Table~\ref{tab:pass-preservation-invariants} records the preservation obligation at each stage and the evidence used in the dissertation. The table is not a machine-checked proof, but it makes explicit which invariant each pass is intended to maintain and which later check validates it.
+
+\begin{table}[H]
+  \centering
+  \scriptsize
+  \begin{tabularx}{\linewidth}{p{0.16\linewidth} p{0.20\linewidth} p{0.34\linewidth} p{0.22\linewidth}}
+    \hline
+    \textbf{Stage} & \textbf{Input/output} & \textbf{Preservation obligation} & \textbf{Evidence/status} \\
+    \hline
+    Source checking
+    & Source $\rightarrow$ TAST
+    & Establish well-formed contracts, refinements, loop invariants, bounds obligations, arithmetic side conditions, and ownership events.
+    & Source rules in Appendix~\ref{app:source-rules}; negative suite; not trusted by final low-level policy. \\
+    \hline
+    Lowering
+    & TAST $\rightarrow$ TIR
+    & Replace source variables by SSA registers while translating branch facts, contracts, loop invariants, bounds obligations, and ownership events into register-indexed constraints.
+    & TIR design in Chapter~\ref{ch:impl}; binary-search walkthrough in Appendix~\ref{app:worked-example}; checked again downstream. \\
+    \hline
+    DTAL generation
+    & TIR $\rightarrow$ virtual DTAL
+    & Emit block-entry type states, instruction annotations, assertions, assumptions, function contracts, and existential facts sufficient for independent checking.
+    & DTAL rules in Appendix~\ref{app:dtal-rules}; feature-suite verifier acceptance. \\
+    \hline
+    Optimisation
+    & virtual DTAL $\rightarrow$ virtual DTAL
+    & Preserve verifier-visible effects: assertions, assumptions, calls, stores, branches, and type annotations must not be silently dropped or made inconsistent.
+    & Optional pass output is still fed to the final verifier; incorrect safety-relevant rewrites should be rejected. \\
+    \hline
+    Physical allocation
+    & virtual DTAL $\rightarrow$ physical DTAL
+    & Substitute virtual registers with physical registers in both instructions and constraints; expose spills, reloads, prologues, epilogues, and division expansion as verifier-visible operations.
+    & Post-register-allocation verifier; spill and physical-instruction rules; DTAL tampering corpus. \\
+    \hline
+    Independent verifier
+    & physical DTAL $\rightarrow$ accept/reject
+    & Re-derive register types and constraints from instruction semantics, prove assertions and side conditions, and check every control-flow edge against target entry states.
+    & Trusted implementation core; rules in Appendix~\ref{app:dtal-rules}; positive and tampering suites. \\
+    \hline
+    Direct encoding and runtime
+    & accepted physical DTAL $\rightarrow$ x86-64/ELF
+    & Map checked physical instructions to the intended byte sequences and provide trusted runtime effects.
+    & Small trusted encoder/runtime; tested by executable examples; outside the preservation proof sketch. \\
+    \hline
+  \end{tabularx}
+  \caption{Pass-by-pass preservation obligations and supporting evidence.}
+  \label{tab:pass-preservation-invariants}
+\end{table}
+
+\section*{Proof sketch}
+
+The argument proceeds by induction over the pipeline stages in Table~\ref{tab:pass-preservation-invariants}, with the final step discharged by the physical-DTAL verifier.
+
+\paragraph{Source checking.}
+For an accepted source program, the type checker has assigned every expression and statement a type under a context of logical assumptions. Array accesses and stores require a proof of $0 \le i < N$; calls require the callee precondition; returns require the postcondition; loop bodies must preserve their invariants; and assignments to mutable variables must remain within the declared master type. Therefore the TAST contains both executable structure and the source-level evidence that later stages must carry.
+
+\paragraph{Lowering to TIR.}
+Lowering is syntax-directed. The induction hypothesis is that each already-lowered subexpression has a virtual register and a type/constraint description corresponding to the source judgement. Variable lookup is translated by the source-to-register environment; mutation becomes SSA reassignment; branches attach translated guard constraints to successor edges; and loop-carried values are represented by phi nodes. Existential constraints on phi nodes preserve facts such as induction-variable bounds without requiring a concrete singleton value. Thus TIR preserves the safety-relevant source evidence in a register-indexed form.
+
+\paragraph{DTAL generation.}
+The code generator maps each TIR instruction to virtual DTAL while preserving its verifier-facing type. Arithmetic instructions carry result refinements or existential summaries; array operations carry bounds constraints; calls carry contract information; branch successors receive the corresponding assumptions; and loop invariants become \texttt{.assert} directives. Phi nodes are lowered to edge copies plus declared block-entry states. The result is a virtual-DTAL program whose annotations are sufficient for an independent verifier to reconstruct the intended type state.
+
+\paragraph{Optimisation and physical allocation.}
+Optimisations are required to preserve verifier-visible instructions and update the types on rewritten instructions. Physical allocation then applies a register substitution to instructions, annotations, and constraints. Extra backend work introduced by the target architecture is made explicit: spills and reloads carry stack-slot types, division expansion appears as physical instructions, and prologues/epilogues are represented in DTAL rather than hidden below the verifier. These stages are not trusted; their preservation obligation is validated by the final physical-DTAL check.
+
+\paragraph{Physical-DTAL verification.}
+The verifier checks each function block by block. Its state contains a register typing environment, logical constraints, stack and spill-slot types, array-version information, function contracts, comparison state, and ownership metadata. For each instruction, it re-derives the successor type state from the instruction semantics rather than trusting compiler annotations. Loads and stores require an SMT proof of the bounds obligation, stores update array versions, calls check preconditions and import postconditions, branches refine outgoing edge states, and jumps must coerce the current state to the target block's entry state. Ownership instructions update object and borrow state while rejecting moves, drops, or borrows that violate the supported discipline.
+
+Consequently, if the verifier accepts the physical DTAL, every checked instruction has a locally justified transition and every control-flow edge preserves the declared type state. This substantiates the type-preservation claim in the implementation sense: safety-relevant type evidence is carried to a low-level artifact and independently checked there. It remains a proof sketch, not a mechanised preservation theorem, and it leaves full compiler semantic preservation as future work.
+
 % \chapter{Pipeline correspondence tables}\label{app:pipeline-correspondence}
 %
 % \begin{table}[h]
