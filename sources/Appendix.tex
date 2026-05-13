@@ -379,74 +379,74 @@ The following instructions appear only after register allocation and are verifie
   \item \textbf{D-Prologue / D-Epilogue}: Structural markers verified at the function level.
 \end{itemize}
 
-\chapter{Pipeline correspondence tables}\label{app:pipeline-correspondence}
-
-\begin{table}[h]
-  \centering
-  \scriptsize
-  \begin{tabular}{p{0.27\textwidth} p{0.32\textwidth} p{0.32\textwidth}}
-    \hline
-    \textbf{Source construct} & \textbf{TIR representation} & \textbf{DTAL representation} \\
-    \hline
-    Integer / boolean literal
-    & $\rho := n : \tau$
-    & \texttt{mov} into a register with a singleton or base type annotation \\
-    Variable use
-    & Read the virtual register currently bound to the source variable
-    & Use the corresponding virtual or physical register in later instructions \\
-    Immutable binding \texttt{let x:T = e}
-    & Lower $e$ to a fresh virtual register and bind $x$ to that register
-    & Instructions computing $e$, with the result type carried on the destination register \\
-    Mutable assignment \texttt{x = e}
-    & Lower $e$ to a fresh virtual register and update the variable-to-register map
-    & Ordinary computation instructions; SSA reassignment has already been made explicit in TIR \\
-    Arithmetic expression \texttt{e1 op e2}
-    & \texttt{BinOp \{ dst, op, lhs, rhs, ty \}}
-    & Arithmetic instruction such as \texttt{add}, \texttt{sub}, or \texttt{mul}, carrying the derived result type \\
-    Comparison expression
-    & \texttt{BinOp} or branch condition register with true/false constraints
-    & \texttt{cmp} followed by \texttt{setcc} or conditional branch; branch facts refine the verifier context \\
-    Conditional expression / statement
-    & \texttt{Branch \{ cond, true\_target, false\_target, true\_constraint, false\_constraint \}} plus merge phi nodes
-    & \texttt{cmp}/branch instructions and labelled blocks with checked entry states \\
-    Loop
-    & Header/body/exit blocks, loop-carried phi nodes, and translated invariant assertions
-    & Labelled blocks with \texttt{.entry}, \texttt{.assume}, branches, and \texttt{.assert} constraints \\
-    Function call
-    & \texttt{Call \{ dst?, func, args, arg\_types, result\_ty \}}
-    & Argument registers following the calling convention, \texttt{call}, precondition check, and postcondition context update \\
-    Return
-    & \texttt{Return \{ value? \}}
-    & Move result to the return register where needed, then \texttt{ret} \\
-    Array creation
-    & Allocation or initialisation instructions, depending on the source form
-    & Stack/runtime allocation support plus array type information and initialisation facts \\
-    Array read \texttt{a[i]}
-    & \texttt{ArrayLoad \{ dst, base, index, element\_ty, bounds\_constraint \}}
-    & Address computation plus typed \texttt{load}; verifier proves the bounds constraint \\
-    Array write \texttt{a[i] = e}
-    & \texttt{ArrayStore \{ base, index, value, bounds\_constraint \}}
-    & Address computation plus typed \texttt{store}; verifier proves the bounds constraint \\
-    Function precondition
-    & Function-level constraint and call-site proof obligation
-    & \texttt{.precondition}; verifier checks callers establish the required constraint \\
-    Function postcondition
-    & Function-level result constraint
-    & \texttt{.postcondition}; verifier adds the instantiated fact after a verified call \\
-    Loop invariant / assertion
-    & \texttt{AssertConstraint \{ constraint \}}
-    & \texttt{.assert}; checked before being added to the DTAL constraint context \\
-    Path assumption
-    & \texttt{AssumeConstraint \{ constraint \}}
-    & \texttt{.assume}; contributes to the declared block-entry context \\
-    SSA join
-    & \texttt{PhiNode \{ dst, ty, incoming, existential\_constraint \}}
-    & Edge copies plus block-entry type state; existential facts preserve joined refinement information \\
-    \hline
-  \end{tabular}
-  \caption{Correspondence between representative source constructs, TIR forms, and verifier-facing DTAL forms.}
-  \label{tab:source-tir-dtal-correspondence}
-\end{table}
+% \chapter{Pipeline correspondence tables}\label{app:pipeline-correspondence}
+%
+% \begin{table}[h]
+%   \centering
+%   \scriptsize
+%   \begin{tabular}{p{0.27\textwidth} p{0.32\textwidth} p{0.32\textwidth}}
+%     \hline
+%     \textbf{Source construct} & \textbf{TIR representation} & \textbf{DTAL representation} \\
+%     \hline
+%     Integer / boolean literal
+%     & $\rho := n : \tau$
+%     & \texttt{mov} into a register with a singleton or base type annotation \\
+%     Variable use
+%     & Read the virtual register currently bound to the source variable
+%     & Use the corresponding virtual or physical register in later instructions \\
+%     Immutable binding \texttt{let x:T = e}
+%     & Lower $e$ to a fresh virtual register and bind $x$ to that register
+%     & Instructions computing $e$, with the result type carried on the destination register \\
+%     Mutable assignment \texttt{x = e}
+%     & Lower $e$ to a fresh virtual register and update the variable-to-register map
+%     & Ordinary computation instructions; SSA reassignment has already been made explicit in TIR \\
+%     Arithmetic expression \texttt{e1 op e2}
+%     & \texttt{BinOp \{ dst, op, lhs, rhs, ty \}}
+%     & Arithmetic instruction such as \texttt{add}, \texttt{sub}, or \texttt{mul}, carrying the derived result type \\
+%     Comparison expression
+%     & \texttt{BinOp} or branch condition register with true/false constraints
+%     & \texttt{cmp} followed by \texttt{setcc} or conditional branch; branch facts refine the verifier context \\
+%     Conditional expression / statement
+%     & \texttt{Branch \{ cond, true\_target, false\_target, true\_constraint, false\_constraint \}} plus merge phi nodes
+%     & \texttt{cmp}/branch instructions and labelled blocks with checked entry states \\
+%     Loop
+%     & Header/body/exit blocks, loop-carried phi nodes, and translated invariant assertions
+%     & Labelled blocks with \texttt{.entry}, \texttt{.assume}, branches, and \texttt{.assert} constraints \\
+%     Function call
+%     & \texttt{Call \{ dst?, func, args, arg\_types, result\_ty \}}
+%     & Argument registers following the calling convention, \texttt{call}, precondition check, and postcondition context update \\
+%     Return
+%     & \texttt{Return \{ value? \}}
+%     & Move result to the return register where needed, then \texttt{ret} \\
+%     Array creation
+%     & Allocation or initialisation instructions, depending on the source form
+%     & Stack/runtime allocation support plus array type information and initialisation facts \\
+%     Array read \texttt{a[i]}
+%     & \texttt{ArrayLoad \{ dst, base, index, element\_ty, bounds\_constraint \}}
+%     & Address computation plus typed \texttt{load}; verifier proves the bounds constraint \\
+%     Array write \texttt{a[i] = e}
+%     & \texttt{ArrayStore \{ base, index, value, bounds\_constraint \}}
+%     & Address computation plus typed \texttt{store}; verifier proves the bounds constraint \\
+%     Function precondition
+%     & Function-level constraint and call-site proof obligation
+%     & \texttt{.precondition}; verifier checks callers establish the required constraint \\
+%     Function postcondition
+%     & Function-level result constraint
+%     & \texttt{.postcondition}; verifier adds the instantiated fact after a verified call \\
+%     Loop invariant / assertion
+%     & \texttt{AssertConstraint \{ constraint \}}
+%     & \texttt{.assert}; checked before being added to the DTAL constraint context \\
+%     Path assumption
+%     & \texttt{AssumeConstraint \{ constraint \}}
+%     & \texttt{.assume}; contributes to the declared block-entry context \\
+%     SSA join
+%     & \texttt{PhiNode \{ dst, ty, incoming, existential\_constraint \}}
+%     & Edge copies plus block-entry type state; existential facts preserve joined refinement information \\
+%     \hline
+%   \end{tabular}
+%   \caption{Correspondence between representative source constructs, TIR forms, and verifier-facing DTAL forms.}
+%   \label{tab:source-tir-dtal-correspondence}
+% \end{table}
 
 \chapter{Evaluation tables}\label{app:evaluation-supplementary}
 
@@ -617,6 +617,270 @@ The following instructions appear only after register allocation and are verifie
     cross-system comparison suite.}
   \label{tab:comparison-suite-wallclock}
 \end{table}
+
+\chapter{Worked example: binary search}\label{app:worked-example}
+
+This example demonstrates the full pipeline by tracing a \texttt{binary\_search} program, from source to verified DTAL. Binary search features most of the verification and constraint features of Veritas: quantified preconditions, refinement types, loop invariants, array bounds proofs, existential types, branch constraint refinement, and symbolic arithmetic.
+
+\section{Source language}
+%
+The source program searches a sorted 10-element array for a target value, returning its index or $-1$ if not found:
+%
+\begin{quote}
+\begin{verbatim}
+fn binary_search(arr: [int; 10], target: int) -> int
+    requires forall i in 0..9 { arr[i] <= arr[i + 1] }
+{
+    let mut lo: {v: int | v >= 0} = 0;
+    let mut hi: int = 9;
+    let mut result: int = -1;
+
+    for iter in 0..20
+        invariant lo >= 0 && hi < 10
+    {
+        if lo <= hi {
+            let mid: int = lo + (hi - lo) / 2;
+            let val: int = arr[mid];
+            if val == target {
+                result = mid;
+                lo = hi + 1;
+            } else {
+                if val < target {
+                    lo = mid + 1;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+        } else {
+            let done: int = 0;
+        }
+    }
+
+    result
+}
+\end{verbatim}
+\end{quote}
+%
+Several features are worth highlighting:
+%
+\begin{itemize}
+  \item \texttt{requires forall i in 0..9 \{ arr[i] <= arr[i+1] \}} --- a quantified precondition asserting that the array is sorted in non-decreasing order. This is checked at every call site.
+  \item \texttt{\{v: int | v >= 0\}} --- a refinement type on \texttt{lo}, constraining it to be non-negative. This is the master type: every assignment to \texttt{lo} must satisfy it.
+  \item \texttt{invariant lo >= 0 \&\& hi < 10} --- a loop invariant that bounds both endpoints. The type checker verifies this holds initially and is preserved by the loop body.
+  \item \texttt{arr[mid]} --- the critical array access. The type checker must prove $0 \le \mathtt{mid} < 10$ from the invariant and branch conditions.
+  \item \texttt{for iter in 0..20} --- the loop uses a bounded iteration counter. Although Veritas also supports \texttt{while} loops, the bounded \texttt{for} loop is useful here because it yields an explicit induction-variable range in the generated SSA and DTAL.
+\end{itemize}
+
+\section{Frontend type checking}
+%
+The type checker discharges three key proof obligations for this function. All are reduced to SMT queries of the form: assert the current context $\phi$, assert $\lnot G$ (the negated goal), and check for unsatisfiability.
+%
+\subsection{Loop invariant: base case}
+%
+Before the loop begins, the context contains $\mathtt{lo} = 0$ (from the singleton type $\mathtt{int}(0)$) and $\mathtt{hi} = 9$ (from $\mathtt{int}(9)$). The invariant to verify is:
+\[
+  \mathtt{lo} \ge 0 \;\wedge\; \mathtt{hi} < 10
+\]
+Substituting the initial values gives $0 \ge 0 \wedge 9 < 10$, which is trivially satisfiable. The SMT oracle confirms this by showing that $\lnot(0 \ge 0 \wedge 9 < 10)$ is unsatisfiable.
+%
+\subsection{Loop invariant: inductive step}
+%
+At the end of the loop body, the type checker must prove that the invariant is preserved. The context at this point includes the assumed invariant ($\mathtt{lo} \ge 0 \wedge \mathtt{hi} < 10$) plus the branch conditions taken during the iteration. In each branch:
+\begin{itemize}
+  \item \texttt{val == target}: \texttt{lo} is set to \texttt{hi + 1}. Since $\mathtt{hi} < 10$, we have $\mathtt{lo} = \mathtt{hi} + 1 \ge 1 \ge 0$, and \texttt{hi} is unchanged.
+  \item \texttt{val < target}: \texttt{lo} is set to \texttt{mid + 1}. Since $\mathtt{mid} \ge 0$ (from $\mathtt{lo} \ge 0$ and the midpoint formula), $\mathtt{lo} \ge 1 \ge 0$, and \texttt{hi} is unchanged.
+  \item Otherwise: \texttt{hi} is set to \texttt{mid - 1}. Since $\mathtt{mid} < 10$ (from $\mathtt{hi} < 10$ and the midpoint formula), $\mathtt{hi} < 10$, and \texttt{lo} is unchanged.
+\end{itemize}
+%
+At the join point, the context-joining operation computes the least upper bound across all branches, and the SMT oracle verifies the invariant holds under the joined context.
+%
+\subsection{Array bounds for \texttt{arr[mid]}}
+%
+The array access \texttt{arr[mid]} occurs inside the branch guarded by \texttt{lo <= hi}. At this point the context contains:
+\[
+  \phi = \{\, \mathtt{lo} \ge 0, \;\; \mathtt{hi} < 10, \;\; \mathtt{lo} \le \mathtt{hi}, \;\; \mathtt{mid} = \mathtt{lo} + (\mathtt{hi} - \mathtt{lo}) / 2 \,\}
+\]
+The proof obligation is $0 \le \mathtt{mid} < 10$. From the context:
+\begin{itemize}
+  \item $\mathtt{mid} \ge \mathtt{lo} \ge 0$ (since $(\mathtt{hi} - \mathtt{lo})/2 \ge 0$ when $\mathtt{lo} \le \mathtt{hi}$)
+  \item $\mathtt{mid} \le \mathtt{hi} < 10$ (since $\mathtt{mid} = \mathtt{lo} + (\mathtt{hi} - \mathtt{lo})/2 \le \mathtt{hi}$)
+\end{itemize}
+The SMT oracle asserts $\phi \wedge \lnot(0 \le \mathtt{mid} \wedge \mathtt{mid} < 10)$ and obtains UNSAT, confirming the bounds proof.
+
+\section{Lowering to TIR (SSA)}
+%
+The lowering pass translates the function into a control-flow graph of 13 basic blocks. Figure~\ref{fig:bs-cfg} shows the structure, with blocks grouped by their role in the algorithm.
+%
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+      scale=0.75, transform shape,
+      block/.style={rectangle, draw, thick, text centered,
+          minimum height=0.6cm, minimum width=0.9cm,
+          font=\small\ttfamily},
+      arrow/.style={-Stealth, thick},
+      lbl/.style={font=\scriptsize, text=black!60},
+      elbl/.style={font=\scriptsize, text=black!60, fill=white, inner sep=1pt}
+    ]
+    % Row 0: entry
+    \node[block] (bb0) at (0,0) {bb0};
+    \node[lbl, right=0.15cm of bb0] {entry};
+
+    % Row 1: loop header
+    \node[block] (bb1) at (0,-1.6) {bb1};
+    \node[lbl, left=0.15cm of bb1] {loop header};
+
+    % Row 2: body / exit
+    \node[block] (bb2) at (-2,-3.4) {bb2};
+    \node[lbl, left=0.15cm of bb2] {body};
+    \node[block] (bb3) at (3,-3.4) {bb3};
+    \node[lbl, right=0.15cm of bb3] {exit};
+
+    % Row 3: lo<=hi / lo>hi
+    \node[block] (bb4) at (-3.5,-5.2) {bb4};
+    \node[block] (bb5) at (0.5,-5.2) {bb5};
+
+    % Row 4: val==target / val!=target
+    \node[block] (bb7) at (-5,-7.0) {bb7};
+    \node[block] (bb8) at (-2,-7.0) {bb8};
+
+    % Row 5: join from == / val<target / val>=target
+    \node[block] (bb9) at (-5,-8.8) {bb9};
+    \node[block] (bb10) at (-3,-8.8) {bb10};
+    \node[block] (bb11) at (-1.7,-8.8) {bb11};
+
+    % Row 6: join from </>= (shifted left for clearance from bb5->bb6 diagonal)
+    \node[block] (bb12) at (-2.3,-10.4) {bb12};
+
+    % Row 7: back edge
+    \node[block] (bb6) at (-2,-12.0) {bb6};
+    \node[lbl, left=0.15cm of bb6] {back edge};
+
+    % --- Edges ---
+    \draw[arrow] (bb0) -- (bb1);
+    \draw[arrow] (bb1) -- (bb2) node[elbl, midway, left] {iter $<$ 20};
+    \draw[arrow] (bb1) -- (bb3) node[elbl, midway, right] {iter $\ge$ 20};
+    \draw[arrow] (bb2) -- (bb4) node[elbl, midway, left] {lo $\le$ hi};
+    \draw[arrow] (bb2) -- (bb5) node[elbl, midway, right] {lo $>$ hi};
+    \draw[arrow] (bb4) -- (bb7) node[elbl, midway, left] {$=$};
+    \draw[arrow] (bb4) -- (bb8) node[elbl, midway, right] {$\ne$};
+    \draw[arrow] (bb7) -- (bb9);
+    \draw[arrow] (bb8) -- (bb10) node[elbl, midway, left] {$<$};
+    \draw[arrow] (bb8) -- (bb11) node[elbl, midway, right] {$\ge$};
+    \draw[arrow] (bb10) -- (bb12);
+    \draw[arrow] (bb11) -- (bb12);
+    % Straight diagonals to bb6 — verified no node crossings
+    \draw[arrow] (bb9) -- (bb6);
+    \draw[arrow] (bb12) -- (bb6);
+    \draw[arrow] (bb5) -- (bb6);
+    % Back edge: vertical at x~3.8, right of bb3 (extends to x=3.45)
+    \draw[arrow] (bb6.east) -- ++(5.5,0) |- (bb1.east);
+  \end{tikzpicture}
+  \caption{Control-flow graph of \texttt{binary\_search}. Block bb4 contains the critical array access.}
+  \label{fig:bs-cfg}
+\end{figure}
+%
+Key aspects of the TIR representation:
+%
+\begin{itemize}
+  \item The loop counter \texttt{iter} is assigned to virtual register \texttt{v8} with an existential type annotation:
+    \[
+      \exists\, \texttt{v8}.\; \mathtt{int}(\texttt{v8}) \;\mathbf{where}\; (\texttt{v8} \ge 0 \;\wedge\; \texttt{v8} < 20)
+    \]
+    This captures the loop bounds without fixing a concrete value. The existential is opened at each use, making the bound constraints available for verification.
+  \item Mutable variables (\texttt{lo}, \texttt{hi}, \texttt{result}) are represented by phi nodes at the loop header. Their current values become explicit loop-carried registers, and useful refinements may be preserved existentially: for example, the phi node for \texttt{lo} retains the fact that it remains non-negative.
+  \item The loop invariant appears in TIR as an \texttt{AssertConstraint} instruction at the entry of bb2. During code generation this becomes a DTAL \texttt{.assert}, allowing the later verifier to re-check the invariant independently of the frontend type checker.
+\end{itemize}
+
+\section{DTAL code generation and verification}
+%
+The DTAL output preserves the block structure of the TIR, augmented with entry-state declarations, constraint assumptions, and type annotations on every instruction. In the current implementation, \texttt{binary\_search} now verifies successfully end-to-end. For readability, the first snippet below shows the virtual-register DTAL emitted immediately after code generation; the second shows the corresponding physical DTAL after register allocation and x86-specific expansion, which is the form actually consumed by the final verifier.
+%
+\subsection{Virtual DTAL: midpoint computation and array access}
+%
+\begin{quote}
+\begin{verbatim}
+.binary_search_bb4:
+    .assume v8 < v7
+    .assume (v11 >= 0 && v10 < 10)
+    .assume v11 <= v10
+    sub v16, v10, v11    : {_synth_0: int | _synth_0 == (hi - lo) }
+    mov v17, 2           : int(2)
+    div v18, v16, v17    : {_synth_1: int | _synth_1 == ((hi - lo) / 2) }
+    add v19, v11, v18    : {_synth_2: int | _synth_2 == (lo + ((hi - lo) / 2)) }
+    .assert true
+    load v20, [v0 + v19] : int
+\end{verbatim}
+\end{quote}
+%
+This virtual DTAL is still close to the source-level reasoning. The branch constraints and invariant have already been translated into register-based assumptions, and the midpoint arithmetic is represented symbolically through the synthesised refinement types on \texttt{v16}, \texttt{v18}, and \texttt{v19}. At this level it is easy to see how the array-bounds proof is carried forward: the load of \texttt{v20} depends on the facts $v11 \ge 0$, $v10 < 10$, and $v11 \le v10$, together with the symbolic definition of the midpoint.
+%
+\subsection{Physical DTAL: verifier-facing code}
+%
+\begin{quote}
+\begin{verbatim}
+.binary_search_bb2:
+    .assert (r0 >= 0 && r4 < 10)
+    cmp r0, r4
+    setle lr
+    mov r3, lr    : bool
+    .type r3: bool
+    ble .binary_search_bb4
+    jmp .binary_search_bb5
+.binary_search_bb4:
+    mov lr, r4    : int
+    mov r7, r0    : int
+    sub lr, lr, r7    : {_synth_0: int | _synth_0 == (hi - lo) }
+    mov r10, lr    : {_synth_0: int | _synth_0 == (hi - lo) }
+    mov r3, 2    : int(2)
+    mov r7, r3    : int
+    mov lr, r10    : int
+    cqo
+    idiv r7
+    mov r3, lr    : {_synth_1: int | _synth_1 == ((hi - lo) / 2) }
+    mov lr, r0    : int
+    mov r7, r3    : int
+    add lr, lr, r7    : {_synth_2: int | _synth_2 == (lo + ((hi - lo) / 2)) }
+    mov r10, lr    : {_synth_2: int | _synth_2 == (lo + ((hi - lo) / 2)) }
+    .assert true
+    mov lr, r6    : int
+    mov r7, r10   : int
+    load lr, [lr + r7]    : int
+\end{verbatim}
+\end{quote}
+%
+This is the post-register-allocation DTAL that the final verifier checks. The logical structure is the same as in the virtual DTAL, but the values have been assigned to physical registers and division has been expanded into the x86-64-specific \texttt{cqo}/\texttt{idiv} sequence. This illustrates the key trust-model point of the final implementation: register allocation and target-specific expansion remain untrusted compiler passes, and the verifier validates their output rather than assuming they are correct.
+
+The verifier still re-derives the types of the key arithmetic instructions from their operands:
+\begin{enumerate}
+  \item \texttt{sub lr, r4, r0} --- from the current types of \texttt{hi} and \texttt{lo}, the verifier derives the refinement corresponding to $(\texttt{hi} - \texttt{lo})$.
+  \item \texttt{idiv r7} --- after the division-expansion sequence, the verifier re-establishes that the quotient register holds $((\texttt{hi} - \texttt{lo}) / 2)$.
+  \item \texttt{add lr, r0, r7} --- yields the midpoint refinement $\texttt{lo} + ((\texttt{hi} - \texttt{lo}) / 2)$.
+  \item \texttt{load lr, [lr + r7]} --- the verifier must prove that the computed midpoint still satisfies the array-bounds obligation. The constraint set at this point is the physical-register counterpart of the virtual one:
+    \[
+      \{\; \texttt{r0} \ge 0, \;\; \texttt{r4} < 10, \;\; \texttt{r0} \le \texttt{r4}, \;\; \texttt{r10} = \texttt{r0} + (\texttt{r4} - \texttt{r0})/2 \;\}
+    \]
+    The verifier sends the negated bounds goal to Z3 and obtains UNSAT.
+\end{enumerate}
+%
+Note that these annotations are emitted by the compiler but independently re-derived by the verifier. The verifier does not trust the compiler's claimed types; it uses them only as a cross-check against its own derivation.
+%
+\subsection{Back edge and state coercion}
+%
+\begin{quote}
+\begin{verbatim}
+.binary_search_bb6:
+    mov r3, 1    : int
+    mov lr, r9   : int
+    mov r7, r3   : int
+    add lr, lr, r7    : int
+    mov r3, lr   : int
+    mov r9, r3   : int
+    jmp .binary_search_bb1
+\end{verbatim}
+\end{quote}
+%
+At the physical back edge, the loop counter has been allocated to \texttt{r9}. The block increments it and jumps back to the loop header. The important point is not the specific register names but the state-coercion check performed at the edge: the verifier must show that the exit state of bb6 is compatible with the declared entry state of bb1, including the existential bound on the loop counter and the re-established invariant on the registers holding \texttt{lo} and \texttt{hi}. This is the inductive step of the loop proof in its final, post-register-allocation form.
 
 \chapter{Project proposal}
 

@@ -124,7 +124,7 @@ The metavariables used in the grammar are as follows: $n$ ranges over integer li
 \begin{array}{@{}r@{\ }c@{\ }l@{\hspace{1.2em}}p{0.25\textwidth}@{}}
   T, \tau & ::= &
   \parbox[t]{0.66\textwidth}{
-    $\textsf{unit} \,|\, \textsf{int} \,|\, \textsf{bool} \,|\, [T; N] \,|\, \textsf{\&}T \,|\, \textsf{\&mut } T \,|\, \textsf{int}(N) \,|\, \{ x:\textsf{int} \mid P \}$
+    $\textsf{unit} \,|\, \textsf{int} \,|\, \textsf{bool} \,|\, [T; N] \,|\, \textsf{int}(N) \,|\, \{ x:\textsf{int} \mid P \}$
   }
   & \textbf{(Types)} \\[2pt]
   c & ::= &
@@ -407,7 +407,7 @@ The DTAL instruction set resembles a standard RISC assembly language but is augm
   & \textbf{(Constraints)} \\[4pt]
   \tau & ::= &
   \parbox[t]{0.66\textwidth}{
-    $\textsf{unit} \,|\, \textsf{int} \,|\, \textsf{i64} \,|\, \textsf{bool} \,|\, [\tau; e_i] \,|\, \&\tau \,|\, \&\textsf{mut } \tau \,|\, {}$\\
+    $\textsf{unit} \,|\, \textsf{int} \,|\, \textsf{i64} \,|\, \textsf{bool} \,|\, [\tau; e_i] \,|\, {}$\\
     $\textsf{int}(e_i) \,|\, \{x:\textsf{int} \mid C\} \,|\, \exists x.\; \textsf{int}(x)\; \textsf{where}\; C$
   }
   & \textbf{(Types)} \\[4pt]
@@ -484,7 +484,7 @@ Function-level directives define the verifier-facing signature and contract. Blo
 
 \subsection{DTAL type system}
 
-The DTAL type system largely mirrors the source-level type system: it retains unit, integer and boolean base types, machine-integer types, singleton integers $\textsf{int}(N)$, refinement types, arrays, references, and master types. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, DTAL index expressions may mention constants, register names, arithmetic ($+, -, \times, \div, \%$), and $\textsf{select}(\mathit{arr}, i)$ for array element access.
+The DTAL type system largely mirrors the source-level type system: it retains unit, integer and boolean base types, machine-integer types, singleton integers $\textsf{int}(N)$, refinement types, arrays, and master types. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, DTAL index expressions may mention constants, register names, arithmetic ($+, -, \times, \div, \%$), and $\textsf{select}(\mathit{arr}, i)$ for array element access.
 
 The most important addition is the use of \textit{existential types} to represent results that are known only symbolically at the assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; C$. This allows the verifier to retain enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
 
@@ -619,30 +619,6 @@ Type errors are represented as structured values (\texttt{TypeError} variants) c
   \label{fig:type-error-message}
 \end{figure}
 
-% \section{Borrowing and ownership extension}\label{sec:ownership-extension}
-%
-% The borrowing and ownership model extends through the full verified pipeline. At the source level it enforces a Rust-inspired discipline over aliasing and mutation; in the intermediate and assembly-like representations it is reified as explicit ownership operations; and in the verifier it becomes part of the independently checked low-level safety state. This design is important to the trust argument: an incorrect backend cannot silently discard the source-level borrowing guarantees, because those guarantees are carried into verifier-visible code.
-%
-% \subsection{Frontend enforcement}
-%
-% In the frontend, borrowing and ownership are implemented as an extension of the ordinary typing context rather than as a separate pass. In addition to $\phi$, $\Gamma$, and $\Delta$, the concrete \texttt{TypingContext} maintains four ownership-specific components: a set of \texttt{moved\_bindings}, a map of \texttt{active\_borrows} for each owner, a map of \texttt{borrow\_bindings} from reference variables back to the owner they borrow from, and a stack of lexical \texttt{borrow\_scopes}. The first component enforces move semantics by making a binding unavailable after ownership has been transferred; subsequent reads are reported as use-after-move errors until the binding is reinitialised. The remaining three components implement a lightweight lexical borrow checker: entering a block pushes a new borrow scope, and leaving the block releases all borrows introduced in that scope.
-%
-% Operationally, creating \texttt{\&x} increments the shared-borrow count for \texttt{x}, while creating \texttt{\&mut x} requires \texttt{x} to be mutable and to have no live borrows at all. Each reference binding records both its owner and whether it is shared or mutable, so later checks can reject the operations that would violate the ownership discipline: mutating, shadowing, or moving a borrowed owner; creating a shared borrow while a mutable borrow is live; or creating a mutable borrow while either a shared or mutable borrow is already active. This logic is integrated directly into the ordinary statement checker, so assignments, \texttt{let} bindings, and returns all update ownership state at the same time as they update the refinement-typing context.
-%
-% The current implementation intentionally keeps the source-level borrow checker lexical and first-order. Borrows must be taken from place expressions already representable in the typed AST, reborrowing is not yet supported, and borrow scopes are ended structurally at block exit rather than inferred by a separate lifetime analysis. This restriction is sufficient for the current Veritas fragment and keeps the operational account simple enough to preserve below the frontend.
-%
-% \subsection{Lowering and code generation}
-%
-% Once the frontend has accepted a program, ownership behaviour is not forgotten. Lowering from TAST to TIR makes it explicit using instructions such as \texttt{MoveOwned}, \texttt{DropOwned}, \texttt{BorrowShared}, \texttt{BorrowMut}, and \texttt{BorrowEnd}. Function calls also record parameter-passing modes (\texttt{PlainValue}, \texttt{OwnedValue}, \texttt{SharedBorrow}, and \texttt{MutableBorrow}) together with a return-ownership mode, allowing the compiler to distinguish ordinary calls from ownership-transferring or borrow-passing calls.
-%
-% These ownership-carrying TIR instructions lower directly to corresponding DTAL operations. In particular, Veritas extends the DTAL fragment with explicit low-level borrow and ownership instructions such as \texttt{move\_owned}, \texttt{alias\_borrow}, \texttt{borrow\_mut}, \texttt{borrow\_end}, and \texttt{drop\_owned}. As a result, the ownership discipline is present in the verifier-facing program text itself rather than being implicit in compiler conventions. This is the key difference from a source-only borrow checker: the backend must continue to justify ownership behaviour in a form that can be re-checked independently.
-%
-% \subsection{Verifier support}
-%
-% The independent verifier extends its ordinary register-and-constraint state with ownership metadata. Concretely, it tracks which registers currently hold owned values, assigns object identities to owned values, and separately records registers holding shared and mutable borrows of those objects. Verification rules then enforce the expected capability discipline: plain moves may not duplicate ownership, \texttt{move\_owned} transfers ownership rather than copying it, a mutable borrow is rejected if any shared or mutable borrow of the same object is already live, and ownership cannot be moved or dropped while conflicting borrows remain active.
-%
-% This ownership state is checked not only instruction-by-instruction but also across control-flow joins and after register allocation. Consequently, the verified property is stronger than ``the source borrow checker once accepted the program'': the final DTAL program must still exhibit a consistent ownership discipline after lowering, optimisation, register allocation, spill insertion, and calling-convention materialisation. If any backend phase introduces an illegal alias, a duplicated owner, or an unbalanced borrow termination, the standalone verifier rejects the program.
-
 \section{Middle end}\label{sec:middle-end}
 
 \subsection{Typed Intermediate Representation (TIR)}
@@ -655,7 +631,7 @@ A key extension beyond standard SSA is \textit{existential constraints on phi no
 
 \subsubsection{Representative instruction forms}
 
-TIR is designed to sit close to both the typed source language and the DTAL backend. The implementation's instruction set includes ownership and region operations, but the core forms relevant to the compilation pipeline are summarised in Figure~\ref{fig:tir-syntax}.
+TIR is designed to sit close to both the typed source language and the DTAL backend. The core forms relevant to the compilation pipeline are summarised in Figure~\ref{fig:tir-syntax}.
 
 In concrete terms, a TIR function stores its parameters, pre/postconditions, and a map of basic blocks; each block contains entry phi nodes, ordinary instructions, a terminator, and an entry register state. This makes the representation explicit enough for code generation to be largely structural, while still retaining the source-level type information needed for later verification.
 
@@ -1038,274 +1014,440 @@ This demonstrates the project's long-term direction: a verified unikernel where 
     \node[anchor=west, font=\scriptsize] at (1.4,2.73) {\texttt{serial\_write(c)}: poll LSR bit 5, then \texttt{port\_out(COM1, c)}};
     \node[anchor=west, font=\scriptsize] at (1.4,2.38) {\texttt{main()}: initialise serial, print integers, halt};
   \end{tikzpicture}
+  \captionsetup{
+    aboveskip=4pt,
+    belowskip=-8pt
+  }
   \caption{Architecture of a bare-metal Veritas unikernel. The binary contains a Multiboot bootstrap, a small set of hand-assembled runtime intrinsics, and verified application code compiled through the DTAL pipeline.}
   \label{fig:unikernel-arch}
 \end{figure}
 
-\section{Worked example: binary search}\label{sec:worked-example}
-%
-The preceding sections describe each pipeline stage in isolation. This section demonstrates the full pipeline by tracing a \texttt{binary\_search} program, from source to verified DTAL. Binary search features most of the verification and constraint features of Veritas: quantified preconditions, refinement types, loop invariants, array bounds proofs, existential types, branch constraint refinement, and symbolic arithmetic.
+\section{Borrowing and ownership extension}\label{sec:ownership-extension}
 
-\subsection{Source language}
-%
-The source program searches a sorted 10-element array for a target value, returning its index or $-1$ if not found:
-%
-\begin{quote}
-\begin{verbatim}
-fn binary_search(arr: [int; 10], target: int) -> int
-    requires forall i in 0..9 { arr[i] <= arr[i + 1] }
-{
-    let mut lo: {v: int | v >= 0} = 0;
-    let mut hi: int = 9;
-    let mut result: int = -1;
+The core refinement type system proves arithmetic, bounds, and contract obligations, but it does not by itself control aliasing. This is a serious limitation for a systems-language fragment: mutation through one name can invalidate facts assumed through another name, and unrestricted references make it unclear which part of the program owns a mutable object. Veritas therefore adds a Rust-inspired ownership and borrowing discipline, but with a different trust objective. The source checker rejects obvious aliasing errors, while TIR and DTAL preserve ownership events explicitly so that the final low-level verifier can check that the backend has not introduced an illegal move, duplicated owner, or conflicting borrow.
 
-    for iter in 0..20
-        invariant lo >= 0 && hi < 10
-    {
-        if lo <= hi {
-            let mid: int = lo + (hi - lo) / 2;
-            let val: int = arr[mid];
-            if val == target {
-                result = mid;
-                lo = hi + 1;
-            } else {
-                if val < target {
-                    lo = mid + 1;
-                } else {
-                    hi = mid - 1;
-                }
-            }
-        } else {
-            let done: int = 0;
-        }
-    }
+\subsection{Source-language design}
 
-    result
-}
-\end{verbatim}
-\end{quote}
-%
-Several features are worth highlighting:
-%
-\begin{itemize}
-  \item \texttt{requires forall i in 0..9 \{ arr[i] <= arr[i+1] \}} --- a quantified precondition asserting that the array is sorted in non-decreasing order. This is checked at every call site.
-  \item \texttt{\{v: int | v >= 0\}} --- a refinement type on \texttt{lo}, constraining it to be non-negative. This is the master type: every assignment to \texttt{lo} must satisfy it.
-  \item \texttt{invariant lo >= 0 \&\& hi < 10} --- a loop invariant that bounds both endpoints. The type checker verifies this holds initially and is preserved by the loop body.
-  \item \texttt{arr[mid]} --- the critical array access. The type checker must prove $0 \le \mathtt{mid} < 10$ from the invariant and branch conditions.
-  \item \texttt{for iter in 0..20} --- the loop uses a bounded iteration counter. Although Veritas also supports \texttt{while} loops, the bounded \texttt{for} loop is useful here because it yields an explicit induction-variable range in the generated SSA and DTAL.
-\end{itemize}
+The source extension adds shared references, mutable references, borrow expressions, and dereference expressions. The supported fragment is deliberately lexical and first-order: borrows are tied to source bindings, block exit ends borrows introduced in that block, and references are not stored in aggregates or returned from functions. This keeps the model compatible with the rest of the Veritas type checker while still supporting the common systems-language patterns needed by the feature suite: shared array reads, mutable array updates, scalar dereference, and reference parameters.
 
-\subsection{Frontend type checking}
-%
-The type checker discharges three key proof obligations for this function. All are reduced to SMT queries of the form: assert the current context $\phi$, assert $\lnot G$ (the negated goal), and check for unsatisfiability.
-%
-\subsubsection{Loop invariant: base case}
-%
-Before the loop begins, the context contains $\mathtt{lo} = 0$ (from the singleton type $\mathtt{int}(0)$) and $\mathtt{hi} = 9$ (from $\mathtt{int}(9)$). The invariant to verify is:
-\[
-  \mathtt{lo} \ge 0 \;\wedge\; \mathtt{hi} < 10
-\]
-Substituting the initial values gives $0 \ge 0 \wedge 9 < 10$, which is trivially satisfiable. The SMT oracle confirms this by showing that $\lnot(0 \ge 0 \wedge 9 < 10)$ is unsatisfiable.
-%
-\subsubsection{Loop invariant: inductive step}
-%
-At the end of the loop body, the type checker must prove that the invariant is preserved. The context at this point includes the assumed invariant ($\mathtt{lo} \ge 0 \wedge \mathtt{hi} < 10$) plus the branch conditions taken during the iteration. In each branch:
-\begin{itemize}
-  \item \texttt{val == target}: \texttt{lo} is set to \texttt{hi + 1}. Since $\mathtt{hi} < 10$, we have $\mathtt{lo} = \mathtt{hi} + 1 \ge 1 \ge 0$, and \texttt{hi} is unchanged.
-  \item \texttt{val < target}: \texttt{lo} is set to \texttt{mid + 1}. Since $\mathtt{mid} \ge 0$ (from $\mathtt{lo} \ge 0$ and the midpoint formula), $\mathtt{lo} \ge 1 \ge 0$, and \texttt{hi} is unchanged.
-  \item Otherwise: \texttt{hi} is set to \texttt{mid - 1}. Since $\mathtt{mid} < 10$ (from $\mathtt{hi} < 10$ and the midpoint formula), $\mathtt{hi} < 10$, and \texttt{lo} is unchanged.
-\end{itemize}
-%
-At the join point, the context-joining operation computes the least upper bound across all branches, and the SMT oracle verifies the invariant holds under the joined context.
-%
-\subsubsection{Array bounds for \texttt{arr[mid]}}
-%
-The array access \texttt{arr[mid]} occurs inside the branch guarded by \texttt{lo <= hi}. At this point the context contains:
-\[
-  \phi = \{\, \mathtt{lo} \ge 0, \;\; \mathtt{hi} < 10, \;\; \mathtt{lo} \le \mathtt{hi}, \;\; \mathtt{mid} = \mathtt{lo} + (\mathtt{hi} - \mathtt{lo}) / 2 \,\}
-\]
-The proof obligation is $0 \le \mathtt{mid} < 10$. From the context:
-\begin{itemize}
-  \item $\mathtt{mid} \ge \mathtt{lo} \ge 0$ (since $(\mathtt{hi} - \mathtt{lo})/2 \ge 0$ when $\mathtt{lo} \le \mathtt{hi}$)
-  \item $\mathtt{mid} \le \mathtt{hi} < 10$ (since $\mathtt{mid} = \mathtt{lo} + (\mathtt{hi} - \mathtt{lo})/2 \le \mathtt{hi}$)
-\end{itemize}
-The SMT oracle asserts $\phi \wedge \lnot(0 \le \mathtt{mid} \wedge \mathtt{mid} < 10)$ and obtains UNSAT, confirming the bounds proof.
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{p{0.28\textwidth} p{0.30\textwidth} p{0.32\textwidth}}
+\hline
+\textbf{Source form} & \textbf{Meaning} & \textbf{Main check} \\
+\hline
+\texttt{\&T} & Shared reference type & Read-only alias to a value of type \texttt{T}. \\
+\texttt{\&mut T} & Mutable reference type & Unique mutable alias to a value of type \texttt{T}. \\
+\texttt{\&x} & Shared borrow & Rejected if \texttt{x} is currently mutably borrowed. \\
+\texttt{\&mut x} & Mutable borrow & Rejected unless \texttt{x} is mutable and has no live borrows. \\
+\texttt{*r} & Scalar dereference & Requires \texttt{r} to have reference type; assignment through \texttt{*r} requires \texttt{\&mut}. \\
+\texttt{r[i]} & Array-reference indexing & Uses the referenced array and proves the usual bounds obligation. \\
+\hline
+\end{tabular}
+\caption{Source-level ownership and borrowing forms.}
+\label{tab:source-ownership-forms}
+\end{table}
 
-\subsection{Lowering to TIR (SSA)}
-%
-The lowering pass translates the function into a control-flow graph of 13 basic blocks. Figure~\ref{fig:bs-cfg} shows the structure, with blocks grouped by their role in the algorithm.
-%
+For example, a mutable scalar borrow is written directly in the source language:
+
 \begin{figure}[H]
-  \centering
-  \begin{tikzpicture}[
-      scale=0.75, transform shape,
-      block/.style={rectangle, draw, thick, text centered,
-          minimum height=0.6cm, minimum width=0.9cm,
-          font=\small\ttfamily},
-      arrow/.style={-Stealth, thick},
-      lbl/.style={font=\scriptsize, text=black!60},
-      elbl/.style={font=\scriptsize, text=black!60, fill=white, inner sep=1pt}
-    ]
-    % Row 0: entry
-    \node[block] (bb0) at (0,0) {bb0};
-    \node[lbl, right=0.15cm of bb0] {entry};
-
-    % Row 1: loop header
-    \node[block] (bb1) at (0,-1.6) {bb1};
-    \node[lbl, left=0.15cm of bb1] {loop header};
-
-    % Row 2: body / exit
-    \node[block] (bb2) at (-2,-3.4) {bb2};
-    \node[lbl, left=0.15cm of bb2] {body};
-    \node[block] (bb3) at (3,-3.4) {bb3};
-    \node[lbl, right=0.15cm of bb3] {exit};
-
-    % Row 3: lo<=hi / lo>hi
-    \node[block] (bb4) at (-3.5,-5.2) {bb4};
-    \node[block] (bb5) at (0.5,-5.2) {bb5};
-
-    % Row 4: val==target / val!=target
-    \node[block] (bb7) at (-5,-7.0) {bb7};
-    \node[block] (bb8) at (-2,-7.0) {bb8};
-
-    % Row 5: join from == / val<target / val>=target
-    \node[block] (bb9) at (-5,-8.8) {bb9};
-    \node[block] (bb10) at (-3,-8.8) {bb10};
-    \node[block] (bb11) at (-1.7,-8.8) {bb11};
-
-    % Row 6: join from </>= (shifted left for clearance from bb5->bb6 diagonal)
-    \node[block] (bb12) at (-2.3,-10.4) {bb12};
-
-    % Row 7: back edge
-    \node[block] (bb6) at (-2,-12.0) {bb6};
-    \node[lbl, left=0.15cm of bb6] {back edge};
-
-    % --- Edges ---
-    \draw[arrow] (bb0) -- (bb1);
-    \draw[arrow] (bb1) -- (bb2) node[elbl, midway, left] {iter $<$ 20};
-    \draw[arrow] (bb1) -- (bb3) node[elbl, midway, right] {iter $\ge$ 20};
-    \draw[arrow] (bb2) -- (bb4) node[elbl, midway, left] {lo $\le$ hi};
-    \draw[arrow] (bb2) -- (bb5) node[elbl, midway, right] {lo $>$ hi};
-    \draw[arrow] (bb4) -- (bb7) node[elbl, midway, left] {$=$};
-    \draw[arrow] (bb4) -- (bb8) node[elbl, midway, right] {$\ne$};
-    \draw[arrow] (bb7) -- (bb9);
-    \draw[arrow] (bb8) -- (bb10) node[elbl, midway, left] {$<$};
-    \draw[arrow] (bb8) -- (bb11) node[elbl, midway, right] {$\ge$};
-    \draw[arrow] (bb10) -- (bb12);
-    \draw[arrow] (bb11) -- (bb12);
-    % Straight diagonals to bb6 — verified no node crossings
-    \draw[arrow] (bb9) -- (bb6);
-    \draw[arrow] (bb12) -- (bb6);
-    \draw[arrow] (bb5) -- (bb6);
-    % Back edge: vertical at x~3.8, right of bb3 (extends to x=3.45)
-    \draw[arrow] (bb6.east) -- ++(5.5,0) |- (bb1.east);
-  \end{tikzpicture}
-  \caption{Control-flow graph of \texttt{binary\_search}. Block bb4 contains the critical array access.}
-  \label{fig:bs-cfg}
+\begin{center}
+\begin{cminted}{rust}
+fn main() -> int {
+    let mut x: int = 0;
+    let mx: &mut int = &mut x;
+    *mx = 9;
+    *mx
+}
+\end{cminted}
+\end{center}
+\caption{A mutable scalar borrow in the Veritas source language.}
+\label{fig:source-mutable-borrow}
 \end{figure}
-%
-Key aspects of the TIR representation:
-%
-\begin{itemize}
-  \item The loop counter \texttt{iter} is assigned to virtual register \texttt{v8} with an existential type annotation:
-    \[
-      \exists\, \texttt{v8}.\; \mathtt{int}(\texttt{v8}) \;\mathbf{where}\; (\texttt{v8} \ge 0 \;\wedge\; \texttt{v8} < 20)
-    \]
-    This captures the loop bounds without fixing a concrete value. The existential is opened at each use, making the bound constraints available for verification.
-  \item Mutable variables (\texttt{lo}, \texttt{hi}, \texttt{result}) are represented by phi nodes at the loop header. Their current values become explicit loop-carried registers, and useful refinements may be preserved existentially: for example, the phi node for \texttt{lo} retains the fact that it remains non-negative.
-  \item The loop invariant appears in TIR as an \texttt{AssertConstraint} instruction at the entry of bb2. During code generation this becomes a DTAL \texttt{.assert}, allowing the later verifier to re-check the invariant independently of the frontend type checker.
-\end{itemize}
 
-\subsection{DTAL code generation and verification}
-%
-The DTAL output preserves the block structure of the TIR, augmented with entry-state declarations, constraint assumptions, and type annotations on every instruction. In the current implementation, \texttt{binary\_search} now verifies successfully end-to-end. For readability, the first snippet below shows the virtual-register DTAL emitted immediately after code generation; the second shows the corresponding physical DTAL after register allocation and x86-specific expansion, which is the form actually consumed by the final verifier.
-%
-\subsubsection{Virtual DTAL: midpoint computation and array access}
-%
-\begin{quote}
-\begin{verbatim}
-.binary_search_bb4:
-    .assume v8 < v7
-    .assume (v11 >= 0 && v10 < 10)
-    .assume v11 <= v10
-    sub v16, v10, v11    : {_synth_0: int | _synth_0 == (hi - lo) }
-    mov v17, 2           : int(2)
-    div v18, v16, v17    : {_synth_1: int | _synth_1 == ((hi - lo) / 2) }
-    add v19, v11, v18    : {_synth_2: int | _synth_2 == (lo + ((hi - lo) / 2)) }
-    .assert true
-    load v20, [v0 + v19] : int
-\end{verbatim}
-\end{quote}
-%
-This virtual DTAL is still close to the source-level reasoning. The branch constraints and invariant have already been translated into register-based assumptions, and the midpoint arithmetic is represented symbolically through the synthesised refinement types on \texttt{v16}, \texttt{v18}, and \texttt{v19}. At this level it is easy to see how the array-bounds proof is carried forward: the load of \texttt{v20} depends on the facts $v11 \ge 0$, $v10 < 10$, and $v11 \le v10$, together with the symbolic definition of the midpoint.
-%
-\subsubsection{Physical DTAL: verifier-facing code}
-%
-\begin{quote}
-\begin{verbatim}
-.binary_search_bb2:
-    .assert (r0 >= 0 && r4 < 10)
-    cmp r0, r4
-    setle lr
-    mov r3, lr    : bool
-    .type r3: bool
-    ble .binary_search_bb4
-    jmp .binary_search_bb5
-.binary_search_bb4:
-    mov lr, r4    : int
-    mov r7, r0    : int
-    sub lr, lr, r7    : {_synth_0: int | _synth_0 == (hi - lo) }
-    mov r10, lr    : {_synth_0: int | _synth_0 == (hi - lo) }
-    mov r3, 2    : int(2)
-    mov r7, r3    : int
-    mov lr, r10    : int
-    cqo
-    idiv r7
-    mov r3, lr    : {_synth_1: int | _synth_1 == ((hi - lo) / 2) }
-    mov lr, r0    : int
-    mov r7, r3    : int
-    add lr, lr, r7    : {_synth_2: int | _synth_2 == (lo + ((hi - lo) / 2)) }
-    mov r10, lr    : {_synth_2: int | _synth_2 == (lo + ((hi - lo) / 2)) }
-    .assert true
-    mov lr, r6    : int
-    mov r7, r10   : int
-    load lr, [lr + r7]    : int
-\end{verbatim}
-\end{quote}
-%
-This is the post-register-allocation DTAL that the final verifier checks. The logical structure is the same as in the virtual DTAL, but the values have been assigned to physical registers and division has been expanded into the x86-64-specific \texttt{cqo}/\texttt{idiv} sequence. This illustrates the key trust-model point of the final implementation: register allocation and target-specific expansion remain untrusted compiler passes, and the verifier validates their output rather than assuming they are correct.
+\subsection{Frontend implementation}
 
-The verifier still re-derives the types of the key arithmetic instructions from their operands:
-\begin{enumerate}
-  \item \texttt{sub lr, r4, r0} --- from the current types of \texttt{hi} and \texttt{lo}, the verifier derives the refinement corresponding to $(\texttt{hi} - \texttt{lo})$.
-  \item \texttt{idiv r7} --- after the division-expansion sequence, the verifier re-establishes that the quotient register holds $((\texttt{hi} - \texttt{lo}) / 2)$.
-  \item \texttt{add lr, r0, r7} --- yields the midpoint refinement $\texttt{lo} + ((\texttt{hi} - \texttt{lo}) / 2)$.
-  \item \texttt{load lr, [lr + r7]} --- the verifier must prove that the computed midpoint still satisfies the array-bounds obligation. The constraint set at this point is the physical-register counterpart of the virtual one:
-    \[
-      \{\; \texttt{r0} \ge 0, \;\; \texttt{r4} < 10, \;\; \texttt{r0} \le \texttt{r4}, \;\; \texttt{r10} = \texttt{r0} + (\texttt{r4} - \texttt{r0})/2 \;\}
-    \]
-    The verifier sends the negated bounds goal to Z3 and obtains UNSAT.
-\end{enumerate}
+Borrowing is implemented as an extension of the ordinary bidirectional type checker rather than as a separate pass. In addition to the refinement context $\phi$, immutable environment $\Gamma$, mutable environment $\Delta$, and function signature environment $\Sigma_F$, the concrete \texttt{TypingContext} records ownership metadata:
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{p{0.30\textwidth} p{0.58\textwidth}}
+\hline
+\textbf{Context component} & \textbf{Role} \\
+\hline
+\texttt{moved\_bindings} & Bindings whose ownership has been transferred and cannot be used again until reinitialised. \\
+\texttt{active\_borrows} & For each owner, records live shared-borrow counts and whether a mutable borrow is live. \\
+\texttt{borrow\_bindings} & Maps reference bindings back to the owner they borrow from and the borrow kind. \\
+\texttt{borrow\_scopes} & Stack of lexical scopes used to release borrows at block exit. \\
+\hline
+\end{tabular}
+\caption{Ownership-specific state maintained by the frontend typing context.}
+\label{tab:frontend-ownership-context}
+\end{table}
+
+Creating \texttt{\&x} increments the shared-borrow count for \texttt{x}; creating \texttt{\&mut x} requires no live shared or mutable borrow. Assignments, shadowing, moves, and function calls consult the same metadata, so the checker rejects mutating a shared-borrowed owner, moving a borrowed owner, creating a shared borrow while a mutable borrow is live, and creating two simultaneous mutable borrows. These checks are integrated into \texttt{check\_stmt} and \texttt{synth\_expr}, which means the typed AST records both the ordinary type of an expression and the borrow/move behaviour needed by lowering.
+
+\subsection{TIR representation}
+
+Once the frontend accepts a program, ownership behaviour is made explicit in TIR. This is important because later compiler stages should not need to reconstruct ownership events from source syntax: the verifier-facing pipeline receives first-class operations for moves, drops, borrow creation, and borrow termination.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{p{0.34\textwidth} p{0.52\textwidth}}
+\hline
+\textbf{TIR form} & \textbf{Purpose} \\
+\hline
+\texttt{MoveOwned \{ dst, src, ty \}} & Transfers ownership from \texttt{src} to \texttt{dst}; the old owner cannot be used as owned afterwards. \\
+\texttt{DropOwned \{ src, ty \}} & Ends ownership of a value at a known program point. \\
+\texttt{BorrowShared \{ dst, src, ty \}} & Creates a shared borrow of \texttt{src}. \\
+\texttt{BorrowMut \{ dst, src, ty \}} & Creates a unique mutable borrow of \texttt{src}. \\
+\texttt{BorrowEnd \{ src, ty \}} & Ends the borrow held in \texttt{src}. \\
+\texttt{Call \{ ..., arg\_kinds, ownership, ... \}} & Records whether parameters are plain values, owned values, shared borrows, or mutable borrows. \\
+\hline
+\end{tabular}
+\caption{Ownership-aware TIR instructions and metadata.}
+\label{tab:tir-ownership-forms}
+\end{table}
+
+Scalar references require one additional implementation device. Arrays already have a memory representation in TIR and DTAL, so borrowing an array can target the array directly. A scalar value, however, must be made addressable before it can be borrowed. The lowerer therefore uses a hidden one-element cell for scalar references: it allocates a size-1 cell, stores the scalar value into it, borrows the cell, and lowers dereference to an ordinary load or store through that cell. This allows scalar references to reuse the same array load/store and bounds-checking machinery rather than introducing a separate pointer memory model.
+
+\subsection{DTAL representation}
+
+The ownership-aware TIR forms lower to explicit DTAL instructions. The extension also adds shared and mutable reference types, written $\&\tau$ and $\&\textsf{mut } \tau$, which classify registers holding borrow capabilities. These instructions do not perform computation in the ordinary arithmetic sense; they update the verifier's ownership state and make aliasing behaviour visible in the low-level artifact.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{p{0.32\textwidth} p{0.54\textwidth}}
+\hline
+\textbf{DTAL form} & \textbf{Verifier-visible meaning} \\
+\hline
+\texttt{move\_owned rd, rs : T} & Transfers ownership from \texttt{rs} to \texttt{rd}. \\
+\texttt{drop\_owned rs : T} & Consumes the owned value in \texttt{rs}. \\
+\texttt{alias\_borrow rd, rs : \&T} & Creates a shared borrow of the object held by \texttt{rs}. \\
+\texttt{borrow\_mut rd, rs : \&mut T} & Creates a mutable borrow of the object held by \texttt{rs}. \\
+\texttt{borrow\_end rs : \&T} or \texttt{\&mut T} & Ends the borrow held in \texttt{rs}. \\
+\hline
+\end{tabular}
+\caption{Ownership and borrowing instructions added to V-DTAL.}
+\label{tab:dtal-ownership-forms}
+\end{table}
+
+A representative fragment after lowering a shared borrow has the following shape:
+
+\begin{figure}[H]
+\begin{center}
+\begin{cminted}{text}
+alias_borrow v3, v1    : &[int(7); 1]
+load v5, [v3 + v4]     : int
+borrow_end v3          : &[int(7); 1]
+\end{cminted}
+\end{center}
+\caption{Verifier-visible DTAL operations for a shared array borrow.}
+\label{fig:dtal-shared-borrow}
+\end{figure}
+
+The important property is that the backend cannot silently erase the source-level ownership discipline. If it emits a second mutable borrow, moves an owner while a borrow is live, or fails to end a borrow on one control-flow path, the final DTAL program is inconsistent with the verifier's ownership state and is rejected.
+
+\subsection{Verifier support}
+
+The independent verifier extends its ordinary register-and-constraint state with ownership metadata. It tracks which registers currently hold owned values, assigns object identities to owned values, records which registers hold shared or mutable borrows of each object, and records consumed registers. The instruction checker then enforces the capability discipline shown in Table~\ref{tab:verifier-ownership-rules}.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{p{0.32\textwidth} p{0.54\textwidth}}
+\hline
+\textbf{Rule} & \textbf{Effect} \\
+\hline
+Move availability & \texttt{move\_owned} requires the source register to hold a live owned object. \\
+Borrow exclusion & \texttt{borrow\_mut} is rejected if the object has any live shared or mutable borrow. \\
+Shared borrow compatibility & \texttt{alias\_borrow} is allowed for shared borrows but rejected while a mutable borrow is live. \\
+Borrowed-owner protection & \texttt{move\_owned} and \texttt{drop\_owned} are rejected while the object is borrowed. \\
+Borrow termination & \texttt{borrow\_end} requires the register to hold a live borrow and releases it from the object state. \\
+Control-flow joins & Join states must agree on live ownership and borrow information; one-sided borrow endings are rejected. \\
+\hline
+\end{tabular}
+\caption{Ownership rules enforced by the DTAL verifier.}
+\label{tab:verifier-ownership-rules}
+\end{table}
+
+This state is preserved through register allocation, spills, reloads, stack operations, and physical register shuffles. As a result, the checked property is stronger than source-level borrow checker acceptance: the post-register-allocation DTAL program must still exhibit a consistent ownership and borrowing discipline immediately before direct machine-code encoding.
+% ``the source borrow checker once accepted the program'': the post-register-allocation DTAL program must still exhibit a consistent ownership and borrowing discipline immediately before direct machine-code encoding.
+
+% \subsection{Scope and limitations}
 %
-Note that these annotations are emitted by the compiler but independently re-derived by the verifier. The verifier does not trust the compiler's claimed types; it uses them only as a cross-check against its own derivation.
+% The implementation is intentionally not a full Rust borrow checker. It does not infer non-lexical lifetimes, support returned references, support reborrowing, store references in aggregate values, or borrow substructure such as \texttt{\&arr[i]}. These restrictions are design trade-offs rather than parser accidents: they keep the source checker, TIR lowering, DTAL instruction set, and verifier state small enough to support the dissertation's main trust argument. Within this scoped fragment, ownership and borrowing are preserved through the full pipeline rather than remaining a source-only check.
+
+
+
+% \section{Worked example: binary search}\label{sec:worked-example}
+% %
+% The preceding sections describe each pipeline stage in isolation. This section demonstrates the full pipeline by tracing a \texttt{binary\_search} program, from source to verified DTAL. Binary search features most of the verification and constraint features of Veritas: quantified preconditions, refinement types, loop invariants, array bounds proofs, existential types, branch constraint refinement, and symbolic arithmetic.
 %
-\subsubsection{Back edge and state coercion}
+% \subsection{Source language}
+% %
+% The source program searches a sorted 10-element array for a target value, returning its index or $-1$ if not found:
+% %
+% \begin{quote}
+% \begin{verbatim}
+% fn binary_search(arr: [int; 10], target: int) -> int
+%     requires forall i in 0..9 { arr[i] <= arr[i + 1] }
+% {
+%     let mut lo: {v: int | v >= 0} = 0;
+%     let mut hi: int = 9;
+%     let mut result: int = -1;
 %
-\begin{quote}
-\begin{verbatim}
-.binary_search_bb6:
-    mov r3, 1    : int
-    mov lr, r9   : int
-    mov r7, r3   : int
-    add lr, lr, r7    : int
-    mov r3, lr   : int
-    mov r9, r3   : int
-    jmp .binary_search_bb1
-\end{verbatim}
-\end{quote}
+%     for iter in 0..20
+%         invariant lo >= 0 && hi < 10
+%     {
+%         if lo <= hi {
+%             let mid: int = lo + (hi - lo) / 2;
+%             let val: int = arr[mid];
+%             if val == target {
+%                 result = mid;
+%                 lo = hi + 1;
+%             } else {
+%                 if val < target {
+%                     lo = mid + 1;
+%                 } else {
+%                     hi = mid - 1;
+%                 }
+%             }
+%         } else {
+%             let done: int = 0;
+%         }
+%     }
 %
-At the physical back edge, the loop counter has been allocated to \texttt{r9}. The block increments it and jumps back to the loop header. The important point is not the specific register names but the state-coercion check performed at the edge: the verifier must show that the exit state of bb6 is compatible with the declared entry state of bb1, including the existential bound on the loop counter and the re-established invariant on the registers holding \texttt{lo} and \texttt{hi}. This is the inductive step of the loop proof in its final, post-register-allocation form.
+%     result
+% }
+% \end{verbatim}
+% \end{quote}
+% %
+% Several features are worth highlighting:
+% %
+% \begin{itemize}
+%   \item \texttt{requires forall i in 0..9 \{ arr[i] <= arr[i+1] \}} --- a quantified precondition asserting that the array is sorted in non-decreasing order. This is checked at every call site.
+%   \item \texttt{\{v: int | v >= 0\}} --- a refinement type on \texttt{lo}, constraining it to be non-negative. This is the master type: every assignment to \texttt{lo} must satisfy it.
+%   \item \texttt{invariant lo >= 0 \&\& hi < 10} --- a loop invariant that bounds both endpoints. The type checker verifies this holds initially and is preserved by the loop body.
+%   \item \texttt{arr[mid]} --- the critical array access. The type checker must prove $0 \le \mathtt{mid} < 10$ from the invariant and branch conditions.
+%   \item \texttt{for iter in 0..20} --- the loop uses a bounded iteration counter. Although Veritas also supports \texttt{while} loops, the bounded \texttt{for} loop is useful here because it yields an explicit induction-variable range in the generated SSA and DTAL.
+% \end{itemize}
 %
+% \subsection{Frontend type checking}
+% %
+% The type checker discharges three key proof obligations for this function. All are reduced to SMT queries of the form: assert the current context $\phi$, assert $\lnot G$ (the negated goal), and check for unsatisfiability.
+% %
+% \subsubsection{Loop invariant: base case}
+% %
+% Before the loop begins, the context contains $\mathtt{lo} = 0$ (from the singleton type $\mathtt{int}(0)$) and $\mathtt{hi} = 9$ (from $\mathtt{int}(9)$). The invariant to verify is:
+% \[
+%   \mathtt{lo} \ge 0 \;\wedge\; \mathtt{hi} < 10
+% \]
+% Substituting the initial values gives $0 \ge 0 \wedge 9 < 10$, which is trivially satisfiable. The SMT oracle confirms this by showing that $\lnot(0 \ge 0 \wedge 9 < 10)$ is unsatisfiable.
+% %
+% \subsubsection{Loop invariant: inductive step}
+% %
+% At the end of the loop body, the type checker must prove that the invariant is preserved. The context at this point includes the assumed invariant ($\mathtt{lo} \ge 0 \wedge \mathtt{hi} < 10$) plus the branch conditions taken during the iteration. In each branch:
+% \begin{itemize}
+%   \item \texttt{val == target}: \texttt{lo} is set to \texttt{hi + 1}. Since $\mathtt{hi} < 10$, we have $\mathtt{lo} = \mathtt{hi} + 1 \ge 1 \ge 0$, and \texttt{hi} is unchanged.
+%   \item \texttt{val < target}: \texttt{lo} is set to \texttt{mid + 1}. Since $\mathtt{mid} \ge 0$ (from $\mathtt{lo} \ge 0$ and the midpoint formula), $\mathtt{lo} \ge 1 \ge 0$, and \texttt{hi} is unchanged.
+%   \item Otherwise: \texttt{hi} is set to \texttt{mid - 1}. Since $\mathtt{mid} < 10$ (from $\mathtt{hi} < 10$ and the midpoint formula), $\mathtt{hi} < 10$, and \texttt{lo} is unchanged.
+% \end{itemize}
+% %
+% At the join point, the context-joining operation computes the least upper bound across all branches, and the SMT oracle verifies the invariant holds under the joined context.
+% %
+% \subsubsection{Array bounds for \texttt{arr[mid]}}
+% %
+% The array access \texttt{arr[mid]} occurs inside the branch guarded by \texttt{lo <= hi}. At this point the context contains:
+% \[
+%   \phi = \{\, \mathtt{lo} \ge 0, \;\; \mathtt{hi} < 10, \;\; \mathtt{lo} \le \mathtt{hi}, \;\; \mathtt{mid} = \mathtt{lo} + (\mathtt{hi} - \mathtt{lo}) / 2 \,\}
+% \]
+% The proof obligation is $0 \le \mathtt{mid} < 10$. From the context:
+% \begin{itemize}
+%   \item $\mathtt{mid} \ge \mathtt{lo} \ge 0$ (since $(\mathtt{hi} - \mathtt{lo})/2 \ge 0$ when $\mathtt{lo} \le \mathtt{hi}$)
+%   \item $\mathtt{mid} \le \mathtt{hi} < 10$ (since $\mathtt{mid} = \mathtt{lo} + (\mathtt{hi} - \mathtt{lo})/2 \le \mathtt{hi}$)
+% \end{itemize}
+% The SMT oracle asserts $\phi \wedge \lnot(0 \le \mathtt{mid} \wedge \mathtt{mid} < 10)$ and obtains UNSAT, confirming the bounds proof.
+%
+% \subsection{Lowering to TIR (SSA)}
+% %
+% The lowering pass translates the function into a control-flow graph of 13 basic blocks. Figure~\ref{fig:bs-cfg} shows the structure, with blocks grouped by their role in the algorithm.
+% %
+% \begin{figure}[H]
+%   \centering
+%   \begin{tikzpicture}[
+%       scale=0.75, transform shape,
+%       block/.style={rectangle, draw, thick, text centered,
+%           minimum height=0.6cm, minimum width=0.9cm,
+%           font=\small\ttfamily},
+%       arrow/.style={-Stealth, thick},
+%       lbl/.style={font=\scriptsize, text=black!60},
+%       elbl/.style={font=\scriptsize, text=black!60, fill=white, inner sep=1pt}
+%     ]
+%     % Row 0: entry
+%     \node[block] (bb0) at (0,0) {bb0};
+%     \node[lbl, right=0.15cm of bb0] {entry};
+%
+%     % Row 1: loop header
+%     \node[block] (bb1) at (0,-1.6) {bb1};
+%     \node[lbl, left=0.15cm of bb1] {loop header};
+%
+%     % Row 2: body / exit
+%     \node[block] (bb2) at (-2,-3.4) {bb2};
+%     \node[lbl, left=0.15cm of bb2] {body};
+%     \node[block] (bb3) at (3,-3.4) {bb3};
+%     \node[lbl, right=0.15cm of bb3] {exit};
+%
+%     % Row 3: lo<=hi / lo>hi
+%     \node[block] (bb4) at (-3.5,-5.2) {bb4};
+%     \node[block] (bb5) at (0.5,-5.2) {bb5};
+%
+%     % Row 4: val==target / val!=target
+%     \node[block] (bb7) at (-5,-7.0) {bb7};
+%     \node[block] (bb8) at (-2,-7.0) {bb8};
+%
+%     % Row 5: join from == / val<target / val>=target
+%     \node[block] (bb9) at (-5,-8.8) {bb9};
+%     \node[block] (bb10) at (-3,-8.8) {bb10};
+%     \node[block] (bb11) at (-1.7,-8.8) {bb11};
+%
+%     % Row 6: join from </>= (shifted left for clearance from bb5->bb6 diagonal)
+%     \node[block] (bb12) at (-2.3,-10.4) {bb12};
+%
+%     % Row 7: back edge
+%     \node[block] (bb6) at (-2,-12.0) {bb6};
+%     \node[lbl, left=0.15cm of bb6] {back edge};
+%
+%     % --- Edges ---
+%     \draw[arrow] (bb0) -- (bb1);
+%     \draw[arrow] (bb1) -- (bb2) node[elbl, midway, left] {iter $<$ 20};
+%     \draw[arrow] (bb1) -- (bb3) node[elbl, midway, right] {iter $\ge$ 20};
+%     \draw[arrow] (bb2) -- (bb4) node[elbl, midway, left] {lo $\le$ hi};
+%     \draw[arrow] (bb2) -- (bb5) node[elbl, midway, right] {lo $>$ hi};
+%     \draw[arrow] (bb4) -- (bb7) node[elbl, midway, left] {$=$};
+%     \draw[arrow] (bb4) -- (bb8) node[elbl, midway, right] {$\ne$};
+%     \draw[arrow] (bb7) -- (bb9);
+%     \draw[arrow] (bb8) -- (bb10) node[elbl, midway, left] {$<$};
+%     \draw[arrow] (bb8) -- (bb11) node[elbl, midway, right] {$\ge$};
+%     \draw[arrow] (bb10) -- (bb12);
+%     \draw[arrow] (bb11) -- (bb12);
+%     % Straight diagonals to bb6 — verified no node crossings
+%     \draw[arrow] (bb9) -- (bb6);
+%     \draw[arrow] (bb12) -- (bb6);
+%     \draw[arrow] (bb5) -- (bb6);
+%     % Back edge: vertical at x~3.8, right of bb3 (extends to x=3.45)
+%     \draw[arrow] (bb6.east) -- ++(5.5,0) |- (bb1.east);
+%   \end{tikzpicture}
+%   \caption{Control-flow graph of \texttt{binary\_search}. Block bb4 contains the critical array access.}
+%   \label{fig:bs-cfg}
+% \end{figure}
+% %
+% Key aspects of the TIR representation:
+% %
+% \begin{itemize}
+%   \item The loop counter \texttt{iter} is assigned to virtual register \texttt{v8} with an existential type annotation:
+%     \[
+%       \exists\, \texttt{v8}.\; \mathtt{int}(\texttt{v8}) \;\mathbf{where}\; (\texttt{v8} \ge 0 \;\wedge\; \texttt{v8} < 20)
+%     \]
+%     This captures the loop bounds without fixing a concrete value. The existential is opened at each use, making the bound constraints available for verification.
+%   \item Mutable variables (\texttt{lo}, \texttt{hi}, \texttt{result}) are represented by phi nodes at the loop header. Their current values become explicit loop-carried registers, and useful refinements may be preserved existentially: for example, the phi node for \texttt{lo} retains the fact that it remains non-negative.
+%   \item The loop invariant appears in TIR as an \texttt{AssertConstraint} instruction at the entry of bb2. During code generation this becomes a DTAL \texttt{.assert}, allowing the later verifier to re-check the invariant independently of the frontend type checker.
+% \end{itemize}
+%
+% \subsection{DTAL code generation and verification}
+% %
+% The DTAL output preserves the block structure of the TIR, augmented with entry-state declarations, constraint assumptions, and type annotations on every instruction. In the current implementation, \texttt{binary\_search} now verifies successfully end-to-end. For readability, the first snippet below shows the virtual-register DTAL emitted immediately after code generation; the second shows the corresponding physical DTAL after register allocation and x86-specific expansion, which is the form actually consumed by the final verifier.
+% %
+% \subsubsection{Virtual DTAL: midpoint computation and array access}
+% %
+% \begin{quote}
+% \begin{verbatim}
+% .binary_search_bb4:
+%     .assume v8 < v7
+%     .assume (v11 >= 0 && v10 < 10)
+%     .assume v11 <= v10
+%     sub v16, v10, v11    : {_synth_0: int | _synth_0 == (hi - lo) }
+%     mov v17, 2           : int(2)
+%     div v18, v16, v17    : {_synth_1: int | _synth_1 == ((hi - lo) / 2) }
+%     add v19, v11, v18    : {_synth_2: int | _synth_2 == (lo + ((hi - lo) / 2)) }
+%     .assert true
+%     load v20, [v0 + v19] : int
+% \end{verbatim}
+% \end{quote}
+% %
+% This virtual DTAL is still close to the source-level reasoning. The branch constraints and invariant have already been translated into register-based assumptions, and the midpoint arithmetic is represented symbolically through the synthesised refinement types on \texttt{v16}, \texttt{v18}, and \texttt{v19}. At this level it is easy to see how the array-bounds proof is carried forward: the load of \texttt{v20} depends on the facts $v11 \ge 0$, $v10 < 10$, and $v11 \le v10$, together with the symbolic definition of the midpoint.
+% %
+% \subsubsection{Physical DTAL: verifier-facing code}
+% %
+% \begin{quote}
+% \begin{verbatim}
+% .binary_search_bb2:
+%     .assert (r0 >= 0 && r4 < 10)
+%     cmp r0, r4
+%     setle lr
+%     mov r3, lr    : bool
+%     .type r3: bool
+%     ble .binary_search_bb4
+%     jmp .binary_search_bb5
+% .binary_search_bb4:
+%     mov lr, r4    : int
+%     mov r7, r0    : int
+%     sub lr, lr, r7    : {_synth_0: int | _synth_0 == (hi - lo) }
+%     mov r10, lr    : {_synth_0: int | _synth_0 == (hi - lo) }
+%     mov r3, 2    : int(2)
+%     mov r7, r3    : int
+%     mov lr, r10    : int
+%     cqo
+%     idiv r7
+%     mov r3, lr    : {_synth_1: int | _synth_1 == ((hi - lo) / 2) }
+%     mov lr, r0    : int
+%     mov r7, r3    : int
+%     add lr, lr, r7    : {_synth_2: int | _synth_2 == (lo + ((hi - lo) / 2)) }
+%     mov r10, lr    : {_synth_2: int | _synth_2 == (lo + ((hi - lo) / 2)) }
+%     .assert true
+%     mov lr, r6    : int
+%     mov r7, r10   : int
+%     load lr, [lr + r7]    : int
+% \end{verbatim}
+% \end{quote}
+% %
+% This is the post-register-allocation DTAL that the final verifier checks. The logical structure is the same as in the virtual DTAL, but the values have been assigned to physical registers and division has been expanded into the x86-64-specific \texttt{cqo}/\texttt{idiv} sequence. This illustrates the key trust-model point of the final implementation: register allocation and target-specific expansion remain untrusted compiler passes, and the verifier validates their output rather than assuming they are correct.
+%
+% The verifier still re-derives the types of the key arithmetic instructions from their operands:
+% \begin{enumerate}
+%   \item \texttt{sub lr, r4, r0} --- from the current types of \texttt{hi} and \texttt{lo}, the verifier derives the refinement corresponding to $(\texttt{hi} - \texttt{lo})$.
+%   \item \texttt{idiv r7} --- after the division-expansion sequence, the verifier re-establishes that the quotient register holds $((\texttt{hi} - \texttt{lo}) / 2)$.
+%   \item \texttt{add lr, r0, r7} --- yields the midpoint refinement $\texttt{lo} + ((\texttt{hi} - \texttt{lo}) / 2)$.
+%   \item \texttt{load lr, [lr + r7]} --- the verifier must prove that the computed midpoint still satisfies the array-bounds obligation. The constraint set at this point is the physical-register counterpart of the virtual one:
+%     \[
+%       \{\; \texttt{r0} \ge 0, \;\; \texttt{r4} < 10, \;\; \texttt{r0} \le \texttt{r4}, \;\; \texttt{r10} = \texttt{r0} + (\texttt{r4} - \texttt{r0})/2 \;\}
+%     \]
+%     The verifier sends the negated bounds goal to Z3 and obtains UNSAT.
+% \end{enumerate}
+% %
+% Note that these annotations are emitted by the compiler but independently re-derived by the verifier. The verifier does not trust the compiler's claimed types; it uses them only as a cross-check against its own derivation.
+% %
+% \subsubsection{Back edge and state coercion}
+% %
+% \begin{quote}
+% \begin{verbatim}
+% .binary_search_bb6:
+%     mov r3, 1    : int
+%     mov lr, r9   : int
+%     mov r7, r3   : int
+%     add lr, lr, r7    : int
+%     mov r3, lr   : int
+%     mov r9, r3   : int
+%     jmp .binary_search_bb1
+% \end{verbatim}
+% \end{quote}
+% %
+% At the physical back edge, the loop counter has been allocated to \texttt{r9}. The block increments it and jumps back to the loop header. The important point is not the specific register names but the state-coercion check performed at the edge: the verifier must show that the exit state of bb6 is compatible with the declared entry state of bb1, including the existential bound on the loop counter and the re-established invariant on the registers holding \texttt{lo} and \texttt{hi}. This is the inductive step of the loop proof in its final, post-register-allocation form.
+
 % \subsection{Discussion}
 % %
 % This walkthrough illustrates the central thesis of the type-preserving architecture:

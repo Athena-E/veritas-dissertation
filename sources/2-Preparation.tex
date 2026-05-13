@@ -223,6 +223,10 @@ Satisfiability Modulo Theories are an extension of boolean satisfiability (SAT) 
 
   \end{tikzpicture}
 
+  \captionsetup{
+    aboveskip=4pt,
+    belowskip=2pt
+  }
   \caption{
     To check whether the judgement $\phi \vdash P$, the solver is asked whether
     $\phi \land \neg P$ is satisfiable. An \textsc{unsat} result shows that no
@@ -342,6 +346,12 @@ Figure~\ref{fig:verification-landscape} summarises the trade-off between express
     \node[hollow, label={[font=\footnotesize]right:Proofs erased}] at (10,6.5) {};
 
   \end{tikzpicture}
+
+  \captionsetup{
+    aboveskip=4pt,
+    belowskip=-8pt
+  }
+
   \caption{Verification systems positioned by expressiveness of their type/specification language and degree of automation.\centering}
   \label{fig:verification-landscape}
 \end{figure}
@@ -437,6 +447,10 @@ To allow the implementation to proceed incrementally while always maintaining a 
     % ([xshift=0.35cm,yshift=0.35cm]ver.north east) --
     % ([xshift=0.35cm,yshift=-0.35cm]ver.south east);
   \end{tikzpicture}
+  \captionsetup{
+    aboveskip=4pt,
+    belowskip=2pt
+  }
   \caption{Veritas compilation pipeline and trust boundary. The direct encoder and independent verifier are trusted components.}
   \label{fig:trust-pipeline}
 \end{figure}
