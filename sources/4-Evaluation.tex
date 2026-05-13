@@ -1,4 +1,3 @@
-% TODO: explain hyperfine methodology
 % TODO: define feature suite
 
 \chapter{Evaluation}\label{ch:eval}
@@ -51,7 +50,7 @@ I wrote a suite of 28 programs covering all main program features: arrays, mutab
 
 \paragraph{PolyBench.}
 % The second suite is the external PolyBench-style kernel suite. 
-PolyBench/C is a widely used benchmark family for evaluating compilers and program-transformation systems on structured numeric kernels, especially in work on loop optimisation, polyhedral compilation, and high-performance array code.
+PolyBench/C~\cite{PouchetPolyBenchC32} is a widely used benchmark family for evaluating compilers and program-transformation systems on structured numeric kernels, especially in work on loop optimisation, polyhedral compilation, and high-performance array code.
 % Its programs include small kernels with regular control flow, affine array indexing, and deterministic numeric behaviour, making them convenient for both performance and semantic comparison.
 The PolyBench-style suite provides a more objective external check on whether the compiler behaves correctly on recognised array- and loop-dominated workloads that are used outside this project.
 The selected kernels are Floyd--Warshall, Jacobi-1D, Jacobi-2D, Seidel-2D, MVT, ATAX, and GESUMMV. Their fixed \texttt{MEDIUM}-class parameters and features exercised are listed in Appendix~\ref{app:evaluation-supplementary}; they are appropriate for Veritas because they are dominated by fixed-size arrays, structured imperative loops, arithmetic side conditions, and deterministic computation over statically bounded data.
@@ -67,6 +66,59 @@ The \texttt{comparison\_suite} contains six normalised verification tasks implem
 
 \paragraph{DTAL tampering corpus.}
 The DTAL tampering corpus starts from valid compiled DTAL, applies small syntax-preserving mutations, and checks that standalone DTAL verification rejects the result. It is used to test the untrusted-compiler trust boundary directly, with mutations covering structural mismatches, strengthened preconditions, contradictory assertions, bounds failures, arithmetic overflow, ownership violations, mutable aliasing, and entry-state mismatches.
+
+\subsection{Measurement methodology}
+
+All dissertation-facing quantitative results are derived from fixed suite manifests. Timing measurements distinguish internal phase timings from external wall-clock timings. Internal measurements come from \texttt{veritas --bench}: \texttt{compile\_ms} records source-to-DTAL compilation, \texttt{verify\_ms} records explicit physical-DTAL verification, and the frontend and verifier SMT counters record solver activity in the two checking stages. External command latency is measured with \texttt{hyperfine}; \texttt{compile\_only} measures end-to-end compilation, while \texttt{compile\_plus\_verify} includes the additional standalone DTAL verification step. Unless stated otherwise, published \texttt{hyperfine} runs use 30 repetitions and 5 warmups, report mean and standard deviation, and preserve raw JSON, exact commands, run metadata, suite manifests, tool-version information, and git status in the run directory. These conventions keep user-visible latency claims separate from internal cost attribution. % TODO: accuracy of no. of runs
+
+\subsection{Evaluation matrix}
+
+Table~\ref{tab:evaluation-matrix} maps the main claims evaluated in this chapter to the evidence used for each claim. This makes the scope of the evidence explicit: the chapter argues that Veritas meets its stated goals as a scoped prototype, rather than proving compiler correctness or verifier soundness in full generality.
+
+\begin{table}[h]
+  \centering
+  \scriptsize
+  \begin{tabular}{p{0.27\textwidth} p{0.25\textwidth} p{0.2\textwidth} p{0.18\textwidth}}
+    \hline
+    \textbf{Claim} & \textbf{Evidence}                                                 & \textbf{Result} & \textbf{Limitation} \\
+    \hline
+    Source checker rejects invalid programs
+                   & \texttt{negative\_suite}
+                   & 35 intentionally invalid programs rejected
+                   & Suite-bounded source-level evidence                                                                       \\
+    Compiler handles supported source features
+                   & 28-program \texttt{feature\_suite}
+                   & All compiled and passed executable checks
+                   & No semantic-preservation theorem                                                                          \\
+    Physical DTAL verifier accepts valid compiler output
+                   & Physical-DTAL verification of the feature suite
+                   & All generated physical DTAL accepted
+                   & Verifier implementation and Z3 remain trusted                                                             \\
+    Standalone verifier rejects corrupted low-level artifacts
+                   & 18-case DTAL tampering corpus
+                   & All tampered artifacts rejected
+                   & Not exhaustive over semantic miscompilations                                                              \\
+    Generated programs run correctly on external kernels
+                   & PolyBench-style checksum validation
+                   & All selected kernels matched expected checksums
+                   & Dynamic regression evidence only                                                                          \\
+    Verification overhead remains practical
+                   & Feature-suite and verification-stress timings
+                   & Mean and worst-case costs reported
+                   & Fragment- and solver-workload-dependent                                                                   \\
+    Cross-system comparison is plausible
+                   & Six-task comparison suite
+                   & Annotation burden and timing measured locally
+                   & Small normalised suite, not a general ranking                                                             \\
+    Compiler infrastructure is mostly outside the TCB
+                   & Component trust and LOC analysis
+                   & Backend passes are checked by final DTAL verification
+                   & Encoder, runtime, verifier, solver and environment remain trusted                                         \\
+    \hline
+  \end{tabular}
+  \caption{Evaluation matrix for the main claims assessed in this chapter.}
+  \label{tab:evaluation-matrix}
+\end{table}
 
 % \subsection{Robustness corpus}
 %
@@ -199,24 +251,24 @@ This is sufficient for the dissertation's array-heavy and proof-heavy examples, 
     \hline
     \textbf{Safety property / constraint class}         & \textbf{Veritas} & \textbf{Dafny} & \textbf{Liquid Haskell} & \textbf{Verus} & \textbf{ATS} \\
     \hline
-    Array bounds safety                                 & Yes              & Yes            & Partial                 & Yes            & Yes          \\
-    Division-by-zero safety                             & Yes              & Yes            & Yes                     & Yes            & Yes          \\
-    Overflow / arithmetic side-condition reasoning      & Yes              & Partial        & Partial                 & Yes            & Yes          \\
-    Preconditions and postconditions                    & Yes              & Yes            & Yes                     & Yes            & Yes          \\
-    Loop invariant reasoning                            & Yes              & Yes            & Partial                 & Yes            & Partial      \\
-    Quantified specifications                           & Yes              & Yes            & Partial                 & Yes            & Partial      \\
-    Sortedness / predicate-rich functional properties   & Yes              & Yes            & Yes                     & Yes            & Yes          \\
-    Ownership / aliasing discipline                     & Yes              & No             & No                      & Yes            & Partial      \\
-    Heap-allocated linked data structure invariants     & No               & Yes            & Yes                     & Partial        & Partial      \\
-    Recursive structural functional correctness proofs  & No               & Yes            & Yes                     & Yes            & Yes          \\
-    Concurrency / data-race freedom properties          & No               & No             & No                      & Yes            & No           \\
-    Ghost-state-heavy protocol reasoning                & Partial          & Yes            & Partial                 & Yes            & Yes          \\
-    Information-flow / noninterference-style properties & No               & Partial        & Partial                 & Partial        & Partial      \\
-    Low-level preservation of checked constraints       & Yes              & No             & No                      & No             & No           \\
-    Independent checking of compiled artifact           & Yes              & No             & No                      & No             & No           \\
+    Array bounds safety                                 & \checkmark       & \checkmark     & partial                 & \checkmark     & \checkmark  \\
+    Division-by-zero safety                             & \checkmark       & \checkmark     & \checkmark              & \checkmark     & \checkmark  \\
+    Overflow / arithmetic side-condition reasoning      & \checkmark       & partial        & partial                 & \checkmark     & \checkmark  \\
+    Preconditions and postconditions                    & \checkmark       & \checkmark     & \checkmark              & \checkmark     & \checkmark  \\
+    Loop invariant reasoning                            & \checkmark       & \checkmark     & partial                 & \checkmark     & partial     \\
+    Quantified specifications                           & \checkmark       & \checkmark     & partial                 & \checkmark     & partial     \\
+    Sortedness / predicate-rich functional properties   & \checkmark       & \checkmark     & \checkmark              & \checkmark     & \checkmark  \\
+    Ownership / aliasing discipline                     & \checkmark       &                &                         & \checkmark     & partial     \\
+    Heap-allocated linked data structure invariants     &                  & \checkmark     & \checkmark              & partial        & partial     \\
+    Recursive structural functional correctness proofs  &                  & \checkmark     & \checkmark              & \checkmark     & \checkmark  \\
+    Concurrency / data-race freedom properties          &                  &                &                         & \checkmark     &             \\
+    Ghost-state-heavy protocol reasoning                & partial          & \checkmark     & partial                 & \checkmark     & \checkmark  \\
+    Information-flow / noninterference-style properties &                  & partial        & partial                 & partial        & partial     \\
+    Low-level preservation of checked constraints       & \checkmark       &                &                         &                &             \\
+    Independent checking of compiled artifact           & \checkmark       &                &                         &                &             \\
     \hline
   \end{tabular}
-  \caption{Comparison of the main safety properties and specification classes relevant to this dissertation. ``Partial'' indicates that the property is expressible, but less naturally or less directly in the style of programs considered here.}
+  \caption{Comparison of the main safety properties and specification classes relevant to this dissertation. ``partial'' indicates that the property is expressible, but less naturally or less directly in the style of programs considered here.}
   \label{tab:verification-safety-properties}
 \end{table}
 
@@ -339,7 +391,7 @@ Table~\ref{tab:verification-stress-overheads} shows that the cost of the indepen
 
 \subsubsection{Cross-system verification-cost comparison}
 
-Figure~\ref{fig:comparison-suite-wallclock} shows that Veritas is faster on the comparison suite, but the result should be interpreted cautiously because Veritas targets a much smaller language fragment. The important methodological distinction is that Veritas reports both frontend-only and compile-plus-DTAL-verification costs, whereas the other systems primarily report source-level verification cost.
+Figure~\ref{fig:comparison-suite-wallclock} reports wall-clock verification latency on the six-task normalised comparison suite. This comparison is not a claim that Veritas is generally faster or more expressive than mature verification systems; it checks whether the prototype has plausible verification latency on a small suite chosen around the properties central to this dissertation. The important methodological distinction is that Veritas reports both frontend-only and compile-plus-DTAL-verification costs, whereas the other systems primarily report source-level verification cost.
 
 \begin{figure}[h]
   \centering
@@ -370,7 +422,7 @@ The frontend-only view is the fairest comparison point against source-level veri
 
 The frontend compiler and the independent physical-DTAL verifier agree on acceptance for all 28 feature-suite programs. This covers arrays, preconditions, loop invariants, quantifiers, sortedness, shared and mutable borrows, scalar dereferences, and overflow-aware arithmetic.
 
-The negative suite provides complementary source-level rejection evidence: all 35 intentionally invalid programs are rejected. The DTAL tampering corpus then tests the trust boundary directly by mutating valid low-level artifacts after compilation. All 14 tampered low-level programs are rejected. For example, changing \texttt{.returns int} to \texttt{.returns bool} is rejected as a structural mismatch, while changing an in-bounds singleton index to an out-of-bounds one is rejected as a bounds failure.
+The negative suite provides complementary source-level rejection evidence: all 35 intentionally invalid programs are rejected. The DTAL tampering corpus then tests the trust boundary directly by mutating valid low-level artifacts after compilation. All 18 safety-relevant tampered low-level programs are rejected; Appendix~\ref{app:evaluation-supplementary}, Table~\ref{tab:dtal-tampering-corpus} lists the complete corpus, including the mutation and expected rejection class for each case. A separate semantic-corruption test changes verifier-compatible values while preserving the checked safety policy; this is accepted, as expected, and documents that DTAL verification is not a full semantic-equivalence check.
 
 \subsection{Trust architecture and trusted computing base}\label{sec:tcb-eval}
 
@@ -385,13 +437,13 @@ Table~\ref{tab:tcb-summary} separates the measured verifier-side Rust core from 
     \hline
     \textbf{Trusted component} & \textbf{Form}         & \textbf{Size}             & \textbf{Linux} & \textbf{Bare metal} \\
     \hline
-    DTAL verifier core         & Rust LOC              & 7817 / 42996 (18.2\%)     & \checkmark     & \checkmark         \\
-    Direct encoder             & Rust LOC              & \~386                     & \checkmark     & \checkmark         \\
-    x86 instruction encoder    & Rust LOC              & \~1660                    & \checkmark     & \checkmark         \\
-    Z3 solver                  & external tool         & large external dependency & \checkmark     & \checkmark         \\
-    Runtime blob               & machine code          & 228 bytes                 & \checkmark     & --                 \\
-    Multiboot bootstrap        & machine code          & 206 bytes                 & --             & \checkmark         \\
-    Host OS / kernel           & execution environment & large external dependency & \checkmark     & --                 \\
+    DTAL verifier core         & Rust LOC              & 7817 / 42996 (18.2\%)     & \checkmark     & \checkmark          \\
+    Direct encoder             & Rust LOC              & \~386                     & \checkmark     & \checkmark          \\
+    x86 instruction encoder    & Rust LOC              & \~1660                    & \checkmark     & \checkmark          \\
+    Z3 solver                  & external tool         & large external dependency & \checkmark     & \checkmark          \\
+    Runtime blob               & machine code          & 228 bytes                 & \checkmark     & --                  \\
+    Multiboot bootstrap        & machine code          & 206 bytes                 & --             & \checkmark          \\
+    Host OS / kernel           & execution environment & large external dependency & \checkmark     & --                  \\
     \hline
   \end{tabular}
   \caption{Decomposed trust architecture for the current Veritas

@@ -728,26 +728,71 @@ Consequently, if the verifier accepts the physical DTAL, every checked instructi
   \label{tab:negative-suite-summary}
 \end{table}
 
-\begin{table}[h]
+\begin{table}[p]
   \centering
-  \small
-  \begin{tabular}{l r r r}
+  \scriptsize
+  \begin{tabular}{p{0.06\textwidth} p{0.23\textwidth} p{0.43\textwidth} p{0.18\textwidth}}
     \hline
-    \textbf{Kernel}              & \textbf{Veritas (s)} & \textbf{GCC \texttt{-O2} (s)} & \textbf{Ratio} \\
+    \textbf{ID} & \textbf{Tampering class} & \textbf{Mutation} & \textbf{Expected rejection reason} \\
     \hline
-    \texttt{floyd\_warshall\_500} & 0.601975           & 0.091029                      & 6.613          \\
-    \texttt{jacobi\_1d\_400\_100} & 0.000796          & 0.001396                      & 0.570          \\
-    \texttt{jacobi\_2d\_250\_100} & 0.098254          & 0.019011                      & 5.168          \\
-    \texttt{seidel\_2d\_400\_100} & 0.316906          & 0.090827                      & 3.489          \\
-    \texttt{mvt\_400}            & 0.004776            & 0.003371                      & 1.417          \\
-    \texttt{atax\_390\_410}      & 0.005116            & 0.003447                      & 1.484          \\
-    \texttt{gesummv\_250}        & 0.002868            & 0.004430                      & 0.647          \\
+    T01 & Return signature mismatch
+        & Change a function return signature from \texttt{.returns int} to \texttt{.returns bool}.
+        & Return type mismatch \\
+    T02 & Strengthened precondition
+        & Strengthen a callee precondition and corresponding assumption from \texttt{v0 < 4} to \texttt{v0 < 2}.
+        & Precondition not provable \\
+    T03 & Shared-borrow bounds corruption
+        & Change the index used through a shared scalar borrow from \texttt{0} to \texttt{1}.
+        & Bounds check failed \\
+    T04 & Move during live shared borrow
+        & Insert \texttt{move\_owned} on an owned object before ending its shared borrow.
+        & Ownership violation \\
+    T05 & Arithmetic overflow corruption
+        & Replace constants so an \texttt{i64} addition overflows and weaken the result annotation.
+        & Arithmetic overflow \\
+    T06 & Negative index corruption
+        & Change the shared-borrow index from \texttt{0} to \texttt{-1}.
+        & Bounds check failed \\
+    T07 & Use after drop
+        & Drop an owned object and then attempt to move it again before returning.
+        & Used after ownership was consumed \\
+    T08 & Owned-value duplication
+        & Insert a plain \texttt{mov} that duplicates an owned array value.
+        & Ownership violation \\
+    T09 & Shared alias during mutable borrow
+        & Insert \texttt{alias\_borrow} while a mutable borrow of the same object is live.
+        & Ownership violation \\
+    T10 & Double mutable borrow
+        & Insert a second \texttt{borrow\_mut} for an object that already has a live mutable borrow.
+        & Ownership violation \\
+    T11 & Mutable-store bounds corruption
+        & Change a mutable-store index from \texttt{0} to \texttt{1} for a one-element array.
+        & Bounds check failed \\
+    T12 & Parameter capability mismatch
+        & Weaken a function parameter from \texttt{\&mut [int; 1]} to \texttt{\&[int; 1]}.
+        & Type mismatch \\
+    T13 & Entry-state type mismatch
+        & Change a block entry state from \texttt{\{v0: int\}} to \texttt{\{v0: bool\}}.
+        & Type mismatch \\
+    T14 & Impossible assertion
+        & Insert \texttt{.assert (v0 < 0)} after assuming \texttt{v0 >= 0 \&\& v0 < 4}.
+        & Cannot prove constraint \\
+    T15 & Branch-target swap
+        & Swap a conditional branch and fall-through target so the successor assumption contradicts the edge condition.
+        & Cannot prove constraint \\
+    T16 & False singleton annotation
+        & Change \texttt{mov v0, 42 : int(42)} to claim \texttt{int(41)}.
+        & Singleton type mismatch \\
+    T17 & Division evidence removal
+        & Weaken the divisor parameter and entry state from \texttt{\{v: int | v != 0\}} to plain \texttt{int}.
+        & Cannot prove constraint \\
+    T18 & Unprovable postcondition
+        & Replace the sorted-array postcondition with a contradictory order claim over the returned array.
+        & Postcondition not provable \\
     \hline
   \end{tabular}
-  \caption{Selected PolyBench-style runtime results against GCC
-    \texttt{-O2}. All kernels in the evaluated set passed checksum-based
-    semantic validation before timing results were accepted.}
-  \label{tab:polybench-practicality}
+  \caption{DTAL tampering corpus used to test the standalone verifier against syntax-preserving low-level corruptions. Each case starts from valid compiler output and checks that physical-DTAL verification rejects the mutated artifact.}
+  \label{tab:dtal-tampering-corpus}
 \end{table}
 
 \begin{table}[h]
