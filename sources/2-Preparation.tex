@@ -385,7 +385,7 @@ Having established the theoretical tools and verification mechanisms available, 
 
 \subsection{Compiler architecture}
 
-A central architectural decision is that the compiler is \textit{untrusted}. Rather than proving the compiler correct, Veritas relies on a standalone verifier that re-checks the compiler's low-level output. Compiler bugs that corrupt the emitted type-state, bounds, contract, arithmetic, or ownership evidence should therefore cause rejection rather than acceptance of safety-inconsistent low-level output. Figure~\ref{fig:trust-pipeline} shows the resulting boundary: type information flows through every intermediate representation, but trust begins only at the verifier and direct encoder.
+A central architectural decision is that the compiler is \textit{untrusted}. Rather than proving the compiler correct, Veritas relies on a standalone verifier that re-checks the compiler's low-level output. Compiler bugs that corrupt the emitted type-state and safety policy evidence should therefore cause rejection rather than acceptance of safety-inconsistent low-level output. Figure~\ref{fig:trust-pipeline} shows the resulting boundary: type information flows through every intermediate representation, but trust begins only at the verifier and direct encoder.
 
 \subsection{Trust model and TCB reduction}
 
