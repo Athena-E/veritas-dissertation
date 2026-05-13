@@ -385,16 +385,16 @@ Having established the theoretical tools and verification mechanisms available, 
 
 \subsection{Compiler architecture}
 
-A central architectural decision is that the compiler is \textit{untrusted}. Rather than proving the compiler correct, Veritas relies on a standalone verifier that re-checks the compiler's low-level output. Compiler bugs should therefore cause rejection, not unsafely accepted code. Figure~\ref{fig:trust-pipeline} shows the resulting boundary: type information flows through every intermediate representation, but trust begins only at the verifier and direct encoder.
+A central architectural decision is that the compiler is \textit{untrusted}. Rather than proving the compiler correct, Veritas relies on a standalone verifier that re-checks the compiler's low-level output. Compiler bugs that corrupt the emitted type-state, bounds, contract, arithmetic, or ownership evidence should therefore cause rejection rather than acceptance of safety-inconsistent low-level output. Figure~\ref{fig:trust-pipeline} shows the resulting boundary: type information flows through every intermediate representation, but trust begins only at the verifier and direct encoder.
 
 \subsection{Trust model and TCB reduction}
 
 To allow the implementation to proceed incrementally while always maintaining a clear trust boundary, I structured the implementation to move the verification boundary progressively lower in the pipeline:
 
 \begin{enumerate}
-  \item \textbf{Virtual DTAL verification}: the verifier checks DTAL with virtual registers. The TCB includes the verifier, Z3, register allocation, instruction selection, and the x86-64 encoder.
-  \item \textbf{Physical DTAL verification}: the verifier checks DTAL \textit{after} register allocation. Register allocation and instruction selection are removed from the TCB. The TCB is now the verifier, Z3, and a trivial direct encoder.
-  \item \textbf{Runtime and bare-metal}: the runtime is kept small enough to audit by inspection, and a bare-metal target removes the OS from the TCB entirely.
+  \item \textbf{Virtual DTAL verification}: the verifier checks DTAL with virtual registers. The TCB includes the verifier, Z3, register allocation, instruction selection, and the x86-64 encoder, ELF generator, and runtime assumptions.
+  \item \textbf{Physical DTAL verification}: the verifier checks DTAL \textit{after} register allocation. Register allocation and instruction selection are removed from the TCB. The TCB includes the verifier, Z3, a direct encoder, ELF generator, and runtime assumptions.
+  \item \textbf{Runtime and bare-metal}: the runtime is kept small enough to audit by inspection, and a bare-metal target removes the OS kernel from the normal execution path. The TCB includes the bootstrap, runtime, hardware model, and emulator.
 \end{enumerate}
 
 \begin{figure}[h]
@@ -451,7 +451,7 @@ To allow the implementation to proceed incrementally while always maintaining a 
     aboveskip=4pt,
     belowskip=2pt
   }
-  \caption{Veritas compilation pipeline and trust boundary. The direct encoder and independent verifier are trusted components.}
+  \caption{Veritas compilation pipeline and trust boundary. The direct encoder and independent verifier are trusted components; Z3, the instruction encoder, ELF generation, runtime, and target environment are also part of the concrete TCB.}
   \label{fig:trust-pipeline}
 \end{figure}
 
@@ -468,11 +468,11 @@ The target language is a variant of Xi and Harper's DTAL~\cite{Xi2001DTAL}, exte
 
 The core instruction set is deliberately RISC-like: simple instructions are easier to type, easier to verify, and map naturally from the compiler’s SSA-style intermediate representation. V-DTAL is then augmented with type annotations on registers, constraint assertions embedded in the instruction stream, and declared type states at basic block entry points.
 
-I also defined V-DTAL with its own \textit{physical register model} (registers \texttt{r0}--\texttt{r12}, \texttt{sp}, \texttt{fp}, \texttt{lr}) that maps directly to x86-64 registers. This allows verification to occur \textit{after} register allocation: the register allocator is untrusted, and its output is verified before the final (trivial) encoding to x86-64.
+I also defined V-DTAL with its own \textit{physical register model} (registers \texttt{r0}--\texttt{r12}, \texttt{sp}, \texttt{fp}, \texttt{lr}) that maps directly to x86-64 registers. This allows verification to occur \textit{after} register allocation: the register allocator is untrusted, and its output is verified before the final encoding to x86-64.
 
 \subsection{Machine code encoding and ELF generation}
 
-Rather than emitting assembly text and invoking an external assembler, Veritas encodes x86-64 instructions directly as bytes. This keeps an external assembler out of the TCB. The trusted path below physically-allocated DTAL is intentionally small: a trivial one-to-one instruction mapping, a byte encoder, and an ELF generator.
+Rather than emitting assembly text and invoking an external assembler, Veritas encodes x86-64 instructions directly as bytes. This keeps an external assembler out of the TCB. The trusted path below physically-allocated DTAL is intentionally small but not trivial: most non-pseudo physical instructions have a direct encoding rule, while prologues, epilogues, runtime linkage, label resolution, and ELF generation remain trusted implementation work.
 
 The choice of x86-64 as the target architecture was pragmatic: the development machine runs x86-64 Linux, enabling direct execution and testing of compiled binaries without emulation. Targeting a different ISA would require replacing only the instruction mapping, byte encoder, and register definitions, while leaving the DTAL type system and verifier structure largely unchanged.
 
@@ -491,7 +491,7 @@ The requirements of the language and compiler architecture raised several intera
 
 \paragraph{Mutable variables and refinement types.} Refinement type systems such as Liquid Haskell operate over immutable bindings, where a variable's type is fixed at its definition. Supporting mutation introduces a soundness hazard: after \texttt{x = e}, any refinement mentioning \texttt{x} may be invalidated. The solution adopted---\textit{master types}---required designing the mutable context $\Delta$ to track both a current (refinable) type and a fixed master type, with a subtyping check on every assignment.
 
-\paragraph{Verification after register allocation.} In an initial phase of the implementation, the system verified DTAL with virtual registers and then trusted the large x86-64 lowering module. This placed a large, error-prone component inside the TCB. Redesigning the pipeline to verify \textit{after} register allocation and reduce the backend TCB required defining a physical DTAL register model, splitting the monolithic lowering into an untrusted physical allocation pass and a trivial direct encoder, and extending the verifier to handle physical instructions (prologues, spills, division expansion).
+\paragraph{Verification after register allocation.} In an initial phase of the implementation, the system verified DTAL with virtual registers and then trusted the large x86-64 lowering module. This placed a large, error-prone component inside the TCB. Redesigning the pipeline to verify \textit{after} register allocation and reduce the backend TCB required defining a physical DTAL register model, splitting the monolithic lowering into an untrusted physical allocation pass and a small direct encoder, and extending the verifier to handle physical instructions (prologues, spills, division expansion).
 
 \paragraph{Type preservation across SSA join points.} At phi nodes in the SSA intermediate representation, two singleton types from different branches must be joined. The naive approach---widening to the base type $\mathtt{int}$---loses all refinement information, making downstream bounds proofs impossible. The solution was to attach \textit{existential constraints} to phi nodes, encoding that the value satisfies a constraint without fixing it to a concrete value. This mechanism was not part of Xi and Harper's original DTAL design and required extending both the TIR and the verifier.
 
