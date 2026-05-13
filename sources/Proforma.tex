@@ -3,9 +3,9 @@
   Candidate Number   & 9615Q                                                      \\
   Title              & A type-preserving compiler from a systems language to DTAL \\
   Examination        & Computer Science Tripos -- Part II, 2026                   \\
-  Word Count         &                                                            %11992\footnote{Computed with \texttt{texcount}.}           
+  Word Count         & 13,985\footnote{Draft main-matter count from \texttt{texcount -merge -sum=1,1,1}; this must be updated after the final cuts.}
   \\
-  Code Line Count    &                                                            %7071\footnote{Computed with \texttt{cloc}.}                
+  Code Line Count    & 42,996\footnote{Tracked Rust source under \texttt{src/}, counted with \texttt{git ls-files} and \texttt{wc -l}.}
   \\
   Project Originator & The candidate                                              \\
   Project Supervisor & Yulong Huang                                               \\
@@ -14,13 +14,11 @@
 
 \subsection*{Original aims of the project}
 
-The project set out to develop a type-preserving compilation toolchain for a systems programming language with refinement types. The goal was to demonstrate that structural safety properties, such as spatial memory safety and control-flow integrity, could be mathematically guaranteed in low-level executable code without trusting the complex compiler itself. This involved designing a source language, building a compiler that lowers high-level constructs to a Dependently Typed Assembly Language (DTAL) while preserving type information, and creating an independent verifier capable of confirming the safety of the resulting DTAL independently of the compiler.
+The project set out to build a type-preserving compiler, in the implementation sense of preserving verifier-facing type evidence, for a refinement-typed systems-language fragment targeting Dependently Typed Assembly Language. The aim was to test whether compiled low-level artifacts could be independently checked for a scoped policy covering array bounds, contracts, arithmetic side conditions, and control-flow/type-state consistency.
 
 \subsection*{Work completed}
 
-% The project was a complete success. All success criteria were met with greatly extended scope, with the designed embedded language -- Ein -- implementing various array programming features previously unavailable in Python. An efficient compilation scheme from pointful array programming to the array programming model was developed, relying on a new formal connection between the two styles.
-%
-% My project won first prize among undergraduates in the ACM Student Research Competition at the 51st POPL conference. Furthermore, a research paper coauthored with my supervisor was accepted for publication in the 10th ACM ARRAY proceedings.
+I implemented the Veritas language, parser/type checker, typed SSA IR, DTAL generator, register allocation, independent verifier, x86-64/ELF encoder, runtime intrinsics, tests, and benchmarks. The type-preserving pipeline compiles, verifies, and runs binary search, safe division, array kernels, contracts, loop invariants, bounded quantifiers, and a scoped ownership extension.
 
 \subsection*{Special difficulties}
 None.

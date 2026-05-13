@@ -12,24 +12,24 @@ The source code is organised as a single Rust crate with the following top-level
     \hline
     \textbf{Directory}                         & \textbf{Lines}  & \textbf{Responsibility}                     \\
     \hline
-    \texttt{src/common/}                       & 624             & Shared AST, typed AST, and type definitions \\
-    \texttt{src/frontend/}                     & 6,498           & Lexer, parser, and bidirectional type checker \\
-    \texttt{src/backend/tir/}                  & 689             & Typed intermediate representation (SSA)     \\
-    \texttt{src/backend/lower/}                & 1,548           & TAST to TIR lowering                        \\
-    \texttt{src/backend/dtal/}                 & 2,387           & DTAL syntax, constraints, and parser        \\
-    \texttt{src/backend/codegen/}              & 1,004           & TIR to DTAL code generation                 \\
-    \texttt{src/backend/optimise/}             & 935             & Copy propagation and dead code elimination  \\
-    \texttt{src/backend/regalloc/}             & 1,300           & Liveness analysis and allocators            \\
-    \texttt{src/backend/physalloc.rs}          & 1,171           & Physical allocation and spill insertion     \\
-    \texttt{src/backend/direct\_encode.rs}     & 309             & Direct physical-DTAL to x86-64 encoding     \\
-    \texttt{src/backend/x86\_64/}              & 2,699           & Legacy trusted x86-64 lowering backend      \\
-    \texttt{src/backend/elf/}                  & 601             & ELF generation, including bare-metal output \\
-    \texttt{src/backend/runtime.rs}            & 99              & Hand-written runtime intrinsics             \\
-    \texttt{src/backend/emit/}                 & 411             & DTAL text emitter                           \\
-    \texttt{src/verifier/}                     & 4,825           & Independent DTAL verifier                   \\
-    \texttt{src/main.rs}, \texttt{src/pipeline.rs} & 1,046       & CLI and pipeline orchestration              \\
+    \texttt{src/common/}                       & 788             & Shared AST, typed AST, and type definitions \\
+    \texttt{src/frontend/}                     & 8,807           & Lexer, parser, and bidirectional type checker \\
+    \texttt{src/backend/tir/}                  & 860             & Typed intermediate representation (SSA)     \\
+    \texttt{src/backend/lower/}                & 2,322           & TAST to TIR lowering                        \\
+    \texttt{src/backend/dtal/}                 & 2,740           & DTAL syntax, constraints, and parser        \\
+    \texttt{src/backend/codegen/}              & 1,317           & TIR to DTAL code generation                 \\
+    \texttt{src/backend/optimise/}             & 4,173           & Copy propagation and dead code elimination  \\
+    \texttt{src/backend/regalloc/}             & 1,316           & Liveness analysis and allocators            \\
+    \texttt{src/backend/physalloc.rs}          & 1,729           & Physical allocation and spill insertion     \\
+    \texttt{src/backend/direct\_encode.rs}     & 386             & Direct physical-DTAL to x86-64 encoding     \\
+    \texttt{src/backend/x86\_64/}              & 2,925           & Legacy x86-64 lowering and instruction forms \\
+    \texttt{src/backend/elf/}                  & 531             & ELF generation, including bare-metal output \\
+    \texttt{src/backend/runtime.rs}            & 177             & Hand-written runtime intrinsics             \\
+    \texttt{src/backend/emit/}                 & 553             & DTAL text emitter                           \\
+    \texttt{src/verifier/}                     & 7,817           & Independent DTAL verifier                   \\
+    \texttt{src/main.rs}, \texttt{src/pipeline.rs}, module glue & 1,402 & CLI and pipeline orchestration              \\
     \hline
-    \textbf{Total (excl.\ tests)}              & \textbf{26,017} &                                             \\
+    \textbf{Total (excl.\ test-only modules)}  & \textbf{37,843} &                                             \\
     \hline
   \end{tabular}
   \caption{Repository structure and approximate line counts.}
@@ -822,7 +822,7 @@ since \texttt{idiv} requires its operands in the \texttt{rdx:rax} pair.
 
 The \textit{direct encoder} translates physically-allocated DTAL to x86-64 machine code. Because the physical allocation pass has already performed all x86-specific expansions (division, calling convention, prologues), the encoder is a near-trivial 1:1 mapping: each DTAL instruction maps to exactly one x86-64 instruction (or a short fixed sequence for prologues and epilogues). The entire module is 309 lines in the current implementation.
 
-This simplicity is deliberate and architecturally significant. Initially, I implemented a monolithic x86-64 lowering pass that performed register allocation, instruction selection, and encoding in a single trusted step. By splitting this into an untrusted physical allocation pass (verified by the DTAL verifier) and a trivial encoder, the trusted code for the final translation was reduced from $\sim$1,100 lines to a $\sim$300-line encoder. This is small enough to audit by inspection, which is important as it is one of the few backend components that remains in the trusted computing base (alongside the ELF generator).
+This simplicity is deliberate and architecturally significant. Initially, I implemented a monolithic x86-64 lowering pass that performed register allocation, instruction selection, and encoding in a single trusted step. By splitting this into an untrusted physical allocation pass (verified by the DTAL verifier) and a small encoder, most register-allocation and instruction-selection logic is moved outside the trusted path. The encoder still remains trusted, so its small size is an auditability argument rather than a proof of correctness.
 
 \subsection{Binary encoding and ELF generation}
 
@@ -830,7 +830,7 @@ The direct encoder emits x86-64 machine code from physical DTAL, using a two-pas
 
 \section{Independent verifier}\label{sec:verifier}
 
-A key contribution of the type-preserving architecture is that the DTAL output can be verified independently of the compiler. The verifier (approximately 3,100 lines) re-checks the DTAL program from scratch, using only the type annotations embedded in the assembly. It follows the derivation-based verification approach of Xi and Harper~\cite{Xi2001DTAL}: types are \textit{re-derived} from instruction semantics, not trusted from compiler annotations.
+A key contribution of the type-preserving architecture is that the DTAL output can be verified independently of the compiler. The verifier re-checks the DTAL program from scratch, using only the type annotations embedded in the assembly. It follows the derivation-based verification approach of Xi and Harper~\cite{Xi2001DTAL}: types are \textit{re-derived} from instruction semantics, not trusted from compiler annotations.
 
 \subsection{Verification algorithm}
 
@@ -896,13 +896,13 @@ To improve performance, constraint provability uses a two-tier approach. A fast 
 \subsection{Verification after register allocation}
 
 % The compiler supports two pipeline modes. The \textit{legacy pipeline} (\texttt{--legacy-pipeline}) verifies the virtual-register DTAL and then trusts the x86-64 lowering (register allocation, instruction selection, encoding). The \textit{physical pipeline} (the default) defers verification until \textit{after} register allocation has mapped virtual registers to physical x86-64 registers. In the physical pipeline, 
-In the final implementation, the verifier checks the physically-allocated DTAL, meaning that register allocation, spill insertion, and calling-convention lowering are all \textit{untrusted}: any bug in these passes manifests as a type derivation mismatch or unprovable constraint in the verified output.
+The verifier checks the physically-allocated DTAL, meaning that register allocation, spill insertion, and calling-convention lowering are all \textit{untrusted} for the checked safety policy: bugs in these passes manifest as a type derivation mismatch or unprovable constraint in the verified output.
 
 This is a deliberate architectural choice. Register allocation is one of the most error-prone compiler passes (it involves liveness analysis, graph colouring, spill heuristics, and calling-convention details), and verifying its output rather than trusting it substantially reduces the trusted computing base, evident in the implementation of the direct encoder (Section~\ref{sec:direct-encoding}).
 
-\subsection{Trust model}
-
-The trust model and TCB reduction phases are described in Section~\ref{sec:design-decisions}. In summary, the verification architecture places the trust boundary between the physical DTAL verifier and the direct encoder: the entire compiler (frontend, middle end, backend, register allocator) is untrusted, and any bug in these components manifests as a verification failure rather than a safety violation.
+% \subsection{Trust model}
+%
+% The trust model and TCB reduction phases are described in Section~\ref{sec:design-decisions}. The verification architecture places the trust boundary between the physical DTAL verifier and the direct encoder: the compiler frontend, middle end, backend, and register allocator are outside the trusted path for the checked DTAL safety policy. The verifier does not prove full semantic preservation, so a type-consistent compiler bug could still compute the wrong value while passing the safety check.
 
 \section{Runtime}\label{sec:runtime}
 
@@ -920,12 +920,12 @@ Five intrinsics are provided:
 
 The first three intrinsics use Linux syscalls and are available only when compiling for the Linux target. The port I/O intrinsics use hardware instructions directly and are available on both Linux and bare-metal targets. The type checker enforces this distinction: a bare-metal program that calls \texttt{print\_int} is rejected at compile time rather than failing at runtime.
 
-All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so they are callable from compiled Veritas code without any marshalling. Because the runtime is hand-assembled and part of the trusted computing base, its correctness is verified by inspection rather than by the DTAL verifier.
+All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so they are callable from compiled Veritas code without any marshalling. Because the runtime is hand-assembled and part of the trusted computing base, its correctness is assumed on the basis of its small size, tests, and inspection rather than established by the DTAL verifier.
 
-\section{Bare-metal target and unikernel}\label{sec:unikernel}
+\section{Bare-metal target}\label{sec:unikernel}
 % TODO: elaborate more on implementation; highlight as extension and purpose to support I/O functionality
 
-The \texttt{--target-bare-metal} flag in the Veritas CLI produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.} without an operating system. This extends the trust model by removing the OS from the trusted computing base: the only software running on the machine is the verified Veritas program and the small runtime.
+The \texttt{--target-bare-metal} flag in the Veritas CLI produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.} without an operating system. This removes the host operating-system kernel from the normal execution path for this target, replacing it with a small trusted bootstrap and runtime. The bootstrap, runtime intrinsics, hardware model, and QEMU behaviour remain outside the DTAL verifier's guarantee.
 
 \subsection{Bootstrap}
 
@@ -939,11 +939,11 @@ The bare-metal binary begins with a bootstrap blob of approximately 200 bytes th
   \item After \texttt{main} returns, the bootstrap enters a \texttt{hlt} loop.
 \end{enumerate}
 
-The bootstrap is hand-assembled and part of the trusted computing base, but at $\sim$200 bytes it is small enough to audit line by line.
+The bootstrap is hand-assembled and part of the trusted computing base; at $\sim$200 bytes it is intended to remain small enough for line-by-line audit.
 
-\subsection{Verified serial driver}
+\subsection{DTAL-checked serial driver}
 
-To demonstrate end-to-end verified I/O on bare metal, the project includes a serial driver written entirely in Veritas. The driver programs the UART 16550 controller (the standard PC serial port at I/O base \texttt{0x3F8}) using the \texttt{port\_in} and \texttt{port\_out} intrinsics:
+To demonstrate DTAL-checked code generation for bare-metal I/O, the project includes a serial driver written entirely in Veritas. The driver programs the UART 16550 controller (the standard PC serial port at I/O base \texttt{0x3F8}) using the \texttt{port\_in} and \texttt{port\_out} intrinsics:
 
 \begin{itemize}
   \item \texttt{serial\_init()} configures the baud rate (38400), line format (8N1), and FIFO.
@@ -957,7 +957,7 @@ The entire driver is type-checked and compiled through the verified DTAL pipelin
   qemu-system-x86_64 -kernel serial -serial stdio
 \end{verbatim}
 
-This demonstrates the project's long-term direction: a verified unikernel where the application, driver, and boot code are all compiled from a single verified source, with the OS removed from the trusted computing base entirely. Figure~\ref{fig:unikernel-arch} illustrates the architecture of a bare-metal Veritas binary.
+This demonstrates the project's long-term direction: a bare-metal Veritas target in which application code and simple drivers are checked as DTAL before encoding, while a small trusted bootstrap and runtime replace the host operating-system kernel. Figure~\ref{fig:unikernel-arch} illustrates the architecture of a bare-metal Veritas binary.
 
 \begin{figure}[H]
   \centering
@@ -973,9 +973,9 @@ This demonstrates the project's long-term direction: a verified unikernel where 
     \draw[-Latex, thick] (6.7,11.0) -- (6.7,10.3);
     \node[font=\scriptsize, align=center, fill=white, inner sep=1pt] at (9.0,10.65) {port I/O / memory-mapped I/O};
 
-    % Outer unikernel binary
+    % Outer bare-metal binary
     \draw[thick] (0,0.8) rectangle (13.4,10.2);
-    \node[font=\small\bfseries] at (6.7,9.8) {Veritas Unikernel ELF};
+    \node[font=\small\bfseries] at (6.7,9.8) {Bare-metal Veritas ELF};
 
     % Bootstrap
     \draw[thick] (0.7,8.2) rectangle (12.7,9.3);
@@ -1004,9 +1004,9 @@ This demonstrates the project's long-term direction: a verified unikernel where 
 
     \draw[-Latex, thick] (6.7,5.0) -- (6.7,4.45);
 
-    % Verified application code
+    % DTAL-checked application code
     \draw[thick] (0.7,1.5) rectangle (12.7,4.35);
-    \node[anchor=west] at (1.0,4.0) {Verified Application Code};
+    \node[anchor=west] at (1.0,4.0) {DTAL-checked Application Code};
 
     \draw[thick] (1.15,2.15) rectangle (12.0,3.7);
     \node[anchor=west, font=\scriptsize\bfseries] at (1.4,3.45) {\texttt{serial\_driver.veri}};
@@ -1018,7 +1018,7 @@ This demonstrates the project's long-term direction: a verified unikernel where 
     aboveskip=4pt,
     belowskip=-8pt
   }
-  \caption{Architecture of a bare-metal Veritas unikernel. The binary contains a Multiboot bootstrap, a small set of hand-assembled runtime intrinsics, and verified application code compiled through the DTAL pipeline.}
+  \caption{Architecture of a bare-metal Veritas binary. The binary contains a trusted Multiboot bootstrap, a small set of hand-assembled runtime intrinsics, and application code checked through the DTAL pipeline.}
   \label{fig:unikernel-arch}
 \end{figure}
 

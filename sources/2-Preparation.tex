@@ -352,7 +352,7 @@ Figure~\ref{fig:verification-landscape} summarises the trade-off between express
     belowskip=-8pt
   }
 
-  \caption{Verification systems positioned by expressiveness of their type/specification language and degree of automation.\centering}
+  \caption{Verification systems positioned by expressiveness of their type/specification language and degree of automation.}
   \label{fig:verification-landscape}
 \end{figure}
 
@@ -386,6 +386,8 @@ Having established the theoretical tools and verification mechanisms available, 
 \subsection{Compiler architecture}
 
 A central architectural decision is that the compiler is \textit{untrusted}. Rather than proving the compiler correct, Veritas relies on a standalone verifier that re-checks the compiler's low-level output. Compiler bugs that corrupt the emitted type-state and safety policy evidence should therefore cause rejection rather than acceptance of safety-inconsistent low-level output. Figure~\ref{fig:trust-pipeline} shows the resulting boundary: type information flows through every intermediate representation, but trust begins only at the verifier and direct encoder.
+
+The compiler is type-preserving in the engineering sense that it retains and translates safety-relevant type evidence through the pipeline. While this dissertation does not formalise compiler preservation, it provides empirical evidence towards the claim via regression and robustness tests; a machine-checked preservation proof is future work.
 
 \subsection{Trust model and TCB reduction}
 

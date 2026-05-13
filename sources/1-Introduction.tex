@@ -22,7 +22,7 @@ One might suggest combining the previous two methods: a verified compiler for a 
 
 \emph{Proof-carrying code} (PCC) \cite{Necula1997PCC} offers a way to move the trust boundary down to the compiled artifact without verifying the compiler itself: the producer of low-level code also ships evidence that the code obeys a safety policy, and the consumer checks this evidence before execution. One way to realise this idea is \emph{type-preserving compilation}, where types carrying information about memory safety properties are preserved from the source language down to assembly. In the abstract PCC model, the typed low-level artefact can be checked by a \emph{verifier}; in a concrete implementation, the TCB would consist of just the verifier (and its dependencies).
 
-\section{A practical middle-ground: Veritas}
+\section{A practical middle-ground: Veritas}\label{sec:intro-veritas}
 
 The gap addressed by this dissertation is the lack of a small, executable systems-language toolchain that combines source-level refinement checking with independently checkable low-level output, without requiring a fully verified compiler.
 
@@ -61,7 +61,7 @@ The trust argument that motivates the project gives two axes for comparing toolc
     aboveskip=4pt,
     belowskip=-8pt
   }
-  \caption{A taxonomy of systems programming toolchains based on their executable-level guarantees.\centering}
+  \caption{A taxonomy of systems programming toolchains based on their executable-level guarantees.}
   \label{fig:safety-sem-taxonomy}
 \end{figure}
 \footnotetext{RustCompCert \cite{RustCompCert} is an ongoing project to verify an end-to-end compiler a small sequential subset of Rust.}
@@ -73,10 +73,9 @@ Veritas consists of four main components:
 \begin{itemize}
   \item \textbf{The Veritas Language:} a systems language featuring refinement types, loop invariants, and function contracts.
   \item \textbf{Dependently Typed Assembly Language (DTAL):} a target language based on Xi and Harper's DTAL \cite{Xi2001DTAL} that embeds type states and constraints directly into the instruction stream.
-  \item \textbf{Type-Preserving Compiler Pipeline:} a pipeline that lowers high-level types to a typed SSA (Static Single Assignment) typed intermediate representation to DTAL, preserving the safety invariants that I define in the requirements analysis (Section~\ref{sec:requirements-anal}).
+  \item \textbf{Type-Preserving\footnote{Throughout this dissertation, ``type-preserving compiler'' refers to the implementation strategy of preserving verifier-facing typ evidence into DTAL, not to a formally proved source-to-target preservation theorem.} Compiler Pipeline:} a pipeline that lowers high-level types to a typed SSA (Static Single Assignment) typed intermediate representation to DTAL, preserving the safety invariants stated above (Section~\ref{sec:intro-veritas}).
   \item \textbf{DTAL Verifier:} a tool that checks DTAL programs for compliance with memory safety properties without access to the source code, reducing the trusted computing base to the verifier and its dependencies.
 \end{itemize}
-
 These components support the core question of the dissertation: whether a small systems-language toolchain can realise the trust model suggested by proof-carrying code, with an untrusted compiler whose low-level output is independently checked before execution. The dissertation evaluates this along three main axes:
 \begin{itemize}
   \item \textbf{Trust architecture:} Veritas should demonstrate that the relevant low-level safety properties of compiled programs can be checked independently at the DTAL level. The design of DTAL for Veritas should be able to express the safety properties in scope. The verifier should also be substantially small than the full compiler to reduce the risk of trusting it.
