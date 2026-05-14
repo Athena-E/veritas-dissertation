@@ -521,7 +521,7 @@ Table~\ref{tab:pass-preservation-invariants} records the preservation obligation
     \hline
     Lowering
     & TAST $\rightarrow$ TIR
-    & Replace source variables by SSA registers while translating branch facts, contracts, loop invariants, bounds obligations, and ownership events into register-indexed constraints.
+    & Replace source variables by SSA registers while translating branch facts, disjunctive joins of integer singleton/refined types, contracts, loop invariants, bounds obligations, and ownership events into register-indexed constraints.
     & TIR design in Chapter~\ref{ch:impl}; binary-search walkthrough in Appendix~\ref{app:worked-example}; checked again downstream. \\
     \hline
     DTAL generation
@@ -562,7 +562,7 @@ The argument proceeds by induction over the pipeline stages in Table~\ref{tab:pa
 For an accepted source program, the type checker has assigned every expression and statement a type under a context of logical assumptions. Array accesses and stores require a proof of $0 \le i < N$; calls require the callee precondition; returns require the postcondition; loop bodies must preserve their invariants; and assignments to mutable variables must remain within the declared master type. Therefore the TAST contains both executable structure and the source-level evidence that later stages must carry.
 
 \paragraph{Lowering to TIR.}
-Lowering is syntax-directed. The induction hypothesis is that each already-lowered subexpression has a virtual register and a type/constraint description corresponding to the source judgement. Variable lookup is translated by the source-to-register environment; mutation becomes SSA reassignment; branches attach translated guard constraints to successor edges; and loop-carried values are represented by phi nodes. Existential constraints on phi nodes preserve facts such as induction-variable bounds without requiring a concrete singleton value. Thus TIR preserves the safety-relevant source evidence in a register-indexed form.
+Lowering is syntax-directed. The induction hypothesis is that each already-lowered subexpression has a virtual register and a type/constraint description corresponding to the source judgement. Variable lookup is translated by the source-to-register environment; mutation becomes SSA reassignment; branches attach translated guard constraints to successor edges; and loop-carried values are represented by phi nodes. Source-level joins preserve integer singleton alternatives as disjunctive refinements where possible, and existential constraints on phi nodes preserve facts such as induction-variable bounds without requiring a concrete singleton value. Thus TIR preserves the safety-relevant source evidence in a register-indexed form.
 
 \paragraph{DTAL generation.}
 The code generator maps each TIR instruction to virtual DTAL while preserving its verifier-facing type. Arithmetic instructions carry result refinements or existential summaries; array operations carry bounds constraints; calls carry contract information; branch successors receive the corresponding assumptions; and loop invariants become \texttt{.assert} directives. Phi nodes are lowered to edge copies plus declared block-entry states. The result is a virtual-DTAL program whose annotations are sufficient for an independent verifier to reconstruct the intended type state.

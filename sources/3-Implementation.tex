@@ -23,7 +23,9 @@ veritas/
 |   |   |-- codegen/              # TIR-to-DTAL code generation
 |   |   |-- optimise/             # Typed DTAL optimisations
 |   |   |-- regalloc/             # Liveness analysis and allocation
-|   |   |-- physalloc.rs          # Physical allocation and spill insertion
+|   |   |-- physalloc/            # Physical allocation and spill insertion
+|   |   |-- emit/                 # DTAL text emission
+|   |   |-- x86_64/               # Target instruction forms and byte encoder
 |   |   |-- direct_encode.rs      # Physical-DTAL to x86-64 encoding
 |   |   |-- elf/                  # ELF generation and bare-metal output
 |   |   `-- runtime.rs            # Hand-written runtime intrinsics
@@ -95,9 +97,16 @@ This section presents the syntax and formal typing rules of the Veritas source l
 
 \subsection{Syntax}
 
-The abstract syntax of Veritas is defined by the grammar in Figure~\ref{fig:veritas-syntax}.
-% consider moving before rules
-The metavariables used in the grammar are as follows: $n$ ranges over integer literals; $x$, $f$ range over identifiers (variables and function names); $N$ ranges over integer expressions that must reduce to a statically known constant (used for array sizes and singleton types). $P$ is the specification language used in refinement predicates, function contracts, and loop invariants, and additionally provides bounded quantifiers. A block $B$ is a sequence of zero or more statements followed by an optional trailing expression. If a block has a trailing expression, its value is the block's result; otherwise, its result is unit. Grey text denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
+The abstract syntax of Veritas is defined by the grammar in Figure~\ref{fig:veritas-syntax}. The metavariables used in the grammar are:
+
+\begin{itemize}
+  \item $n$: integer literals
+  \item $x$: variables
+  \item $f$: function names
+  \item $N$: integer expressions that must reduce to a statically known constant.
+\end{itemize}
+
+If a block has a trailing expression, its value is the block's result; otherwise, its result is unit. $\textsf{aop}$ and $\textsf{uaop}$ range over binary and unary arithmetic operators respectively; $\textsf{cop}$ over comparison operators; and $\textsf{lop}$ and $\textsf{ulop}$ over binary and unary logical operators respectively. Grey text denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
 
 \begin{figure}[H]
 {\small
@@ -139,7 +148,7 @@ The metavariables used in the grammar are as follows: $n$ ranges over integer li
   \parbox[t]{0.66\textwidth}{
     $\kw{let } x:T = e; \,|\, \kw{let mut } x:T = e; \,|\, x = e; \,|\, x[e_i] = e; \,|\, \kw{return } e; \,|\, e; \,|\, {}$\\
     $\kw{if } e_\textsf{cond}\; \{B\}\; \kw{else } \{B'\} \,|\, \kw{if } e_\textsf{cond}\; \{B\} \,|\, {}$\\ 
-    $\kw{for } x \kw{in } e_\textsf{start}..e_\textsf{end}\; \optclause{\textsf{invariant } P}\; \{B\} \,|\, \kw{while } e_\textsf{cond}\; \optclause{\textsf{invariant } P}\; \{B\}$
+    $\kw{for } x \kw{ in } e_\textsf{start}..e_\textsf{end}\; \optclause{\textsf{invariant } P}\; \{B\} \,|\, \kw{while } e_\textsf{cond}\; \optclause{\textsf{invariant } P}\; \{B\}$
   }
   & \textbf{(Statements)} \\[4pt]
   D & ::= &
@@ -182,7 +191,7 @@ At control-flow merge points (i.e., after \textbf{if-else} and loops), the typin
 
 \begin{itemize}
     \item Same singletons: $\textsf{int}(N) \sqcup \textsf{int}(N) = \textsf{int}(N)$.
-    \item Different singletons: $\textsf{int}(N_1) \sqcup \textsf{int}(N_2) = \textsf{int}$ where $N_1 \ne N_2$ (widen to base type).
+    \item Different integer singletons: $\textsf{int}(N_1) \sqcup \textsf{int}(N_2) = \{v \mid v = N_1 \vee v = N_2\}$ where $N_1 \ne N_2$.
     \item Refined types: $\{v \mid P\} \sqcup \{v \mid Q\} = \{v \mid P \vee Q\}$ (disjoin predicates).
     \item Singleton and refined: promote the singleton to $\{v \mid v = N\}$, then disjoin with the refined type's predicate.
     \item Refined and unrefined: $\{v \mid P\} \sqcup \textsf{int} = \textsf{int}$ (widen to base type).
@@ -190,7 +199,7 @@ At control-flow merge points (i.e., after \textbf{if-else} and loops), the typin
     \item Propositions ($\phi$): intersect (keep only propositions provable in both branches).
 \end{itemize}
 
-\noindent When $\textsf{join}$ is used in expression rules (e.g., \textsc{T-If-Expr}), the same type-joining rules apply to the result types of both branches.
+\noindent When $\textsf{join}$ is used in expression rules (e.g., \textsc{T-If-Expr}), the same type-joining rules apply to the result types of both branches. The implementation keeps this precision for integer singletons, so a branch that assigns either $0$ or $1$ can still verify a subsequent access into a length-two array. Boolean singleton joins are currently widened to \textsf{bool}, because Veritas' refinement predicate machinery is integer-focused; more aggressive disjunctive joining is also limited by the need to avoid unbounded SMT formula growth.
 
 \subsection{Judgement forms}\label{sec:judgement-forms}
 
@@ -199,7 +208,7 @@ Throughout the typing rules, $\tau$ is used as the metavariable for types.
 The type system uses the following bidirectional typing judgements:
 
 \begin{itemize}
-    \item \textbf{Synthesis:} $\phi; \Delta; \Gamma \vdash e \Rightarrow (\phi'; \Delta'; \tau)$ --- synthesise type $\tau$ for expression $e$, potentially updating the context.
+    \item \textbf{Synthesis:} $\phi; \Delta; \Gamma \vdash e \Rightarrow (\phi'; \Delta'; \tau)$ --- synthesise type $\tau$ for expression $e$, optionally updating the context.
     \item \textbf{Checking:} $\phi; \Delta; \Gamma \vdash e \Leftarrow \tau : (\phi'; \Delta')$ --- check that $e$ has type $\tau$.
     \item \textbf{Subtyping:} $\phi \vdash \tau_1 <: \tau_2$ --- $\tau_1$ is a subtype of $\tau_2$ under assumptions $\phi$.
     \item \textbf{Provability:} $\phi \vdash P$ --- proposition $P$ is valid under assumptions $\phi$ (decided by SMT).
@@ -224,7 +233,7 @@ For expressions whose value is used in a proof obligation, synthesis returns bot
 \[
   \phi;\Delta;\Gamma \vdash e \Rightarrow (\phi';\Delta';\tau;\iota)
 \]
-The term $\iota$ denotes the expression's value in generated constraints. For a singleton it is the singleton index; for a refinement or existential type it is the symbolic term introduced during synthesis, not merely the binder name in the refinement. Boolean expressions also expose a guard proposition $\mathsf{guard}(e)$, for example $\mathsf{guard}(e_1 < e_2) = \iota_1 < \iota_2$. Conditional and loop rules use this guard, so branch facts such as \texttt{lo <= hi} enter the corresponding path context.
+The term $\iota$ denotes the expression's value in generated constraints. For a singleton it is the singleton index; for a refinement or existential type it is the symbolic term introduced during synthesis. Boolean expressions also expose a guard proposition $\mathsf{guard}(e)$, for example $\mathsf{guard}(e_1 < e_2) = \iota_1 < \iota_2$. Conditional and loop rules use this guard, so branch facts such as \texttt{lo <= hi} enter the corresponding path context.
 
 Arithmetic operations use a $\textsf{join-op}$ function that performs constant folding when both operands are singletons (e.g., $\textsf{join-op}(+, \textsf{int}(1), \textsf{int}(2)) = \textsf{int}(3)$) and otherwise synthesises a refinement type via SMT refinement synthesis (e.g., $\{v\!:\!\textsf{int} \mid v = e_L + e_R\}$):
 
@@ -572,7 +581,7 @@ check_program(program) -> Result<typed_program, TypeError>
 
 \subsubsection{Singleton propagation and refinement synthesis}
 
-When both operands of an arithmetic operation are singletons, the type checker performs constant folding at the type level: $\mathtt{int}(a) \oplus \mathtt{int}(b) = \mathtt{int}(a \oplus b)$. This avoids an SMT query entirely.
+When both operands of an arithmetic operation are singletons, the type checker performs constant folding at the type level: $\mathtt{int}(a) \oplus \mathtt{int}(b) = \mathtt{int}(a \oplus b)$, thereby avoiding an SMT query entirely.
 
 When one or both operands are not singletons, the checker performs \textit{refinement synthesis}: it constructs a fresh refinement type $\{v\!:\!\mathtt{int} \mid v = e_L \oplus e_R\}$ that captures the exact arithmetic relationship between the result and its operands. The bound variable $v$ is given a fresh name (e.g., \texttt{\_synth\_0}) to avoid capture. This synthesised refinement enables downstream code to reason about the result precisely---for instance, to verify that an array index computed as \texttt{lo + (hi - lo) / 2} lies within bounds, given that $\mathtt{lo} \ge 0$ and $\mathtt{hi} < n$.
 
@@ -619,7 +628,7 @@ A key extension beyond standard SSA is \textit{existential constraints on phi no
 
 TIR is designed to sit close to both the typed source language and the DTAL backend. The core forms relevant to the compilation pipeline are summarised in Figure~\ref{fig:tir-syntax}.
 
-In concrete terms, a TIR function stores its parameters, pre/postconditions, and a map of basic blocks; each block contains entry phi nodes, ordinary instructions, a terminator, and an entry register state. This makes the representation explicit enough for code generation to be largely structural, while still retaining the source-level type information needed for later verification.
+In concrete terms, a TIR function stores its parameters, pre/postconditions, and a map of basic blocks. Each block contains entry phi nodes, ordinary instructions, a terminator, and an entry register state. This makes the representation explicit enough for code generation to be largely structural while still retaining the source-level type information needed for later verification.
 
 \begin{figure}[H]
 {\small
@@ -706,7 +715,7 @@ Lowering begins from the typed AST: each function arrives with typed parameters,
 
 \subsubsection{Syntax-directed translation}
 
-Lowering is syntax-directed: each typed source construct becomes a small fragment of SSA code while threading the current variable-to-register map. Variable uses read the register currently associated with that source variable. A \texttt{let} binding lowers its right-hand side to a fresh virtual register and then extends the map with the new binding. For mutable variables, assignment lowers the right-hand side and updates the map so subsequent uses of the variable refer to the newly produced register; because TIR is in SSA form, the old register is never overwritten.
+Lowering is syntax-directed: each typed source construct becomes a small fragment of SSA code while threading the current variable-to-register map. Variable uses read the register currently associated with that source variable. A \texttt{let} binding lowers its right-hand side to a fresh virtual register and then extends the map with the new binding. For mutable variables, assignment lowers the right-hand side and updates the map so subsequent uses of the variable refer to the newly produced register. Because TIR is in SSA form, the old register is never overwritten.
 
 Expression forms lower similarly. Integer literals become \texttt{LoadImm}; arithmetic and comparisons become \texttt{BinOp} or \texttt{UnaryOp}; array reads and writes become \texttt{ArrayLoad} and \texttt{ArrayStore} with an explicit bounds constraint; and function calls become \texttt{Call} instructions carrying the argument registers, parameter-passing modes, and result type. Control-flow constructs introduce new basic blocks and terminators: an \texttt{if} expression lowers to a branch, two successor blocks, and a merge block with phi nodes for values and mutable variables that differ across the two paths; loops lower to entry/header/body/exit blocks with header phi nodes for loop-carried values.
 
@@ -863,7 +872,7 @@ This enables modular verification: each function is checked in isolation, relyin
 
 \subsection{SMT oracle}
 
-The verifier uses its own Z3 instance, completely independent of the one used during compilation. The translation follows the same proof-by-refutation approach as the compiler's oracle (Section~\ref{sec:smt-oracle}): assert the context, assert the negated goal, and check for unsatisfiability.
+The verifier uses its own Z3 instance independent of the one used during compilation. The translation follows the same proof-by-refutation approach as the compiler's oracle (Section~\ref{sec:smt-oracle}).
 
 To improve performance, constraint provability uses a two-tier approach. A fast syntactic check handles common cases (constraint already in context, simple entailment patterns) in $O(n)$ where $n$ is the context size. The SMT solver is invoked only when the syntactic check is inconclusive. This is important because the verifier issues many more queries than the compiler---one per instruction rather than one per subtyping check.
 
