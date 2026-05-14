@@ -80,8 +80,8 @@ Veritas consists of four main components:
 These components support the core question of the dissertation: whether a small systems-language toolchain can realise the trust model suggested by proof-carrying code, with an untrusted compiler whose low-level output is independently checked before execution. The dissertation evaluates this along three main axes:
 \begin{itemize}
   \item \textbf{Trust architecture:} Veritas should demonstrate that the relevant low-level safety properties of compiled programs can be checked independently at the DTAL level. The design of DTAL for Veritas should be able to express the safety properties in scope. The verifier should also be substantially small than the full compiler to reduce the risk of trusting it.
-  \item \textbf{Expressive source language:} the source language should be expressive enough both from a verification perspective as well as from a systems-language perspective, by remaining suitable for safety verification, and realistic imperative, systems-oriented programs.
-  \item \textbf{Practicality:} the overall toolchain should remain usable in practice, by keeping the compiler performance and additional cost of independent verification acceptable for a systems language toolchain.
+  \item \textbf{Expressive source language:} the source language should be expressive enough from a verification perspective, by remaining suitable for safety verification.
+  \item \textbf{Practicality:} the overall toolchain should remain usable in practice, by keeping the compiler performance and additional cost of independent verification acceptable for a systems language toolchain, and a source language expressive enough for realistic imperative, systems-oriented programs.
 \end{itemize}
 
 % TODO: move to requirements analysis?
