@@ -1,4 +1,4 @@
-% TODO: define feature suite
+% TODO: define feature-suite
 
 \chapter{Evaluation}\label{ch:eval}
 
@@ -7,7 +7,7 @@
 
 % no formalisation/proof of DTAL; does it successfully build on the foundation of xi and harper's DTAL (can their proofs be used as evidence/support here)?
 
-In this chapter, I demonstrate that the project meets the proposed goals. I introduce the methodology, frameworks, and benchmarking suites used for evaluation (Section~\ref{sec:eval-method}). Table~\ref{tab:goal-evidence-map} restates the project aims and the corresponding qualitative and quantitative analysis.
+In this chapter, I demonstrate that the project meets the proposed goals. I introduce the methodology, frameworks, and benchmarking suites used for evaluation (Section~\ref{sec:eval-method}). Table~\ref{tab:goal-evidence-map} restates the project aims and the corresponding qualitative and quantitative evidence.
 
 \begin{table}[h]
   \centering
@@ -42,7 +42,7 @@ In this chapter, I demonstrate that the project meets the proposed goals. I intr
     }
                  &
     \evidenceitems{
-      % \item Feature suite (Section~\ref{sec:compiler-correctness-eval})
+      % \item feature-suite (Section~\ref{sec:compiler-correctness-eval})
       % \item Negative suite (Section~\ref{sec:verifier-correctness})
       \item Comparison-suite annotation burden (Section~\ref{sec:verification-perf})
     }                                                                             \\
@@ -85,33 +85,29 @@ The chapter then presents the qualitative analysis (Section~\ref{sec:qualitative
 
 \subsection{Experimental artifacts}
 
-\paragraph{Feature suite.}
+\paragraph{feature-suite.}
 % The first suite used for this purpose is the curated \texttt{feature\_suite}. This is the main local correctness corpus for the supported Veritas fragment: 
-I wrote a suite of 28 programs covering all main program features: arrays, mutable state, references and borrowing, preconditions, loop invariants, quantifiers, sortedness reasoning, safe division, and overflow-aware arithmetic. Its purpose is to evaluate the compiler and verifier's performance and functional correctness on representative source-language features and proof obligations.
+I wrote a suite of 28 programs covering all main program features. Its purpose is to evaluate the compiler and verifier's performance and functional correctness on representative source-language features and proof obligations.
 % TODO: examples include ... a full list can be found in Appendix ...
 
 \paragraph{PolyBench.}
-% The second suite is the external PolyBench-style kernel suite. 
 PolyBench/C~\cite{PouchetPolyBenchC32} is a widely used benchmark family for evaluating compilers and program-transformation systems on structured numeric kernels, especially in work on loop optimisation, polyhedral compilation, and high-performance array code.
-% Its programs include small kernels with regular control flow, affine array indexing, and deterministic numeric behaviour, making them convenient for both performance and semantic comparison.
-The PolyBench-style suite provides a more objective external check on whether the compiler behaves correctly on recognised array- and loop-dominated workloads that are used outside this project.
+The PolyBench-style suite provides an external check on whether the compiler behaves correctly on recognised array- and loop-dominated workloads.
 The selected kernels are Floyd--Warshall, Jacobi-1D, Jacobi-2D, Seidel-2D, MVT, ATAX, and GESUMMV. Their fixed \texttt{MEDIUM}-class parameters and features exercised are listed in Appendix~\ref{app:evaluation-supplementary}; they are appropriate for Veritas because they are dominated by fixed-size arrays, structured imperative loops, arithmetic side conditions, and deterministic computation over statically bounded data.
 
 \paragraph{Negative suite.}
-The \texttt{negative\_suite} contains 35 intentionally invalid Veritas programs. It is used to evaluate source-level rejection across representative failure classes, including type errors, undefined names, invalid calls, array bounds violations, unsatisfied preconditions, invalid quantifier use, invariant failures, division-by-zero risks, and integer overflow or underflow hazards.
-
-\paragraph{Verification-stress suite.}
-The \texttt{verification\_stress\_suite} is a smaller proof-heavy subset of the feature suite. Its purpose is not broad feature coverage, but cost analysis: it collects programs with array initialisation, array assignment, quantifiers, binary search, bubble sort, and sortedness reasoning where source and DTAL proof obligations are expected to be more expensive.
+I wrote a suite of 35 intentionally invalid Veritas programs. It is used to evaluate source-level rejection across representative failure classes, including type errors, undefined names, invalid calls, array bounds violations, unsatisfied preconditions, invalid quantifier use, invariant failures, division-by-zero risks, and integer overflow or underflow hazards.
 
 \paragraph{Comparison suite.}
-The \texttt{comparison\_suite} contains six normalised verification tasks implemented in Veritas, Dafny, Liquid Haskell, and Verus: safe division, bounded array access with an offset, array initialisation with a loop invariant, binary search, sorted-head extraction, and overflow-safe midpoint arithmetic. The suite is normalised by verified property rather than by identical data representation, since each language expresses arrays and specifications differently.
+The \texttt{comparison\_suite} contains six normalised verification tasks implemented in Veritas, Dafny, Liquid Haskell, and Verus: safe division, bounded array access with an offset, array initialisation with a loop invariant, binary search, sorted-head extraction, and overflow-safe midpoint arithmetic. The suite is normalised by verified property.
+% rather than by identical data representation, since each language expresses arrays and specifications differently.
 
 \paragraph{DTAL tampering corpus.}
-The DTAL tampering corpus starts from valid compiled DTAL, applies small syntax-preserving mutations, and checks that standalone DTAL verification rejects the result. It is used to test the untrusted-compiler trust boundary directly, with mutations covering structural mismatches, strengthened preconditions, contradictory assertions, bounds failures, arithmetic overflow, ownership violations, mutable aliasing, and entry-state mismatches.
+The DTAL tampering corpus starts from valid compiled DTAL, applies small syntax-preserving mutations, and checks that standalone DTAL verification rejects the result. It is used to test the untrusted-compiler trust boundary, with mutations covering structural mismatches, strengthened preconditions, contradictory assertions, bounds failures, arithmetic overflow, ownership violations, mutable aliasing, and entry-state mismatches. % TODO: put list in appendix
 
 \subsection{Measurement methodology}
 
-All dissertation-facing quantitative results are derived from fixed suite manifests. Timing measurements distinguish internal phase timings from external wall-clock timings. Internal measurements come from \texttt{veritas --bench}: \texttt{compile\_ms} records source-to-DTAL compilation, \texttt{verify\_ms} records explicit physical-DTAL verification, and the frontend and verifier SMT counters record solver activity in the two checking stages. External command latency is measured with \texttt{hyperfine}; \texttt{compile\_only} measures end-to-end compilation, while \texttt{compile\_plus\_verify} includes the additional standalone DTAL verification step. Unless stated otherwise, published \texttt{hyperfine} runs use 30 repetitions and 5 warmups, report mean and standard deviation, and preserve raw JSON, exact commands, run metadata, suite manifests, tool-version information, and git status in the run directory. These conventions keep user-visible latency claims separate from internal cost attribution. % TODO: accuracy of no. of runs
+All dissertation-facing quantitative results are derived from fixed suite manifests. The measurements distinguish internal phase timings, such as compilation, verification, and SMT time, from external wall-clock command latency. Repeated wall-clock measurements use \texttt{hyperfine} and report the mean and standard deviation, with warmups used to reduce cold-start noise. For reproducibility, the evaluation preserves raw timing output, exact commands, run metadata, suite manifests, tool-version information, and git status in the run directory. These conventions keep user-visible latency claims separate from internal cost attribution.
 
 % \subsection{Robustness corpus}
 %
@@ -125,18 +121,18 @@ All dissertation-facing quantitative results are derived from fixed suite manife
 
 \subsubsection{Core DTAL features for low-level verification}
 
-For Veritas to support the intended trust architecture, its DTAL must be expressive enough to carry the facts needed by the standalone verifier. The design is inspired by Xi and Harper's DTAL, but the evaluation criterion here is not whether Veritas reimplements the full original system. Instead, the question is whether the implemented DTAL contains the mechanisms needed to verify the project's scoped safety policy at the low level. The core mechanisms are:
+For Veritas to support the intended trust architecture, its DTAL must be expressive enough to carry the facts needed by the standalone verifier. Instead, the question is whether the implemented DTAL enables verification of the project's scoped safety policy at the low level via the chosen mechanisms:
 \begin{itemize}
-  \item \textbf{Dependent block or label state.} Block state supports control-flow safety by ensuring that jumps and joins are only valid when the incoming machine state matches the target's expected typing context.
-  \item \textbf{Singleton integer typing.} Singleton integer typing supports arithmetic and indexing safety, since later instructions can rely on those symbolic facts when proving side conditions.
-  \item \textbf{Size-indexed arrays.} Size-indexed arrays support array-bounds safety by making out-of-bounds reads and writes statically checkable.
-  \item \textbf{Typed stack discipline.} The typed stack discipline supports structural safety by preventing ill-typed stack use across calls, returns, and local temporaries.
-  \item \textbf{Proof-relevant typed memory access.} Proof-relevant memory access supports static memory-safety guarantees such as array-bound-check elimination.
+  \item \textbf{Dependent block or label state} support control-flow safety by ensuring that jumps and joins are only valid when the incoming machine state matches the target's expected typing context.
+  \item \textbf{Singleton integer typing} supports arithmetic and indexing safety, since later instructions can rely on those symbolic facts when proving side conditions.
+  \item \textbf{Size-indexed arrays} support array-bounds safety by making out-of-bounds reads and writes statically checkable.
+  \item \textbf{Typed stack discipline} supports structural safety by preventing ill-typed stack use across calls, returns, and local temporaries.
+  \item \textbf{Proof-relevant typed memory access} supports static memory-safety guarantees such as array-bound-check elimination.
 \end{itemize}
 
-This feature set is deliberately narrower than Xi and Harper's full DTAL. The original design includes general tuple and array allocation primitives, existential dependent types in a broader form, and an extension for sum and tag reasoning. Veritas instead focuses on the low-level facts needed for fixed-size arrays, arithmetic side conditions, contracts, and borrow-aware compilation. The narrower design sacrifices some theoretical generality in exchange for automation and a logical fragment that fits SMT-backed checking.
+This feature set is deliberately narrower than Xi and Harper's full DTAL. Veritas focuses on the low-level facts needed for fixed-size arrays, arithmetic side conditions, contracts, and borrow-aware compilation. The narrower design sacrifices some theoretical generality in exchange for automation and a logical fragment that fits SMT-backed checking.
 
-The important continuity is the independent low-level verification model. The Veritas version of the copy-loop style example from Section~\ref{sec:dtal-background} uses different syntax, but still records block assumptions, symbolic arithmetic, and a typed memory access in the low-level artifact itself:
+The important continuity with Xi and Harper's design is the independent low-level verification model. The Veritas version of the copy-loop style example from Section~\ref{sec:dtal-background} uses different syntax, but still records block assumptions, symbolic arithmetic, and a typed memory access in the low-level artifact itself:
 
 \begin{quote}
   \begin{verbatim}
@@ -159,7 +155,7 @@ div v2, v0, v1    : {_synth_0: int | _synth_0 == (a / b) }
 load v10, [v1 + v9]    : int(7)
 \end{verbatim}
 \end{quote}
-These obligations are not trusted as compiler-issued certificates; they are re-checked by the verifier against the emitted low-level code. Re-checking the obligations provides broader source-to-low-level continuity for the fragment Veritas supports, including bounds facts, contract-style obligations, and borrow-related safety constraints. Carrying more annotations gives an untrusted compiler more ways to emit inconsistent DTAL, but the main consequence is false rejection rather than false acceptance.
+These obligations are re-checked by the verifier against the emitted low-level code. Re-checking the obligations provides broader source-to-low-level continuity for the fragment Veritas supports, including bounds facts, contract-style obligations, and borrow-related safety constraints. Carrying more annotations gives an untrusted compiler more ways to emit inconsistent DTAL, but the main consequence is false rejection rather than false acceptance.
 
 Second, Veritas adds explicit ownership and borrow-aware operations. These operations push alias-control properties below the frontend, so that creation, use, and termination of borrows are represented and re-checked in DTAL:
 
@@ -173,20 +169,7 @@ borrow_end v3          : &[int(7); 1]
 
 Here, \texttt{alias\_borrow} creates the shared borrowed view \texttt{v3}, the \texttt{load} uses that view, and \texttt{borrow\_end} terminates it. The verifier checks that the access occurs through a live borrow and that the borrow is ended consistently with the source-language ownership discipline.
 
-Finally, Veritas introduces a physical DTAL stage after register allocation. Xi and Harper's DTAL is closest to Veritas' virtual DTAL: an abstract typed assembly before register allocation and spill. Physical DTAL instead exposes scratch-register use, spills, prologues/epilogues, and instruction expansions:
-
-\begin{quote}
-  \begin{verbatim}
-mov lr, r1    : int
-cqo
-idiv r7
-mov r0, lr    : int
-\end{verbatim}
-\end{quote}
-
-or in explicit stack and calling-convention machinery such as
-\texttt{spill\_store}, \texttt{spill\_load}, \texttt{.prologue}, and
-\texttt{.epilogue}.
+Finally, Veritas introduces a physical DTAL stage after register allocation. Physical DTAL exposes scratch-register use, stack spills, prologues and epilogues, calling-convention details, and instruction expansions such as machine-level division. These details are represented explicitly rather than hidden behind an idealised virtual assembly model.
 Physical DTAL is less elegant than the idealised presentation, but it moves more backend work outside the trusted path. Register allocation and instruction expansion become part of the untrusted compiler because their results are still checked before final encoding.
 
 \subsection{Veritas as a systems-language toolchain}\label{sec:veritas-sys-eval}
@@ -271,7 +254,7 @@ Table~\ref{tab:verification-safety-properties} shows that Veritas covers the saf
 
 \subsection{Compiler functional correctness}\label{sec:compiler-correctness-eval}
 
-Compiler correctness is evaluated empirically rather than by proof. The 28-program feature suite checks that representative Veritas programs compile and execute successfully, while the seven PolyBench kernels check semantic agreement against C baselines using deterministic checksums. All feature-suite programs and all PolyBench kernels passed their semantic checks. The result supports a suite-bounded correctness claim for the implemented compiler, but not a CompCert-style semantic preservation theorem.
+Compiler correctness is evaluated empirically rather than by proof. The 28-program feature-suite checks that representative Veritas programs compile and execute successfully, while the seven PolyBench kernels check semantic agreement against C baselines using deterministic checksums. All feature-suite programs and all PolyBench kernels passed their semantic checks. The result supports a suite-bounded correctness claim for the implemented compiler, but not a CompCert-style semantic preservation theorem.
 
 \subsection{Compiler and runtime practicality}\label{sec:compiler-runtime-practicality}
 
@@ -285,7 +268,7 @@ The curated \texttt{feature\_suite} gives a local view of compiler throughput on
   \centering
   \includegraphics[width=0.8\textwidth]{figures/chapter4_feature_suite_compile_cost_subset.png}
   \caption{Compile-cost structure for a representative subset of the curated
-    feature suite. The complete feature-suite graph is included in
+    feature-suite. The complete feature-suite graph is included in
     Appendix~\ref{app:evaluation-supplementary}.}
   \label{fig:feature-suite-compile-cost}
 \end{figure}
@@ -356,9 +339,9 @@ The verification-cost evaluation asks how much independent DTAL-level verificati
 
 \subsubsection{Veritas verification cost breakdown}
 
-On the 28-program feature suite, mean source-to-DTAL compilation time is 27.110\,ms and mean explicit DTAL verification time is 9.116\,ms. The worst case for both is \texttt{binary\_search}, at 163.817\,ms and 55.209\,ms respectively. The extra low-level checking stage is therefore measurable, but it does not dominate the pipeline uniformly.
+On the 28-program feature-suite, mean source-to-DTAL compilation time is 27.110\,ms and mean explicit DTAL verification time is 9.116\,ms. The worst case for both is \texttt{binary\_search}, at 163.817\,ms and 55.209\,ms respectively. The extra low-level checking stage is therefore measurable, but it does not dominate the pipeline uniformly.
 
-The verification-stress suite gives a focused view of obligation-heavy programs.
+A subset of the feature-suite chosen to stress the verifier gives a focused view of obligation-heavy programs.
 
 \begin{table}[h]
   \centering
@@ -375,8 +358,7 @@ The verification-stress suite gives a focused view of obligation-heavy programs.
     \texttt{sortedness}           & 0.0283                    & 0.0394                        & 1.393x                  \\
     \hline
   \end{tabular}
-  \caption{End-to-end wall-clock overhead of explicit DTAL verification on the
-    verification-stress suite.}
+  \caption{End-to-end wall-clock overhead of explicit DTAL verification on a subset of the feature-suite.}
   \label{tab:verification-stress-overheads}
 \end{table}
 
@@ -454,7 +436,7 @@ The evaluation supports the three aims set out for Veritas: a DTAL-based trust a
 
 The expressivity results are deliberately scoped. Veritas does not match mature verification ecosystems on heap-shaped data, recursive proofs, concurrency, or protocol-heavy reasoning, but it does cover the contract, array, arithmetic, invariant, quantified, sortedness, and borrowing properties needed to exercise the trust architecture. That coverage is enough to demonstrate the central source-to-DTAL evidence-carrying design without overstating the language as a general-purpose verifier.
 
-The practicality results are positive but qualified in the same way. Veritas produces executable native artifacts and runs non-trivial external kernels, but the evidence is strongest for fixed-size arrays, structured loops, local mutation, contracts, invariants, and borrow-oriented examples. The feature suite is curated rather than exhaustive, the PolyBench results demonstrate behaviour on structured numeric kernels rather than arbitrary systems programs, and the tampering corpus covers representative backend corruptions rather than all possible miscompilations.
+The practicality results are positive but qualified in the same way. Veritas produces executable native artifacts and runs non-trivial external kernels, but the evidence is strongest for fixed-size arrays, structured loops, local mutation, contracts, invariants, and borrow-oriented examples. The feature-suite is curated rather than exhaustive, the PolyBench results demonstrate behaviour on structured numeric kernels rather than arbitrary systems programs, and the tampering corpus covers representative backend corruptions rather than all possible miscompilations.
 
 Overall, the chapter shows that Veritas satisfies the dissertation aims as a scoped verified systems-language prototype: the architecture works, the source language is expressive enough for the intended verification tasks, and the implementation is practical enough to evaluate on real compiled programs. The claims remain deliberately bounded: cross-system comparisons are informative but not perfectly like-for-like, the verifier evidence is empirical rather than a formal soundness proof.
 
@@ -530,7 +512,7 @@ Overall, the chapter shows that Veritas satisfies the dissertation aims as a sco
 % they are areas where the language and verifier are not yet the right tool.
 %
 % The verifier's reliability evidence should also be interpreted at the right
-% level. The feature suite, negative suite, tampering corpus, and robustness
+% level. The feature-suite, negative suite, tampering corpus, and robustness
 % track together show that the current implementation behaves coherently on the
 % supported fragment and catches representative backend corruption. They do not
 % constitute a formal proof of verifier soundness or completeness, nor do they
@@ -551,7 +533,7 @@ Overall, the chapter shows that Veritas satisfies the dissertation aims as a sco
 % type-preserving compilation pipeline in which proof-relevant information is
 % preserved to a low-level representation and independently re-checked there. On
 % the frozen supported fragment, this architecture works in the intended sense.
-% The curated feature suite provides 28 out of 28 frontend/verifier agreements,
+% The curated feature-suite provides 28 out of 28 frontend/verifier agreements,
 % the curated negative suite provides 35 out of 35 rejections, the DTAL
 % tampering corpus shows that representative low-level corruptions are caught
 % after compilation, and the fixed-seed robustness track shows that the current
