@@ -6,35 +6,36 @@ This chapter describes the implementation of the Veritas toolchain. It presents 
 %
 The source code is organised as a single Rust crate with the following top-level module structure:
 %
-\begin{table}[h]
+\begin{figure}[h]
   \centering
-  \begin{tabular}{l r l}
-    \hline
-    \textbf{Directory}                         & \textbf{Lines}  & \textbf{Responsibility}                     \\
-    \hline
-    \texttt{src/common/}                       & 788             & Shared AST, typed AST, and type definitions \\
-    \texttt{src/frontend/}                     & 8,807           & Lexer, parser, and bidirectional type checker \\
-    \texttt{src/backend/tir/}                  & 860             & Typed intermediate representation (SSA)     \\
-    \texttt{src/backend/lower/}                & 2,322           & TAST to TIR lowering                        \\
-    \texttt{src/backend/dtal/}                 & 2,740           & DTAL syntax, constraints, and parser        \\
-    \texttt{src/backend/codegen/}              & 1,317           & TIR to DTAL code generation                 \\
-    \texttt{src/backend/optimise/}             & 4,173           & Copy propagation and dead code elimination  \\
-    \texttt{src/backend/regalloc/}             & 1,316           & Liveness analysis and allocators            \\
-    \texttt{src/backend/physalloc.rs}          & 1,729           & Physical allocation and spill insertion     \\
-    \texttt{src/backend/direct\_encode.rs}     & 386             & Direct physical-DTAL to x86-64 encoding     \\
-    \texttt{src/backend/x86\_64/}              & 2,925           & Legacy x86-64 lowering and instruction forms \\
-    \texttt{src/backend/elf/}                  & 531             & ELF generation, including bare-metal output \\
-    \texttt{src/backend/runtime.rs}            & 177             & Hand-written runtime intrinsics             \\
-    \texttt{src/backend/emit/}                 & 553             & DTAL text emitter                           \\
-    \texttt{src/verifier/}                     & 7,817           & Independent DTAL verifier                   \\
-    \texttt{src/main.rs}, \texttt{src/pipeline.rs}, module glue & 1,402 & CLI and pipeline orchestration              \\
-    \hline
-    \textbf{Total (excl.\ test-only modules)}  & \textbf{37,843} &                                             \\
-    \hline
-  \end{tabular}
-  \caption{Repository structure and approximate line counts.}
-  \label{tab:repo}
-\end{table}
+\footnotesize
+\begin{verbatim}
+veritas/
+|-- Cargo.toml                    # Rust crate configuration
+|-- src/
+|   |-- common/                   # Shared AST, typed AST, and types
+|   |-- frontend/                 # Lexer, parser, and type checker
+|   |-- middle/
+|   |   |-- tir/                  # Typed SSA intermediate representation
+|   |   `-- lower/                # TAST-to-TIR lowering
+|   |-- dtal/                     # DTAL syntax, constraints, and parser
+|   |-- backend/
+|   |   |-- codegen/              # TIR-to-DTAL code generation
+|   |   |-- optimise/             # Typed DTAL optimisations
+|   |   |-- regalloc/             # Liveness analysis and allocation
+|   |   |-- physalloc.rs          # Physical allocation and spill insertion
+|   |   |-- direct_encode.rs      # Physical-DTAL to x86-64 encoding
+|   |   |-- elf/                  # ELF generation and bare-metal output
+|   |   `-- runtime.rs            # Hand-written runtime intrinsics
+|   |-- verifier/                 # Independent DTAL verifier
+|   |-- pipeline.rs               # Pipeline orchestration
+|   `-- main.rs                   # Command-line interface
+|-- eval/                         # Benchmarks, suites, and plotting scripts
+`-- docs/                         # Dissertation and supporting material
+\end{verbatim}
+  \caption{Veritas project directory structure.}
+  \label{fig:repo}
+\end{figure}
 
 % \subsection{Usage}\label{sec:usage}
 
@@ -538,8 +539,7 @@ These rules are representative; the verifier handles all instruction variants li
 
 \subsection{Lexing and parsing}
 
-The lexer and parser are built using the \texttt{chumsky} parser combinator library. The frontend makes use of \textit{two expression parsers}: a full parser (\texttt{expr\_parser}) that includes if-expressions and function calls, and a restricted variant (\texttt{expr\_parser\_for\_types}) used inside refinement type annotations. The restricted parser excludes constructs that would be ambiguous or meaningless in a type position, while supporting the arithmetic and comparison operators needed for refinement predicates. This separation avoids ambiguity in the grammar without requiring a separate expression language for types.
-% TODO: how does this support ambiguity
+The lexer and parser are built using the \texttt{chumsky} parser combinator library. The frontend uses a restricted expression parser inside array sizes, singleton types, and refinement predicates, and a full expression parser for ordinary source expressions. This avoids a circular dependency between type parsing and statement/block parsing, keeps specification positions to pure expressions, and prevents block-level constructs from being accepted in type positions only to be rejected later.
 
 \subsection{Type checker}\label{sec:typechecker}
 
@@ -804,7 +804,7 @@ The direct encoder emits x86-64 machine code from physical DTAL, using a two-pas
 
 \section{Independent verifier}\label{sec:verifier}
 
-A key contribution of the type-preserving architecture is that the DTAL output can be verified independently of the compiler. The verifier re-checks the DTAL program from scratch, using only the type annotations embedded in the assembly. It follows the derivation-based verification approach of Xi and Harper~\cite{Xi2001DTAL}: types are \textit{re-derived} from instruction semantics, not trusted from compiler annotations.
+A key contribution of the type-preserving architecture is that physically-allocated DTAL can be verified independently of the compiler. The verifier re-checks the DTAL program from scratch, using only the type annotations embedded in the assembly. It follows the derivation-based verification approach of Xi and Harper~\cite{Xi2001DTAL}: types are \textit{re-derived} from instruction semantics, not trusted from compiler annotations.
 
 \subsection{Verification algorithm}
 
@@ -867,16 +867,11 @@ The verifier uses its own Z3 instance, completely independent of the one used du
 
 To improve performance, constraint provability uses a two-tier approach. A fast syntactic check handles common cases (constraint already in context, simple entailment patterns) in $O(n)$ where $n$ is the context size. The SMT solver is invoked only when the syntactic check is inconclusive. This is important because the verifier issues many more queries than the compiler---one per instruction rather than one per subtyping check.
 
-\subsection{Verification after register allocation}
-
-% The compiler supports two pipeline modes. The \textit{legacy pipeline} (\texttt{--legacy-pipeline}) verifies the virtual-register DTAL and then trusts the x86-64 lowering (register allocation, instruction selection, encoding). The \textit{physical pipeline} (the default) defers verification until \textit{after} register allocation has mapped virtual registers to physical x86-64 registers. In the physical pipeline, 
-The verifier checks the physically-allocated DTAL, meaning that register allocation, spill insertion, and calling-convention lowering are all \textit{untrusted} for the checked safety policy: bugs in these passes manifest as a type derivation mismatch or unprovable constraint in the verified output.
-
-This is a deliberate architectural choice. Register allocation is one of the most error-prone compiler passes (it involves liveness analysis, graph colouring, spill heuristics, and calling-convention details), and verifying its output rather than trusting it substantially reduces the trusted computing base, evident in the implementation of the direct encoder (Section~\ref{sec:direct-encoding}).
-
-% \subsection{Trust model}
+% \subsection{Verification after register allocation}
 %
-% The trust model and TCB reduction phases are described in Section~\ref{sec:design-decisions}. The verification architecture places the trust boundary between the physical DTAL verifier and the direct encoder: the compiler frontend, middle end, backend, and register allocator are outside the trusted path for the checked DTAL safety policy. The verifier does not prove full semantic preservation, so a type-consistent compiler bug could still compute the wrong value while passing the safety check.
+% The verifier checks the physically-allocated DTAL, meaning that register allocation, spill insertion, and calling-convention lowering are all \textit{untrusted} for the checked safety policy: bugs in these passes manifest as a type derivation mismatch or unprovable constraint in the verified output.
+%
+% This is a deliberate architectural choice. Register allocation is one of the most error-prone compiler passes (it involves liveness analysis, graph colouring, spill heuristics, and calling-convention details), and verifying its output rather than trusting it substantially reduces the TCB, evident in the implementation of the direct encoder (Section~\ref{sec:direct-encoding}).
 
 \section{Runtime}\label{sec:runtime}
 
@@ -894,7 +889,7 @@ Five intrinsics are provided:
 
 The first three intrinsics use Linux syscalls and are available only when compiling for the Linux target. The port I/O intrinsics use hardware instructions directly and are available on both Linux and bare-metal targets. The type checker enforces this distinction: a bare-metal program that calls \texttt{print\_int} is rejected at compile time rather than failing at runtime.
 
-All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so they are callable from compiled Veritas code without any marshalling. Because the runtime is hand-assembled and part of the trusted computing base, its correctness is assumed on the basis of its small size, tests, and inspection rather than established by the DTAL verifier.
+All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so they are callable from compiled Veritas code without any marshalling. Because the runtime is hand-assembled and part of the TCB, its correctness is assumed on the basis of its small size, tests, and inspection rather than established by the DTAL verifier.
 
 \section{Bare-metal target}\label{sec:unikernel}
 % TODO: elaborate more on implementation; highlight as extension and purpose to support I/O functionality
@@ -913,7 +908,7 @@ The bare-metal binary begins with a bootstrap blob of approximately 200 bytes th
   \item After \texttt{main} returns, the bootstrap enters a \texttt{hlt} loop.
 \end{enumerate}
 
-The bootstrap is hand-assembled and part of the trusted computing base; at $\sim$200 bytes it is intended to remain small enough for line-by-line audit.
+The bootstrap is hand-assembled and part of the TCB; at $\sim$200 bytes it is intended to remain small enough for line-by-line audit.
 
 \subsection{DTAL-checked serial driver}
 
@@ -1431,5 +1426,5 @@ This state is preserved through register allocation, spills, reloads, stack oper
 %   \item \textbf{The compiler is untrusted.} Every type annotation in the DTAL output is independently verified. If the compiler emitted an incorrect type (e.g., annotating \texttt{v19} as $\mathtt{int}(5)$ instead of $\mathtt{int}((\texttt{v11} + ((\texttt{v10} - \texttt{v11}) / 2)))$), the verifier would detect the inconsistency when checking the array bounds proof.
 %   \item \textbf{Types are re-derived from instruction semantics.} The verifier does not parse the compiler's annotations as ground truth. Instead, it symbolically executes each instruction according to the Xi and Harper typing rules, building up a constraint set from scratch. The compiler's annotations serve only as a sanity check.
 %   \item \textbf{Entry state constraints are verified at edges.} When bb6 jumps to bb1, the verifier checks that every constraint in bb1's entry state follows from bb6's exit state. This is how the loop invariant is verified inductively: bb0 establishes the base case (the initial values satisfy the invariant), and bb6 establishes the inductive step (the updated values preserve the invariant).
-%   \item \textbf{The trusted computing base is minimal.} The only components that must be correct are the verifier itself and the Z3 SMT solver. The entire compiler frontend --- lexer, parser, type checker, lowering, code generation, and optimisation --- is outside the trusted computing base.
+%   \item \textbf{The TCB is minimal.} The only components that must be correct are the verifier itself and the Z3 SMT solver. The entire compiler frontend --- lexer, parser, type checker, lowering, code generation, and optimisation --- is outside the TCB.
 % \end{itemize}

@@ -46,7 +46,7 @@ In a dependently typed language, types may depend on terms. In general,  a depen
 
 \noindent The type $\textsf{Vec}(A,n)$ corresponds to sequences of $A$ of length $n$ and $\textsf{Fin}(n)$ corresponds to numbers less than $n$. The function \textsf{lookup} returns the element from a vector at a specified index. We can see that the type signature requires the index to be within range of the vector's length, which statically eliminates out-of-bounds accesses.
 
-Full dependent type systems, such as those in Coq and Agda~\cite{Bove2009Agda}, can express arbitrary propositions in higher-order logic as types (via the Curry--Howard correspondence), but this generality comes at a cost: type checking is expensive and may require the programmer to construct explicit proof terms.
+Full dependent type systems, such as those in Rocq and Agda~\cite{Bove2009Agda}, can express arbitrary propositions in higher-order logic as types (via the Curry--Howard correspondence), but this generality comes at a cost: type checking is expensive and may require the programmer to construct explicit proof terms.
 
 % TODO: practical restriction
 Refinement types~\cite{Rondon2008Liquid} are a decidable subset of dependent pairs:
@@ -106,16 +106,7 @@ $$
 
 Satisfiability Modulo Theories are an extension of boolean satisfiability (SAT) to richer logics. An SMT solver decides the satisfiability of first-order formulae over a combination of background theories. Theories relevant to program verification include linear integer arithmetic, boolean logic, bounded quantifiers, array theory, and uninterpreted functions.
 
-% \begin{itemize}
-%   \item \textbf{Linear Integer Arithmetic (LIA)}: supports addition, subtraction, and comparison of integers for reasoning about numeric relationsips e.g., bounds, offsets, loop indices.
-%   \item \textbf{Boolean logic}: provides conjunction, disjunction, negation, and implication for combining and structuring propositions.
-%   \item \textbf{Bounded quantifiers}: permits universally and existentially quantified statements over finite ranges for expressing array-wide and loop-related properties.
-%   \item \textbf{Array theory}: models arrays as functions from indices to values for reasoning about reads and updates to indexed memory-like structures.
-%   \item \textbf{Uninterpreted functions}: allow reasoning about function applications without knowing their implementation.
-% \end{itemize}
-
-\noindent The technique for using an SMT solver as a refinement type checker is \textit{proof by refutation}~\cite{Rondon2008Liquid}. Figure~\ref{fig:smt-refutation} shows the stages for checking whether a proposition $P$ follows from the set of known assumptions $\phi$.
-% judgement $\phi \vdash P$ holds (i.e., whether the proposition $P$ follows from the set of known assumptions $\phi$), we assert all propositions in $\phi$, assert $\lnot P$, and check for unsatisfiability. If the solver returns \textsc{unsat}, then $\phi \wedge \lnot P$ has no model, meaning $P$ must hold under $\phi$. If the solver returns \textsc{sat}, a countermodel exists and the proof obligation fails---the type checker reports an error.
+% The technique for using an SMT solver as a refinement type checker is \textit{proof by refutation}~\cite{Rondon2008Liquid}. Figure~\ref{fig:smt-refutation} shows the stages for checking whether a proposition $P$ follows from the set of known assumptions $\phi$.
 
 \begin{figure}[h]
   \centering
@@ -226,17 +217,11 @@ Satisfiability Modulo Theories are an extension of boolean satisfiability (SAT) 
     aboveskip=4pt,
     belowskip=2pt
   }
-  \caption{
-    To check whether the judgement $\phi \vdash P$, the solver is asked whether
-    $\phi \land \neg P$ is satisfiable. An \textsc{unsat} result shows that no
-    counterexample exists and therefore the proof obligation holds; a
-    \textsc{sat} result yields a countermodel and the obligation fails.
-  }
+  \caption{SMT proof by refutation for checking $\phi \vdash P$.}
   \label{fig:smt-refutation}
 \end{figure}
 
-\noindent This approach means that the \textit{discharge} of proof obligations is fully automatic: the programmer never constructs proof terms. However, the programmer must still supply the specifications from which these obligations arise---type annotations, function contracts, and loop invariants. The automation lies in checking, not in specification.
-% state that annotations are not a burden, but guidance, minimise programmer error, clarifies logic/control flow?
+This approach means that the \textit{discharge} of proof obligations is fully automatic: the programmer never constructs proof terms. However, the programmer must still supply the specifications from which these obligations arise. The automation lies in checking, not in specification.
 
 \subsection{Proof-carrying code and type-preserving compilation}\label{sec:pcc-background}
 
@@ -389,13 +374,15 @@ Figure~\ref{fig:trust-pipeline} shows the resulting boundary: type information f
 
 The compiler is type-preserving in the engineering sense that it retains and translates safety-relevant type evidence through the pipeline. While this dissertation does not formalise compiler preservation, it provides empirical evidence of functional correctness via regression and robustness tests.
 
+A recurring design constraint was preserving enough type information at control-flow joins. Naively widening different singleton types to \texttt{int} at SSA phi nodes would discard the facts needed for later bounds proofs, so the intermediate representation records existential constraints for joined values.
+
 \subsection{Trust model and TCB reduction}
 
 To allow the implementation to proceed incrementally while always maintaining a clear trust boundary, I structured the implementation to move the verification boundary progressively lower in the pipeline:
 
 \begin{enumerate}
   \item \textbf{Virtual V-DTAL verification}: the verifier checks V-DTAL with virtual registers. The TCB includes the verifier, Z3, register allocation, instruction selection, and the x86-64 encoder, ELF generator, and runtime assumptions.
-  \item \textbf{Physical V-DTAL verification}: the verifier checks DTAL \textit{after} register allocation. Register allocation and instruction selection are removed from the TCB. The TCB includes the verifier, Z3, a direct encoder, ELF generator, and runtime assumptions.
+  \item \textbf{Physical V-DTAL verification}: the verifier checks DTAL \textit{after} register allocation. Register allocation, spill insertion, and instruction selection are removed from the TCB. The TCB includes the verifier, Z3, a direct encoder, ELF generator, and runtime assumptions.
   \item \textbf{Runtime and bare-metal}: the runtime is kept small enough to audit by inspection, and a bare-metal target removes the OS kernel from the normal execution path. The TCB includes the bootstrap, runtime, hardware model, and emulator.
 \end{enumerate}
 
@@ -461,13 +448,13 @@ To allow the implementation to proceed incrementally while always maintaining a 
 
 The Veritas source language is a small imperative language with C-like syntax, centred on first-order array programs with local mutation and structured loops. The type system extends simple types with singleton types, refinement types, function contracts (with bounded quantifiers), and loop invariants.
 
-A key expressiveness choice was bounded quantification. Scalar refinements can prove facts about individual values, but some algorithms that I wanted to express (e.g., binary search) need array-wide properties such as sortedness. A precondition such as $\mathbf{forall}\ i\ \mathbf{in}\ 0..n\ \{\ \mathit{arr}[i] \le \mathit{arr}[i + 1]\ \}$ expresses such properties while keeping verification close to SMT-friendly fragments.
+A key expressiveness choice was bounded quantification. Scalar refinements can prove facts about individual values, but some algorithms that I wanted to express (e.g., binary search) need array-wide properties such as sortedness. A precondition such as $\mathbf{forall}\ i\ \mathbf{in}\ 0..n\ \{\ \mathit{arr}[i] \le \mathit{arr}[i + 1]\ \}$ expresses such properties while avoiding unbounded quantification.
+
+Supporting mutation also required care: refinements about a variable may become invalid after assignment. Veritas therefore gives mutable bindings both a fixed master type and a current refinable type, so reassignment is checked against the master declaration while path-sensitive facts may still be used locally.
 
 \subsection{V-DTAL design}
 % TODO: define V-DTAL
-The target V-DTAL is a variant of Xi and Harper's DTAL~\cite{Xi2001DTAL}, extended for Veritas' refinement type system and targeting x86-64.
-
-The core instruction set is deliberately RISC-like: simple instructions are easier to type, easier to verify, and map naturally from the compiler’s SSA-style intermediate representation. V-DTAL is then augmented with type annotations on registers, constraint assertions embedded in the instruction stream, and declared type states at basic block entry points.
+The target V-DTAL is a variant of Xi and Harper's DTAL~\cite{Xi2001DTAL}, extended for Veritas' refinement type system and targeting x86-64. The core instruction set is deliberately RISC-like: simple instructions are easier to type, easier to verify, and map naturally from the compiler’s SSA-style intermediate representation. V-DTAL is then augmented with type annotations on registers, constraint assertions embedded in the instruction stream, and declared type states at basic block entry points.
 
 I also defined V-DTAL with its own \textit{physical register model} that maps directly to x86-64 registers. This allows verification to occur \textit{after} register allocation: the register allocator is untrusted, and its output is verified before the final encoding to x86-64.
 
@@ -483,22 +470,9 @@ I designed the Veritas constraint system such that frontend type checking and lo
 
 In Veritas, the SMT solver is invoked at several points: subtyping checks between refinement types (where the solver verifies that one predicate implies another), array bounds verification (where the solver must prove that an index lies within $[0, N)$), and function contract verification (where preconditions and postconditions are checked at call sites and return points respectively).
 
-Given the SMT solver forms part of the TCB, it is important to minimise the risk introduced by this trust---using an obscure solver would weaken this argument. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. I chose it for its maturity and reliability, having won numerous SMT-COMP competitions \cite{Barrett2013SMTCOMP}. Z3 also natively supports the theories featured in Veritas (Section~\ref{sec:smt-based-ver}).
+Quantified array properties fall outside the decidable quantifier-free fragment of linear integer arithmetic, so the language restricts quantifiers to bounded forms. Given the SMT solver forms part of the TCB, it is important to minimise the risk introduced by this trust---using an obscure solver would weaken this argument. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. I chose it for its maturity and reliability, having won numerous SMT-COMP competitions \cite{Barrett2013SMTCOMP}. Z3 also natively supports the theories featured in Veritas (Section~\ref{sec:smt-based-ver}).
 
-% TODO: 
 % For quantified specifications such as $\forall i \in [0, n).\; \mathit{arr}[i] \ge 0$, the translation uses Z3's built-in quantifier support: $\forall i.\; (0 \le i \wedge i < n) \Rightarrow \mathit{arr}[i] \ge 0$, where the array is represented as a Z3 array sort. Existential quantifiers are handled dually, asserting $\exists i.\; (a \le i \wedge i < b) \wedge P$. While quantified formulae move outside the decidable fragment of LIA, Z3's E-matching and model-based quantifier instantiation heuristics handle the bounded quantifiers that arise in practice effectively.
-
-\subsection{Design challenges}\label{sec:design-challenges}
-
-The requirements of the language and compiler architecture raised several interacting design challenges that required extending or departing from the approaches in the literature.
-
-\paragraph{Mutable variables and refinement types.} Refinement type systems such as Liquid Haskell operate over immutable bindings, where a variable's type is fixed at its definition. Supporting mutation introduces a soundness hazard: after \texttt{x = e}, any refinement mentioning \texttt{x} may be invalidated. The solution adopted---\textit{master types}---required designing the mutable context $\Delta$ to track both a current (refinable) type and a fixed master type, with a subtyping check on every assignment.
-
-\paragraph{Verification after register allocation.} In an initial phase of the implementation, the system verified DTAL with virtual registers and then trusted the large x86-64 lowering module. This placed a large, error-prone component inside the TCB. Redesigning the pipeline to verify \textit{after} register allocation and reduce the backend TCB required defining a physical DTAL register model, splitting the monolithic lowering into an untrusted physical allocation pass and a small direct encoder, and extending the verifier to handle physical instructions (prologues, spills, division expansion).
-
-\paragraph{Type preservation across SSA join points.} At phi nodes in the SSA intermediate representation, two singleton types from different branches must be joined. The naive approach---widening to the base type $\mathtt{int}$---loses all refinement information, making downstream bounds proofs impossible. The solution was to attach \textit{existential constraints} to phi nodes, encoding that the value satisfies a constraint without fixing it to a concrete value. This mechanism was not part of Xi and Harper's original DTAL design and required extending both the TIR and the verifier.
-
-\paragraph{SMT encoding of array properties.} Verifying array-manipulating programs requires reasoning about array contents, which involves quantified formulae. These fall outside the decidable quantifier-free fragment of linear integer arithmetic. The design restricted quantifiers to \textit{bounded} forms ($\mathbf{forall}\ x\ \mathbf{in}\ a..b$), which Z3's E-matching heuristics handle reliably in practice, at the cost of excluding unbounded quantification. This trade-off was accepted to maintain the automatability of verification.
 
 \section{Requirements analysis}\label{sec:requirements-anal}
 
@@ -599,7 +573,7 @@ The requirements of the project were categorised using the MoSCoW method to prio
 
 \subsection{Methodology}
 
-\paragraph{Development process.} Initial planning resembled a waterfall model for defining compiler pipeline modules, source and target language features and specifications. Software development then followed a spiral approach: the pipeline was built end-to-end to support integer arithmetic, then extended with arrays, mutable variables, refinement types, function contracts, and quantifiers. Work items were planned for two-week sprints managed using Jira. Each feature was accompanied by positive tests that should compile and negative tests that should be rejected with a specific error. I also attended thrice weekly standups with other Computer Science students, organised by my Director of Studies, where we gave reports on project status.
+\paragraph{Development process.} Initial planning resembled a waterfall model for defining compiler pipeline modules, source and target language features and specifications. Software development then followed a spiral approach: the pipeline was built end-to-end to support integer arithmetic, then extended with arrays, mutable variables, refinement types, function contracts, and quantifiers. Work items were planned for two-week sprints managed using Jira. Each feature was accompanied by positive tests that should compile and negative tests that should be rejected with a specific error.
 
 \paragraph{Version control.} Version control was managed using Git, following a trunk-based development strategy with short-lived feature branches merged into the main branch. A GitHub Actions CI pipeline ran on each push to ensure continuous correctness.
 
