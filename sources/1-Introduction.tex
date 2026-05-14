@@ -14,7 +14,7 @@ In his 1977 paper, Leslie Lamport defined \emph{safety} as a property ensuring t
 % TODO: improvement on C/C++
 One approach, exemplified by languages such as Rust, is to enforce \emph{safety properties at the source level} using mechanisms such as the borrow checker. This offers an attractive combination of performance and safety, but we must trust that a large and evolving compiler preserves these frontend guarantees during compilation. If a compiler bug miscompiles a safe source program, the resulting executable may no longer preserve the guarantee that was checked at the frontend.
 
-A second approach is \emph{verified compilers}: compilers whose correctness are justified using formal methods. CompCert \cite{compcert}, a compiler written in Rocq for a subset of C \cite{RocqRefman}, provides a guarantee of \emph{semantic preservation} and reduces the \emph{Trust Computing Base} (TCB) from the entire compiler to Rocq's relatively smaller kernel. However, since CompCert compiles is C, responsibility is still placed on the programmer to uphold memory safety.
+A second approach is \emph{verified compilers}: compilers whose correctness are justified using formal methods. CompCert \cite{compcert}, a compiler written in Rocq for a subset of C \cite{RocqRefman}, provides a guarantee of \emph{semantic preservation} and reduces the \emph{Trust Computing Base} (TCB) from the entire compiler to Rocq's relatively smaller kernel. However, since CompCert compiles C, responsibility is still placed on the programmer to uphold memory safety.
 
 One might suggest combining the previous two methods: a verified compiler for a safety-enforcing source language. Verifying such a compiler, however, comes at the cost of writing and maintaining thousands of lines of machine-checked mathematical proofs.
 
@@ -32,7 +32,7 @@ In the supported fragment, Veritas checks: fixed-size array bounds, function pre
 Unless explicitly qualified otherwise, subsequent claims about independent verification, low-level safety, verifier acceptance, and the compiler being untrusted are claims about these safety properties.
 The central claim is not that the compiler is correct. Rather, the compiler emits low-level output carrying enough type and constraint information for an independent verifier to check a \emph{scoped low-level safety policy} before execution. This reduces the TCB from the compiler pipeline to the standalone verifier and its dependencies.
 
-The trust argument that motivates this project suggests two axes for comparing toolchains. Figure~\ref{fig:safety-sem-taxonomy} separates two guarantees that could be made \emph{at the executable level}: semantic preservation and executable-level memory safety.
+The trust argument that motivates this project suggests two axes for comparing toolchains. Figure~\ref{fig:safety-sem-taxonomy} separates two guarantees made at the \emph{executable level}: semantic preservation and executable-level memory safety.
 
 \begin{figure}[H]
   \centering
@@ -73,13 +73,13 @@ Veritas consists of four main components:
 
 \begin{itemize}
   \item \textbf{The Veritas Language:} a systems language featuring refinement types, loop invariants, and function contracts.
-  \item \textbf{Dependently Typed Assembly Language (DTAL):} a target language based on Xi and Harper's DTAL \cite{Xi2001DTAL} that embeds type states and constraints directly into the instruction stream.
-  \item \textbf{Type-Preserving\footnote{Throughout this dissertation, ``type-preserving compiler'' refers to the implementation strategy of preserving verifier-facing typ evidence into DTAL, not to a formally proved source-to-target preservation theorem.} Compiler Pipeline:} a pipeline that lowers high-level types to a typed SSA (Static Single Assignment) typed intermediate representation to DTAL, preserving the safety invariants stated above (Section~\ref{sec:intro-veritas}).
-  \item \textbf{DTAL Verifier:} a tool that checks DTAL programs for compliance with memory safety properties without access to the source code, reducing the trusted computing base to the verifier and its dependencies.
+  \item \textbf{Veritas Dependently Typed Assembly Language (V-DTAL):} a target language based on Xi and Harper's DTAL \cite{Xi2001DTAL} that embeds type states and constraints directly into the instruction stream. Hereafter `V-DTAL' refers to the Veritas-specific variant, and `DTAL' will refer to Xi and Harper's DTAL.
+  \item \textbf{Type-Preserving\footnote{Throughout this dissertation, `type-preserving compiler' refers to the implementation strategy of preserving verifier-facing typ evidence into V-DTAL, not to a formally proved source-to-target preservation theorem.} Compiler Pipeline:} a pipeline that lowers high-level types to a typed SSA (Static Single Assignment) typed intermediate representation to V-DTAL, preserving the safety invariants stated above (Section~\ref{sec:intro-veritas}).
+  \item \textbf{V-DTAL Verifier:} a tool that checks V-DTAL programs for compliance with memory safety properties without access to the source code, reducing the trusted computing base to the verifier and its dependencies.
 \end{itemize}
-These components support the core question of the dissertation: whether a small systems-language toolchain can realise the trust model suggested by proof-carrying code, with an untrusted compiler whose low-level output is independently checked before execution. The dissertation evaluates this along three main axes:
+These components support the core question of the dissertation: whether a small systems-language toolchain can realise the trust model suggested by proof-carrying code, with an untrusted compiler whose low-level output is independently checked before execution. The dissertation evaluates its aims along three main axes:
 \begin{itemize}
-  \item \textbf{Trust architecture:} Veritas should demonstrate that the relevant low-level safety properties of compiled programs can be checked independently at the DTAL level. The design of DTAL for Veritas should be able to express the safety properties in scope. The verifier should also be substantially small than the full compiler to reduce the risk of trusting it.
+  \item \textbf{Trust architecture:} Veritas should demonstrate that the relevant low-level safety properties of compiled programs can be checked independently at the V-DTAL level. The design of V-DTAL for Veritas should be able to express the safety properties in scope. The verifier should also be substantially small than the full compiler to reduce the risk of trusting it.
   \item \textbf{Expressive source language:} the source language should be expressive enough from a verification perspective, by remaining suitable for safety verification.
   \item \textbf{Practicality:} the overall toolchain should remain usable in practice, by keeping the compiler performance and additional cost of independent verification acceptable for a systems language toolchain, and a source language expressive enough for realistic imperative, systems-oriented programs.
 \end{itemize}

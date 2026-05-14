@@ -36,58 +36,40 @@ The source code is organised as a single Rust crate with the following top-level
   \label{tab:repo}
 \end{table}
 
-% \textbf{Original work.} The entire compiler, verifier, and test suite were written from scratch for this project. No existing compiler or tutorial was used as a starting point. The project's design draws on the DTAL paper by Xi and Harper~\cite{Xi2001DTAL} for the typed assembly language and on the Liquid Types paper by Rondon et al.~\cite{Rondon2008Liquid} for the refinement type checking approach, but the implementations are original.
+% \subsection{Usage}\label{sec:usage}
 
-\subsection{Usage}\label{sec:usage}
-
-Veritas programs are written in \texttt{.veri} source files. The compiler and verifier is invoked from the command line. Figure~\ref{fig:cli-help} shows the help output displayed after running \texttt{veritas --help}.
-
+% Veritas programs are written in \texttt{.veri} source files. The compiler and verifier is invoked from the command line. Figure~\ref{fig:cli-help} shows the help output displayed after running \texttt{veritas --help}.
+%
+% \begin{figure}[H]
+% \footnotesize
 % \begin{verbatim}
-%   veritas <source.veri> [OPTIONS]
+% Veritas Compiler
+%
+% Usage: veritas <source_file> [OPTIONS]
+%
+% Output:
+%   -o <file>            Compile to native ELF executable
+%   --native             Print x86-64 assembly to stdout
+%   --target-bare-metal  Generate Multiboot ELF for bare-metal/QEMU:
+%                        qemu-system-x86_64 -kernel <binary> -serial stdio
+%
+% Verification:
+%   --verify             Verify DTAL before code generation
+%   --verify-only        Verify DTAL and exit (no codegen)
+%   --verify-dtal        Verify a standalone .dtal file
+%
+% Optimisation:
+%   -O, --optimize       Enable all optimisations
+%
+% Debug:
+%   -v, --verbose        Show compilation stages
+%   -q, --quiet          Suppress non-error output
+%   --bench              Output benchmark JSON
+%   -h, --help           Show this help message
 % \end{verbatim}
-
-% For example, compiling and verifying a program end-to-end:
-
-% \begin{verbatim}
-%   veritas bubble_sort.veri --verify -O -o bubble_sort
-% \end{verbatim}
-
-% The resulting executable is a statically linked, freestanding ELF binary. 
-
-% The runtime provides five intrinsics overall: \texttt{print\_int(n)}, \texttt{print\_char(c)}, \texttt{read\_int()}, \texttt{port\_in(port)}, and \texttt{port\_out(port, val)}. On the bare-metal target, the type checker admits only the port-I/O intrinsics.
-
-% A separate mode, \texttt{--verify-dtal}, accepts a standalone \texttt{.dtal} file and verifies it without requiring the source. The \texttt{--target\allowbreak-bare-metal} flag produces a Multiboot-compliant ELF for execution directly on QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.}.
-
-\begin{figure}[H]
-\footnotesize
-\begin{verbatim}
-Veritas Compiler
-
-Usage: veritas <source_file> [OPTIONS]
-
-Output:
-  -o <file>            Compile to native ELF executable
-  --native             Print x86-64 assembly to stdout
-  --target-bare-metal  Generate Multiboot ELF for bare-metal/QEMU:
-                       qemu-system-x86_64 -kernel <binary> -serial stdio
-
-Verification:
-  --verify             Verify DTAL before code generation
-  --verify-only        Verify DTAL and exit (no codegen)
-  --verify-dtal        Verify a standalone .dtal file
-
-Optimisation:
-  -O, --optimize       Enable all optimisations
-
-Debug:
-  -v, --verbose        Show compilation stages
-  -q, --quiet          Suppress non-error output
-  --bench              Output benchmark JSON
-  -h, --help           Show this help message
-\end{verbatim}
-\caption{Veritas CLI help menu.}
-\label{fig:cli-help}
-\end{figure}
+% \caption{Veritas CLI help menu.}
+% \label{fig:cli-help}
+% \end{figure}
 
 
 \section{Pipeline overview}
