@@ -38,7 +38,6 @@ The source code is organised as a single Rust crate with the following top-level
 
 % \textbf{Original work.} The entire compiler, verifier, and test suite were written from scratch for this project. No existing compiler or tutorial was used as a starting point. The project's design draws on the DTAL paper by Xi and Harper~\cite{Xi2001DTAL} for the typed assembly language and on the Liquid Types paper by Rondon et al.~\cite{Rondon2008Liquid} for the refinement type checking approach, but the implementations are original.
 
-% TODO:
 \subsection{Usage}\label{sec:usage}
 
 Veritas programs are written in \texttt{.veri} source files. The compiler and verifier is invoked from the command line. Figure~\ref{fig:cli-help} shows the help output displayed after running \texttt{veritas --help}.
@@ -192,7 +191,7 @@ The typing context is a tuple $(\phi, \Gamma, \Delta, \Sigma_F)$:
 
 \subsubsection{Master types}
 
-The master type $\tau_m$ is set at declaration and never changes; the current type $\tau_c$ may be refined through control flow but must remain a subtype of $\tau_m$. To demonstrate: when a mutable variable is declared as \texttt{let mut x:T = e}, the type $T$ is recorded as the variable's master type $T_m$. The variable's \textit{current type} $T_c$ may be narrowed through assignments and control flow (e.g., after \texttt{if x > 0}, the current type narrows to $\{v\!:\!\mathtt{int} \mid v > 0\}$), but every assignment must satisfy $\tau_e <: T_m$. At control-flow joins, current types from each branch are merged using the join operation, but the result must remain a subtype of the master type. This prevents the invalidation of refinements if \texttt{x} is reassigned. The interaction between master types and mutable variables is described in Section~\ref{sec:typechecker}.
+The master type $\tau_m$ is set at declaration and never changes; the current type $\tau_c$ may be refined through control flow but must remain a subtype of $\tau_m$. To demonstrate: when a mutable variable is declared as \texttt{let mut x:T = e}, the type $T$ is recorded as the variable's master type $\tau_m$. The variable's \textit{current type} $\tau_c$ may be narrowed through assignments and control flow (e.g., after \texttt{if x > 0}, the current type narrows to $\{v\!:\!\mathtt{int} \mid v > 0\}$), but every assignment \texttt{x = e} must satisfy $\tau_e <: \tau_m$, where $\tau_e$ is the type synthesised for the right-hand-side expression $e$. At control-flow joins, current types from each branch are merged using the join operation, but the result must remain a subtype of the master type. This prevents the invalidation of refinements if \texttt{x} is reassigned. The interaction between master types and mutable variables is described in Section~\ref{sec:typechecker}.
 
 \subsection{Context joining}\label{sec:context-joining}
 
@@ -223,13 +222,14 @@ The type system uses the following bidirectional typing judgements:
     \item \textbf{Provability:} $\phi \vdash P$ --- proposition $P$ is valid under assumptions $\phi$ (decided by SMT).
 \end{itemize}
 
-\noindent The checking and synthesis judgements are connected by a subsumption rule. If an expression synthesises type $\tau_e$ and the expected type is $\tau$, checking succeeds when $\tau_e <: \tau$:
+The checking and synthesis judgements are connected by a subsumption rule:
+% If an expression synthesises type $\tau_e$ and the expected type is $\tau$, checking succeeds when $\tau_e <: \tau$:
 
 $$\frac{\phi; \Delta; \Gamma \vdash e \Rightarrow (\phi'; \Delta'; \tau_e) \quad \phi' \vdash \tau_e <: \tau}{\phi; \Delta; \Gamma \vdash e \Leftarrow \tau : (\phi'; \Delta')} \quad (\textsc{T-Sub})$$
 
 \subsection{Subtyping rules}
 
-The subtyping relation $\phi \vdash \tau_1 <: \tau_2$ is defined by structural rules (reflexivity, singleton-to-int widening, refined-to-int widening, array subtyping, master type transparency---listed in full in Appendix~\ref{app:source-rules}) and two rules that invoke the SMT solver. Mutable arrays are treated invariantly in the checked fragment; covariant element reasoning is used only for read-only facts. In both solver-backed rules, the propositions in $\phi$ are asserted as assumptions, the goal is negated, and the solver is checked for unsatisfiability:
+The subtyping relation $\phi \vdash \tau_1 <: \tau_2$ is defined by structural rules (listed in full in Appendix~\ref{app:source-rules}) and two rules that invoke the SMT solver. Mutable arrays are treated invariantly in the checked fragment; covariant element reasoning is used only for read-only facts. In both solver-backed rules, the propositions in $\phi$ are asserted as assumptions, the goal is negated, and the solver is checked for unsatisfiability:
 
 $$\frac{\phi \vdash P[N/x]}{\phi \vdash \textsf{int}(N) <: \{x: \textsf{int} \mid P\}} \quad (\textsc{Sub-Singleton-Refine})$$
 
@@ -241,9 +241,7 @@ For expressions whose value is used in a proof obligation, synthesis returns bot
 \[
   \phi;\Delta;\Gamma \vdash e \Rightarrow (\phi';\Delta';\tau;\iota)
 \]
-The term $\iota$ denotes the expression's value in generated constraints. For a singleton it is the singleton index; for a refinement or existential type it is the symbolic term introduced during synthesis, not merely the binder name in the refinement. Boolean expressions also expose a guard proposition $\mathsf{guard}(e)$, for example $\mathsf{guard}(e_1 < e_2) = \iota_1 < \iota_2$. Conditional and loop rules use this guard rather than $\textsf{prop}(\textsf{bool})$, so branch facts such as \texttt{lo <= hi} enter the corresponding path context.
-
-Standard rules for literals, variable lookup, comparisons, logical operators, and array creation are given in Appendix~\ref{app:source-rules}. Some of the more interesting rules are described below.
+The term $\iota$ denotes the expression's value in generated constraints. For a singleton it is the singleton index; for a refinement or existential type it is the symbolic term introduced during synthesis, not merely the binder name in the refinement. Boolean expressions also expose a guard proposition $\mathsf{guard}(e)$, for example $\mathsf{guard}(e_1 < e_2) = \iota_1 < \iota_2$. Conditional and loop rules use this guard, so branch facts such as \texttt{lo <= hi} enter the corresponding path context.
 
 Arithmetic operations use a $\textsf{join-op}$ function that performs constant folding when both operands are singletons (e.g., $\textsf{join-op}(+, \textsf{int}(1), \textsf{int}(2)) = \textsf{int}(3)$) and otherwise synthesises a refinement type via SMT refinement synthesis (e.g., $\{v\!:\!\textsf{int} \mid v = e_L + e_R\}$):
 
@@ -369,7 +367,7 @@ An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\
 
 Veritas targets a first-order variant of Xi and Harper's DTAL design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system.
 % the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. 
-This section describes the concrete instruction set and typing judgements of the V-DTAL, which builds on the theoretical foundation of DTAL.
+This section describes the concrete instruction set and typing judgements of V-DTAL, which builds on the theoretical foundation of DTAL.
 
 \subsection{Instruction set}\label{sec:dtal-instr-set}
 
@@ -473,11 +471,9 @@ Function-level directives define the verifier-facing signature and contract. Blo
 
 \subsection{DTAL type system}
 
-The DTAL type system largely mirrors the source-level type system: it retains unit, integer and boolean base types, machine-integer types, singleton integers $\textsf{int}(N)$, refinement types, arrays, and master types. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, DTAL index expressions may mention constants, register names, arithmetic ($+, -, \times, \div, \%$), and $\textsf{select}(\mathit{arr}, i)$ for array element access.
+The DTAL type system largely mirrors the source-level type system: it retains unit, integer and boolean base types, machine-integer types, singleton integers $\textsf{int}(N)$, refinement types, arrays, and master types. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, DTAL index expressions may mention constants, register names, arithmetic, and $\textsf{select}(\mathit{arr}, i)$ for array element access (of an array $\mathit{arr}$ atindex $i$).
 
-We use $\varphi$ for predicates over integer witnesses; for example, $\{x:\textsf{int} \mid \varphi(x)\}$ and $\exists x.\; \textsf{int}(x)\; \textsf{where}\; \varphi(x)$ both bind $x$ in $\varphi$.
-
-The most important addition is the use of \textit{existential types} to represent results that are known only symbolically at the assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; \varphi(x)$. This allows the verifier to retain enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
+The most important addition is the use of \textit{existential types} to represent results that are known only symbolically at the assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; \varphi(x)$, where $\varphi$ is a predicate over integer witnesses. This allows the verifier to retain enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
 
 The DTAL constraint language preserves the same core logical fragment used in source-level specifications: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over DTAL index expressions rather than directly as source expressions, and conversion from source expressions to this constraint language is partial. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
 
@@ -512,7 +508,8 @@ $$
 \frac{\Gamma(r_b) = [\tau; N] \quad \Phi \vdash 0 \le e_i < N}{\Phi; \Gamma \vdash \textsf{load } r_d, [r_b, r_i] \Rightarrow \Gamma[r_d \mapsto \tau]} \quad (\textsc{D-Load})
 $$
 
-\noindent where $e_i$ is the index expression extracted from the type of $r_i$. The verifier derives the result type from the array base rather than trusting the annotation, and records a constraint equating $r_d$ with the corresponding versioned array selection. Stores are handled symmetrically, with an additional mechanism: the verifier maintains \textit{array versions} so that each store creates a fresh logical name for the array. It then adds explicit write and frame axioms over versioned $\textsf{select}$ expressions, avoiding conflation between values written at different program points.
+\noindent where $e_i$ is the index expression extracted from the type of $r_i$. The verifier derives the result type from the array base rather than trusting the annotation, and records a constraint equating $r_d$ with the corresponding versioned array selection. Stores are handled symmetrically, with an additional mechanism: the verifier maintains \textit{array versions} so that each store creates a fresh logical name for the array. It then adds explicit write and frame axioms over versioned $\textsf{select}$ expressions, avoiding conflation between values written at different program points. 
+% TODO: select not defined
 
 \paragraph{Conditional Branching}
 A comparison instruction updates the verifier's comparison state. We write $\mathcal{F}(\textsf{last})$ for the live pair of symbolic operands recorded by the most recent comparison instruction; this field is undefined after any instruction that clobbers machine flags. The auxiliary function $\textsf{idx}(\tau)$ extracts the index expression associated with an integer-like DTAL type, such as a singleton, refined, or existential integer type:
@@ -557,13 +554,10 @@ These rules are representative; the verifier handles all instruction variants li
 
 \section{Frontend}\label{sec:frontend}
 
-% TODO: frontend architecture/pipline diagram
-
 \subsection{Lexing and parsing}
 
-The lexer and parser are built using the \texttt{chumsky} parser combinator library. 
-
-The frontend makes use of \textit{two expression parsers}: a full parser (\texttt{expr\_parser}) that includes if-expressions and function calls, and a restricted variant (\texttt{expr\_parser\_for\_types}) used inside refinement type annotations. The restricted parser excludes constructs that would be ambiguous or meaningless in a type position, while supporting the arithmetic and comparison operators needed for refinement predicates. This separation avoids ambiguity in the grammar without requiring a separate expression language for types.
+The lexer and parser are built using the \texttt{chumsky} parser combinator library. The frontend makes use of \textit{two expression parsers}: a full parser (\texttt{expr\_parser}) that includes if-expressions and function calls, and a restricted variant (\texttt{expr\_parser\_for\_types}) used inside refinement type annotations. The restricted parser excludes constructs that would be ambiguous or meaningless in a type position, while supporting the arithmetic and comparison operators needed for refinement predicates. This separation avoids ambiguity in the grammar without requiring a separate expression language for types.
+% TODO: how does this support ambiguity
 
 \subsection{Type checker}\label{sec:typechecker}
 
@@ -572,13 +566,13 @@ The type checker is the most substantial frontend component. It implements the b
 
 \subsubsection{Architecture}
 
-The type checker is structured around the \texttt{TypingContext} $(\phi, \Gamma, \Delta, \Sigma_F)$ defined in Section~\ref{sec:typing-contexts}. Contexts are immutable values as opposed to shared global state where each judgement takes a context as input and returns an updated context as output. This design is made practical by the \texttt{im} crate, which provides persistent (structurally shared) data structures: cloning a context at a control-flow branch is $O(\log n)$ rather than $O(n)$. This is important for the functional-style context threading used in the bidirectional type checking implementation, where each branch of an \textbf{if-else} receives its own copy of the context.
+The type checker is structured around the \texttt{TypingContext} $(\phi, \Gamma, \Delta, \Sigma_F)$ defined in Section~\ref{sec:typing-contexts}. Contexts are immutable values as opposed to shared global state where each judgement takes a context as input and returns an updated context as output. This design is made practical by the \texttt{im} crate, which provides persistent (structurally shared) data structures: cloning a context at a control-flow branch is $O(\log n)$ rather than $O(n)$. This is important for the functional-style context threading used in the bidirectional type checking implementation, where each branch of an \textbf{if-else} receives its own copy of the context. % TODO: define typingcontext
 
 The type checker operates in two passes. The first collects all function signatures into $\Sigma_F$, enabling mutual recursion and allowing functions to be defined in any order. The second type-checks each function body against its signature.
 
 \subsubsection{Bidirectional checking}
 
-The implementation provides an explicit synthesis combinator, \texttt{synth\_expr}, which takes a typing context and an expression as input and returns either a type error or, on success, a typed expression together with its synthesised type. Integer literals produce singleton types ($\mathtt{int}(n)$), variable lookups return the type from $\Gamma$ or $\Delta$, and arithmetic operations use the \texttt{join\_op} helper introduced in Section~\ref{sec:expr-typing-rules}. The checking judgement is realised operationally by first synthesising a type for the expression and then verifying, via the SMT-backed subtyping check, that the synthesised type conforms to the expected one.
+The implementation provides an explicit synthesis combinator, \texttt{synth\_expr}, which takes a typing context and an expression as input and returns either a type error or, on success, a typed expression together with its synthesised type. Integer literals produce singleton types, variable lookups return the type from $\Gamma$ or $\Delta$, and arithmetic operations use the \texttt{join\_op} helper introduced in Section~\ref{sec:expr-typing-rules}. The checking judgement is realised operationally by first synthesising a type for the expression and then verifying, via the SMT-backed subtyping check, that the synthesised type conforms to the expected one.
 
 Statement checking (\texttt{check\_stmts}) updates the typing context according to each statement's effect: \texttt{let} bindings extend $\Gamma$ or $\Delta$, assignments update the current type in $\Delta$, and loops are checked by proving that their invariants hold on entry and are preserved by the body, as described in the statement typing rules for loops in Section~\ref{sec:stmt-typing-rules}.
 
@@ -766,7 +760,7 @@ Two implementation details are specific to the later backend. First, constant fo
 
 \subsection{Register allocation}
 
-Register allocation is implemented using standard liveness analysis followed by graph colouring. The default allocator is a Chaitin--Briggs style allocator over the 11 allocatable general-purpose x86-64 registers (excluding \texttt{rsp}, \texttt{rbp}, \texttt{rax}, \texttt{rdx}, and \texttt{r11}). Registers live across function calls are constrained to callee-saved registers (\texttt{rbx}, \texttt{r12}--\texttt{r15}), reflecting the calling convention. I initially implemented a simple linear-scan allocator and used this for comparison and experimentation.
+Register allocation is implemented using standard liveness analysis followed by graph colouring. The default allocator is a Chaitin--Briggs style allocator over the 11 allocatable general-purpose x86-64 registers (excluding \texttt{rsp}, \texttt{rbp}, \texttt{rax}, \texttt{rdx}, and \texttt{r11}). Registers live across function calls are constrained to callee-saved registers (\texttt{rbx}, \texttt{r12}--\texttt{r15}), reflecting the calling convention. 
 
 \subsection{Physical allocation}\label{sec:physalloc}
 
@@ -1022,11 +1016,12 @@ This demonstrates the project's long-term direction: a bare-metal Veritas target
 
 \section{Borrowing and ownership extension}\label{sec:ownership-extension}
 
-The core refinement type system proves arithmetic, bounds, and contract obligations, but it does not by itself control aliasing. This is a serious limitation for a systems-language fragment: mutation through one name can invalidate facts assumed through another name, and unrestricted references make it unclear which part of the program owns a mutable object. Veritas therefore adds a Rust-inspired ownership and borrowing discipline, but with a different trust objective. The source checker rejects obvious aliasing errors, while TIR and DTAL preserve ownership events explicitly so that the final low-level verifier can check that the backend has not introduced an illegal move, duplicated owner, or conflicting borrow.
+The core refinement type system does not by itself control aliasing. This is a serious limitation for a systems-language fragment: mutation through one name can invalidate facts assumed through another name, and unrestricted references make it unclear which part of the program owns a mutable object. Veritas adds a Rust-inspired ownership and borrowing discipline: the source checker rejects obvious aliasing errors, while TIR and DTAL preserve ownership events explicitly so that the final low-level verifier can check that the backend has not introduced an illegal move, duplicated owner, or conflicting borrow.
 
-\subsection{Source-language design}
+% \subsection{Source-language design}
 
-The source extension adds shared references, mutable references, borrow expressions, and dereference expressions. The supported fragment is deliberately lexical and first-order: borrows are tied to source bindings, block exit ends borrows introduced in that block, and references are not stored in aggregates or returned from functions. This keeps the model compatible with the rest of the Veritas type checker while still supporting the common systems-language patterns needed by the feature suite: shared array reads, mutable array updates, scalar dereference, and reference parameters.
+% The source extension adds shared references, mutable references, borrow expressions, and dereference expressions. 
+The supported fragment is lexical and first-order: borrows are tied to source bindings, block exit ends borrows introduced in that block, and references are not stored in aggregates or returned from functions. This keeps the model compatible with the rest of the Veritas type checker while still supporting the common systems-language patterns needed by the feature suite: shared array reads, mutable array updates, scalar dereference, and reference parameters.
 
 \begin{table}[H]
 \centering
@@ -1047,7 +1042,7 @@ The source extension adds shared references, mutable references, borrow expressi
 \label{tab:source-ownership-forms}
 \end{table}
 
-For example, a mutable scalar borrow is written directly in the source language:
+% For example, a mutable scalar borrow is written directly in the source language:
 
 \begin{figure}[H]
 \begin{center}
@@ -1064,9 +1059,9 @@ fn main() -> int {
 \label{fig:source-mutable-borrow}
 \end{figure}
 
-\subsection{Frontend implementation}
+% \subsection{Frontend implementation}
 
-Borrowing is implemented as an extension of the ordinary bidirectional type checker rather than as a separate pass. In addition to the refinement context $\phi$, immutable environment $\Gamma$, mutable environment $\Delta$, and function signature environment $\Sigma_F$, the concrete \texttt{TypingContext} records ownership metadata:
+Borrowing is implemented as an extension of the ordinary bidirectional type checker. In addition to the contexts $(\phi, \Gamma, \Delta \Sigma_F)$, the concrete \texttt{TypingContext} records ownership metadata:
 
 \begin{table}[H]
 \centering
@@ -1087,7 +1082,7 @@ Borrowing is implemented as an extension of the ordinary bidirectional type chec
 
 Creating \texttt{\&x} increments the shared-borrow count for \texttt{x}; creating \texttt{\&mut x} requires no live shared or mutable borrow. Assignments, shadowing, moves, and function calls consult the same metadata, so the checker rejects mutating a shared-borrowed owner, moving a borrowed owner, creating a shared borrow while a mutable borrow is live, and creating two simultaneous mutable borrows. These checks are integrated into \texttt{check\_stmt} and \texttt{synth\_expr}, which means the typed AST records both the ordinary type of an expression and the borrow/move behaviour needed by lowering.
 
-\subsection{TIR representation}
+% \subsection{TIR representation}
 
 Once the frontend accepts a program, ownership behaviour is made explicit in TIR. This is important because later compiler stages should not need to reconstruct ownership events from source syntax: the verifier-facing pipeline receives first-class operations for moves, drops, borrow creation, and borrow termination.
 
@@ -1112,7 +1107,7 @@ Once the frontend accepts a program, ownership behaviour is made explicit in TIR
 
 Scalar references require one additional implementation device. Arrays already have a memory representation in TIR and DTAL, so borrowing an array can target the array directly. A scalar value, however, must be made addressable before it can be borrowed. The lowerer therefore uses a hidden one-element cell for scalar references: it allocates a size-1 cell, stores the scalar value into it, borrows the cell, and lowers dereference to an ordinary load or store through that cell. This allows scalar references to reuse the same array load/store and bounds-checking machinery rather than introducing a separate pointer memory model.
 
-\subsection{DTAL representation}
+% \subsection{DTAL representation}
 
 The ownership-aware TIR forms lower to explicit DTAL instructions. The extension also adds shared and mutable reference types, written $\&\tau$ and $\&\textsf{mut } \tau$, which classify registers holding borrow capabilities. These instructions do not perform computation in the ordinary arithmetic sense; they update the verifier's ownership state and make aliasing behaviour visible in the low-level artifact.
 
@@ -1150,7 +1145,7 @@ borrow_end v3          : &[int(7); 1]
 
 The important property is that the backend cannot silently erase the source-level ownership discipline. If it emits a second mutable borrow, moves an owner while a borrow is live, or fails to end a borrow on one control-flow path, the final DTAL program is inconsistent with the verifier's ownership state and is rejected.
 
-\subsection{Verifier support}
+% \subsection{Verifier support}
 
 The independent verifier extends its ordinary register-and-constraint state with ownership metadata. It tracks which registers currently hold owned values, assigns object identities to owned values, records which registers hold shared or mutable borrows of each object, and records consumed registers. The instruction checker then enforces the capability discipline shown in Table~\ref{tab:verifier-ownership-rules}.
 
