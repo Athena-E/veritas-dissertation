@@ -1,6 +1,6 @@
 \chapter{Implementation}\label{ch:impl}
 
-This chapter describes the implementation of the Veritas toolchain. It presents the implementation of the core components---the source and target DTAL language, a type-preserving compiler, and an independent DTAL verifier---and the extensions made to them. It also presents the major extensions implemented: a borrowing and ownership model, region-backed array allocation, a compact runtime, and a bare-metal unikernel target. The chapter concludes by tracing a binary search program through the full pipeline as a worked example. 
+This chapter describes the implementation that turns the trust model from Chapter~\ref{ch:prep} into an executable compiler-verifier pipeline. It presents the source language, typed intermediate representation, DTAL target, type-preserving compiler, independent verifier, direct x86-64 encoder, compact runtime, bare-metal target, and ownership extension as one integrated system. The chapter concludes by tracing a binary search program through the full pipeline as a worked example.
 
 \section{Repository overview}\label{sec:repo-overview}
 %
@@ -77,7 +77,7 @@ veritas/
 
 \section{Pipeline overview}
 
-Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, and arrows indicate the transformations between them. Checked type annotations are preserved through TAST, TIR, and DTAL, and are no longer needed after DTAL verification and final encoding to x86-64.
+Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, and arrows indicate the transformations between them. Safety evidence is progressively translated from source refinements into verifier-facing DTAL type states and constraints; after DTAL verification, final encoding to x86-64 no longer needs the annotations.
 
 \begin{figure}[h]
   \centering
@@ -93,7 +93,7 @@ Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named repres
 
 \section{The Veritas language}\label{sec:source-language}
 
-This section presents the syntax and formal typing rules of the Veritas source language. These define the contract that the compiler must uphold: any program accepted by the type checker satisfies the properties encoded in its types.
+This section presents the syntax and formal typing rules of the Veritas source language. These define the source-level contract that the rest of the pipeline must preserve: any program accepted by the type checker satisfies the properties encoded in its types.
 
 \subsection{Syntax}
 
@@ -834,7 +834,7 @@ Most TIR instructions lower directly to DTAL. Phi nodes are implemented as paral
 
 \subsection{Optimisation}
 
-Optimisation runs on virtual-register DTAL before physical allocation. The implemented pipeline performs constant folding, local peephole rewrites, copy propagation, dead-code elimination, loop-invariant code motion, and a Veritas-specific load-operation fusion pass. The important design constraint is not the individual algorithms, but that they operate over a typed assembly representation rather than an untyped IR. Rewritten instructions must retain verifier-facing type annotations, and instructions with semantic or proof relevance---stores, calls, branches, stack operations, ownership events, and constraint assertions---are treated as effects rather than removable bookkeeping.
+Optimisation runs on virtual-register DTAL before physical allocation. The implemented pipeline performs constant folding, local peephole rewrites, copy propagation, dead-code elimination, loop-invariant code motion, and a Veritas-specific load-operation fusion pass. The important design point is that these transformations operate over typed assembly rather than an untyped IR: explicit constants, bounds facts, and verifier-facing effects are still present when optimisation runs. Rewritten instructions must retain verifier-facing type annotations, and instructions with semantic or proof relevance---stores, calls, branches, stack operations, ownership events, and constraint assertions---are treated as effects rather than removable bookkeeping.
 
 Two implementation details are specific to the later backend. First, constant folding may introduce immediate-form DTAL instructions such as \texttt{AddImm} and \texttt{CmpImm}, which have verifier rules and direct encoder cases. Second, load-operation fusion creates a \texttt{LoadOp} form to exploit x86-64 memory operands, but only where the original load has a single arithmetic use. Copy propagation is similarly conservative around physical-register materialisation moves, since those copies encode ABI-oriented structure needed by physical allocation.
 
@@ -867,7 +867,7 @@ DTAL defines 16 physical registers: \texttt{r0}--\texttt{r12} (general purpose),
 \label{tab:regmap}
 \end{table}
 
-Beyond simple register renaming, the physical allocation pass performs several x86-specific transformations:
+Beyond register renaming, the physical allocation pass performs several x86-specific transformations:
 
 \begin{itemize}
   \item \textbf{Function prologues and epilogues}: emits explicit \texttt{Prologue} and \texttt{Epilogue} instructions that push/pop callee-saved registers and allocate a 16-byte-aligned stack frame.
@@ -892,9 +892,9 @@ since \texttt{idiv} requires its operands in the \texttt{rdx:rax} pair.
 
 \subsection{Direct encoding}\label{sec:direct-encoding}
 
-The \textit{direct encoder} translates physically-allocated DTAL to x86-64 machine code. Because the physical allocation pass has already performed all x86-specific expansions (division, calling convention, prologues), the encoder is a near-trivial 1:1 mapping: each DTAL instruction maps to exactly one x86-64 instruction (or a short fixed sequence for prologues and epilogues). The entire module is 309 lines in the current implementation.
+The \textit{direct encoder} translates physically-allocated DTAL to x86-64 machine code. Because the physical allocation pass has already performed all x86-specific expansions (division, calling convention, prologues), the encoder is a deliberately narrow direct mapping: each DTAL instruction maps to exactly one x86-64 instruction (or a short fixed sequence for prologues and epilogues). The entire module is 309 lines in the current implementation.
 
-This simplicity is deliberate and architecturally significant. Initially, I implemented a monolithic x86-64 lowering pass that performed register allocation, instruction selection, and encoding in a single trusted step. By splitting this into an untrusted physical allocation pass (verified by the DTAL verifier) and a small encoder, most register-allocation and instruction-selection logic is moved outside the trusted path. The encoder still remains trusted, so its small size is an auditability argument rather than a proof of correctness.
+This directness is deliberate and architecturally significant. Initially, I implemented a monolithic x86-64 lowering pass that performed register allocation, instruction selection, and encoding in a single trusted step. By splitting this into an untrusted physical allocation pass (verified by the DTAL verifier) and a compact encoder, most register-allocation and instruction-selection logic is moved outside the trusted path. The encoder remains trusted; its compactness provides an auditability argument for the final step from checked physical DTAL to machine code.
 
 \subsection{Binary encoding and ELF generation}
 
@@ -973,7 +973,7 @@ To improve performance, constraint provability uses a two-tier approach. A fast 
 
 \section{Runtime}\label{sec:runtime}
 
-The compiler provides a small set of runtime intrinsics that are linked into every executable. These are implemented as hand-assembled x86-64 machine code totalling approximately 210 bytes, prepended to the user's compiled code in the ELF output.
+The compiler provides a compact set of runtime intrinsics that are linked into every executable. These are implemented as hand-assembled x86-64 machine code totalling approximately 210 bytes, prepended to the user's compiled code in the ELF output.
 
 Five intrinsics are provided:
 
@@ -987,12 +987,12 @@ Five intrinsics are provided:
 
 The first three intrinsics use Linux syscalls and are available only when compiling for the Linux target. The port I/O intrinsics use hardware instructions directly and are available on both Linux and bare-metal targets. The type checker enforces this distinction: a bare-metal program that calls \texttt{print\_int} is rejected at compile time rather than failing at runtime.
 
-All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so they are callable from compiled Veritas code without any marshalling. Because the runtime is hand-assembled and part of the TCB, its correctness is assumed on the basis of its small size, tests, and inspection rather than established by the DTAL verifier.
+All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so they are callable from compiled Veritas code without any marshalling. The hand-assembled runtime is part of the TCB, so the design keeps it compact, inspectable, and covered by tests.
 
 \section{Bare-metal target}\label{sec:unikernel}
 % TODO: elaborate more on implementation; highlight as extension and purpose to support I/O functionality
 
-The \texttt{--target-bare-metal} flag in the Veritas CLI produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.} without an operating system. This removes the host operating-system kernel from the normal execution path for this target, replacing it with a small trusted bootstrap and runtime. The bootstrap, runtime intrinsics, hardware model, and QEMU behaviour remain outside the DTAL verifier's guarantee.
+The \texttt{--target-bare-metal} flag in the Veritas CLI produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.} without an operating system. This demonstrates that the same checked pipeline can produce OS-independent executable artifacts. For this target, the host operating-system kernel is removed from the normal execution path and replaced by a compact trusted bootstrap and runtime. The bootstrap, runtime intrinsics, hardware model, and QEMU behaviour remain outside the DTAL verifier's guarantee.
 
 \subsection{Bootstrap}
 
@@ -1024,7 +1024,7 @@ The entire driver is type-checked and compiled through the verified DTAL pipelin
   qemu-system-x86_64 -kernel serial -serial stdio
 \end{verbatim}
 
-This demonstrates the project's long-term direction: a bare-metal Veritas target in which application code and simple drivers are checked as DTAL before encoding, while a small trusted bootstrap and runtime replace the host operating-system kernel. Figure~\ref{fig:unikernel-arch} illustrates the architecture of a bare-metal Veritas binary.
+This demonstrates the project's long-term direction: a bare-metal Veritas target in which application code and device-facing drivers are checked as DTAL before encoding, while a compact trusted bootstrap and runtime replace the host operating-system kernel. Figure~\ref{fig:unikernel-arch} illustrates the architecture of a bare-metal Veritas binary.
 
 \begin{figure}[H]
   \centering
@@ -1091,7 +1091,7 @@ This demonstrates the project's long-term direction: a bare-metal Veritas target
 
 \section{Borrowing and ownership extension}\label{sec:ownership-extension}
 
-The core refinement type system does not by itself control aliasing. This is a serious limitation for a systems-language fragment: mutation through one name can invalidate facts assumed through another name, and unrestricted references make it unclear which part of the program owns a mutable object. Veritas adds a Rust-inspired ownership and borrowing discipline: the source checker rejects obvious aliasing errors, while TIR and DTAL preserve ownership events explicitly so that the final low-level verifier can check that the backend has not introduced an illegal move, duplicated owner, or conflicting borrow.
+Aliasing is the next pressure point for a systems-language verifier: mutation through one name can invalidate facts assumed through another name, and unrestricted references make it unclear which part of the program owns a mutable object. Veritas addresses this by adding a Rust-inspired ownership and borrowing discipline: the source checker rejects obvious aliasing errors, while TIR and DTAL preserve ownership events explicitly so that the final low-level verifier can check that the backend has not introduced an illegal move, duplicated owner, or conflicting borrow.
 
 % \subsection{Source-language design}
 

@@ -263,13 +263,13 @@ The branch \texttt{bgte r5, finish} refines the type state: on the fall-through 
 \section{Related work and design influences}
 \label{sec:related-work}
 
-The design of Veritas makes use of several established approaches to software verification: it synthesises techniques from functional verification, systems programming, and proof-carrying code.
+The design of Veritas synthesises several established approaches to software verification: automated refinement checking, systems-language design, and proof-carrying code.
 
 \subsection{Refinement Types and Automated Verification}
-Liquid Haskell~\cite{Vazou2014Refinement} and Liquid Types~\cite{Rondon2008Liquid} provide the main precedent for SMT-backed refinement checking. Dafny~\cite{Leino2010Dafny} similarly uses SMT solving for imperative contracts and loop invariants. Veritas borrows this style of automatic proof discharge, but preserves the resulting constraints down to assembly rather than erasing them after source-level verification.
+Liquid Haskell~\cite{Vazou2014Refinement} and Liquid Types~\cite{Rondon2008Liquid} provide the main precedent for SMT-backed refinement checking. Dafny~\cite{Leino2010Dafny} similarly uses SMT solving for imperative contracts and loop invariants. Veritas adapts this style of automatic proof discharge, but carries the resulting constraints into assembly rather than erasing them after source-level verification.
 
 \subsection{Foundational and Dependent Verification}
-At the more expressive end of the spectrum are systems such as F*~\cite{Swamy2016Dependent}, which supports full dependent types, and RefinedC~\cite{Sammler2021RefinedC}, which applies refinement and ownership types to C code to enable the construction of machine-checked proofs in Coq. Veritas deliberately accepts a weaker foundation---SMT-backed checking rather than foundational proof---to keep proof obligations automatic once specifications are supplied.
+At the more expressive end of the spectrum are systems such as F*~\cite{Swamy2016Dependent}, which supports full dependent types, and RefinedC~\cite{Sammler2021RefinedC}, which applies refinement and ownership types to C code to enable the construction of machine-checked proofs in Coq. Veritas chooses an automated SMT-backed foundation rather than foundational proof, trading proof-assistant generality for automatic checking in the compiled artifact once specifications are supplied.
 
 \subsection{Verifiable Systems Languages}
 The most direct predecessor to Veritas's goals is ATS (Applied Type System)~\cite{Xi2003Applied}. It targets systems programming using dependent types with zero runtime overhead. The key difference is architectural. ATS proves properties at compile time and then emits C, leaving the ATS and C compilers in the TCB. Veritas instead preserves types into DTAL so that the low-level target can be checked independently.
@@ -365,7 +365,7 @@ Figure~\ref{fig:verification-landscape} summarises the trade-off between express
 
 \section{Design decisions}\label{sec:design-decisions}
 
-Having established the theoretical tools and verification mechanisms available, I present how they are realised in the design of the language and trust model.
+Having established the theoretical tools and verification mechanisms available, I present how they are realised in the design of the language and trust model. The design choices below all serve the same goal: preserve enough semantic evidence through compilation that the final low-level artifact can be checked without trusting the compiler pipeline that produced it.
 
 % \subsection{Compiler architecture}
 %
@@ -482,7 +482,7 @@ Quantified array properties fall outside the decidable quantifier-free fragment 
 
 \section{Requirements analysis}\label{sec:requirements-anal}
 
-The requirements of the project were categorised using the MoSCoW method to prioritise features and ensure the core objectives of type-preserving compilation and independent verification were met.
+The requirements of the project were categorised using the MoSCoW method to make the central technical bet explicit: first establish independent checkability, then make the pipeline executable and practical, then add systems-language extensions that test whether the architecture scales beyond the core fragment.
 
 \begin{table}[H]
   \centering
@@ -615,4 +615,4 @@ Table~\ref{tab:veritas-crates} lists all the external Rust crates used in the Ve
 
 \section{Starting point}\label{sec:starting-point}
 
-I began with introductory knowledge of dependent type theory and verification languages, and was introduced to refinement types through Xi and Harper's DTAL. No external compiler or verifier code was used. The main new areas with steeper learning curves included programming with Rust, SMT-backed type-checking, Z3 theories, x86-64 encoding, bidirectional type checking, and typed assembly. The Type Theory and Optimising Compilers courses from Part II of the Computer Science Tripos provided useful foundations.
+The project required integrating several areas that are usually taught or studied separately: dependent typing, refinement checking, SMT, compiler construction, x86-64 encoding, bidirectional type checking, and typed assembly. No external compiler or verifier code was used. The Type Theory and Optimising Compilers courses from Part II of the Computer Science Tripos provided useful foundations.
