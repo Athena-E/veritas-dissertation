@@ -815,7 +815,7 @@ Register allocation uses standard liveness analysis followed by graph colouring.
 
 \subsection{Physical allocation}\label{sec:physalloc}
 
-The register allocator maps virtual to physical registers; the \textit{physical allocation pass} applies this mapping to produce physical-register DTAL. This is the central transformation in the default pipeline, and it is \textit{untrusted}: the DTAL verifier checks its output before code generation.
+The register allocator maps virtual to physical registers; the \textit{physical allocation pass} applies this mapping to produce physical-register DTAL. This is the central transformation in the default pipeline, and it is \textit{untrusted}: the DTAL verifier checks its output before code generation. I refer to this final check as \textit{physical-DTAL validation}: the safety argument is reconstructed on the post-register-allocation artifact, after backend transformations have exposed concrete registers, stack slots, calling-convention moves, and target-specific instruction expansions.
 
 DTAL defines 16 physical registers: \texttt{r0}--\texttt{r12} (general purpose), \texttt{sp} (stack pointer), \texttt{fp} (frame pointer), and \texttt{lr} (link register / return value). These map directly to x86-64 registers:
 
@@ -865,7 +865,7 @@ since \texttt{idiv} requires its operands in the \texttt{rdx:rax} pair.
 
 The \textit{direct encoder} translates physically-allocated DTAL to x86-64 machine code. Because physical allocation has already performed all x86-specific expansions (division, calling convention, prologues), the encoder is a deliberately narrow direct mapping: each DTAL instruction maps to one x86-64 instruction, or a short fixed prologue/epilogue sequence. The module is 309 lines.
 
-This directness is deliberate and architecturally significant. Initially, I implemented a monolithic x86-64 lowering pass performing register allocation, instruction selection, and encoding in one trusted step. Splitting this into an untrusted physical allocation pass, verified by the DTAL verifier, and a compact encoder moves most register-allocation and instruction-selection logic outside the trusted path. The encoder remains trusted; its compactness supports auditing the final step from checked physical DTAL to machine code.
+This directness is deliberate and architecturally significant. Initially, I implemented a monolithic x86-64 lowering pass performing register allocation, instruction selection, and encoding in one trusted step. Splitting this into an untrusted physical allocation pass, verified by the DTAL verifier, and a compact encoder moves most register-allocation and instruction-selection logic outside the trusted path. The encoder remains trusted because it is the final unchecked step from validated physical DTAL to bytes; its compactness supports auditing that step.
 
 \subsection{Binary encoding and ELF generation}
 
@@ -873,7 +873,7 @@ The direct encoder emits x86-64 machine code from physical DTAL, using a two-pas
 
 \section{Independent verifier}\label{sec:verifier}
 
-A key contribution of the type-preserving architecture is that physically-allocated DTAL can be verified independently of the compiler. The verifier re-checks the DTAL program from scratch, using only embedded assembly type annotations. It follows Xi and Harper's derivation-based approach~\cite{Xi2001DTAL}: types are \textit{re-derived} from instruction semantics, not trusted from compiler annotations.
+A key contribution of the type-preserving architecture is that physically-allocated DTAL can be verified independently of the compiler. The verifier re-checks the DTAL program from scratch, using only embedded assembly type annotations. It follows Xi and Harper's derivation-based approach~\cite{Xi2001DTAL}: types are \textit{re-derived} from instruction semantics, not trusted from compiler annotations. This means that spills, reloads, register shuffles, prologues, epilogues, and division expansion are validated in the form immediately preceding direct machine-code encoding.
 
 \subsection{Verification algorithm}
 

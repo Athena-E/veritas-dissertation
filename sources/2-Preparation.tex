@@ -218,7 +218,7 @@ This makes proof-obligation \textit{discharge} fully automatic: the programmer n
 
 \subsection{Proof-carrying code and typed low-level targets}\label{sec:pcc-background}
 
-Proof-carrying code~\cite{Necula1997PCC} and typed assembly languages~\cite{Morrisett1999SystemF} establish the low-level trust argument used by Veritas. Instead of treating compilation as the point where types disappear, a producer emits code with enough evidence for a consumer-side checker to validate a safety policy. In a type-preserving compiler, that evidence is a low-level program annotated with types rich enough for an independent checker to reconstruct the safety argument. Veritas adopts this route: the compiler emits evidence, but the verifier trusts it only after re-deriving the relevant low-level facts.
+Proof-carrying code~\cite{Necula1997PCC} and typed assembly languages~\cite{Morrisett1999SystemF} establish the low-level trust argument used by Veritas. Instead of treating compilation as the point where types disappear, a certifying compiler emits code with enough evidence for a consumer-side checker to validate a safety policy. In a type-preserving compiler, that evidence is a low-level program annotated with types rich enough for an independent checker to reconstruct the safety argument. Veritas adopts this route: the compiler emits evidence, but the verifier trusts it only after re-deriving the relevant low-level facts.
 
 
 \subsection{Dependently Typed Assembly}\label{sec:dtal-background}
@@ -263,6 +263,8 @@ At the more expressive end are systems such as F*~\cite{Swamy2016Dependent}, whi
 The most direct predecessor to Veritas's goals is ATS (Applied Type System)~\cite{Xi2003Applied}. It targets systems programming using dependent types with zero runtime overhead. The key difference is architectural. ATS proves properties at compile time and emits C, leaving the ATS and C compilers in the TCB. Veritas instead preserves types into DTAL so the low-level target can be checked independently.
 
 Together, these systems leave a specific gap. Liquid Haskell and Dafny show usable SMT-backed specifications, but their guarantees are principally source-level. F*, RefinedC, Coq, and Agda show stronger foundational assurance with heavier proof burden. TAL, PCC, and DTAL show how low-level artifacts can carry checkable evidence, but not the executable refinement-oriented source toolchain evaluated here. ATS shows dependent types supporting systems programming, but leaves the C backend in the trust boundary. Veritas targets the remaining point: automatic refinement checking in a systems-language fragment whose safety evidence is preserved into an independently checkable low-level artifact.
+
+In compiler-assurance terms, Veritas occupies a design point close to certifying and type-preserving compilation, rather than whole-compiler verification. Its distinguishing choice is to carry refinement-derived evidence into an executable physical-register artifact and then validate that artifact independently. This makes register allocation, spill insertion, calling-convention lowering, and target-specific expansion visible to the checker instead of treating them as trusted consequences of a compiler proof.
 
 Figure~\ref{fig:verification-landscape} summarises the trade-off between expressiveness and automation across the systems discussed above.
 
