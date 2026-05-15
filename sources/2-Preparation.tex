@@ -1,6 +1,6 @@
 \chapter{Preparation}\label{ch:prep}
 
-This chapter gives the background needed to understand Veritas: the type-system machinery used to express safety properties, related verification systems, and engineering decisions fixing the trust boundary. It establishes the theory and design context for the implementation.
+This chapter gives the background needed to understand Veritas: the type-system machinery for expressing safety properties, related verification systems, and engineering decisions fixing the trust boundary.
 
 \section{Background}\label{sec:background}
 
@@ -19,7 +19,7 @@ The fundamental theorem that connects type systems to safety is \emph{type sound
 % \textbf{Preservation.} If $\emptyset \vdash e : \tau$ and $e \to e'$, then $\emptyset \vdash e' : \tau$.
 
 % \noindent Progress states that a closed well-typed program never becomes stuck before it has produced a value: whenever evaluation has not yet finished, there is always a valid next reduction step. Preservation states that evaluation does not invalidate typing: every execution step preserves the type established statically. 
-\noindent Starting from a well-typed program, repeated evaluation can neither get stuck in an ill-defined intermediate state (progress) nor escape the guarantees expressed by its type (preservation). This is the formal basis for claims such as ``a well-typed array access cannot go out of bounds'' or ``a well-typed arithmetic expression is not applied to a boolean''.
+\noindent Starting from a well-typed program, evaluation can neither get stuck in an ill-defined intermediate state (progress) nor escape the guarantees expressed by its type (preservation). This underpins claims such as ``a well-typed array access cannot go out of bounds'' or ``a well-typed arithmetic expression is not applied to a boolean''.
 
 % An important consequence of tractability is that type systems are \emph{sound} but not \emph{complete}: every accepted program is safe, but some safe programs will be rejected. This is a deliberate trade-off---soundness is essential for guarantees, while completeness is sacrificed for decidability. Refinement types push this boundary by encoding richer invariants, but the fundamental incompleteness remains.
 
@@ -42,7 +42,7 @@ In a dependently typed language, types may depend on values. The canonical examp
 
 \noindent The type $\textsf{Vec}(A,n)$ corresponds to sequences of $A$ of length $n$ and $\textsf{Fin}(n)$ to numbers less than $n$. The function \textsf{lookup} returns the vector element at a specified index. Its type signature requires the index to be within the vector's length, statically eliminating out-of-bounds accesses.
 
-Full dependent type systems, such as Rocq and Agda~\cite{Bove2009Agda}, can express arbitrary higher-order propositions as types (via Curry--Howard), but this generality is costly: type checking is expensive and may require explicit proof terms.
+Full dependent type systems, such as Rocq and Agda~\cite{Bove2009Agda}, can express arbitrary higher-order propositions as types (via Curry--Howard), but this generality makes type checking expensive and may require explicit proof terms.
 
 Refinement types~\cite{Rondon2008Liquid} are a decidable subset of dependent pairs:
 \[
@@ -262,9 +262,9 @@ At the more expressive end are systems such as F*~\cite{Swamy2016Dependent}, whi
 \subsection{Verifiable Systems Languages}
 The most direct predecessor to Veritas's goals is ATS (Applied Type System)~\cite{Xi2003Applied}. It targets systems programming using dependent types with zero runtime overhead. The key difference is architectural. ATS proves properties at compile time and emits C, leaving the ATS and C compilers in the TCB. Veritas instead preserves types into DTAL so the low-level target can be checked independently.
 
-Together, these systems leave a specific gap. Liquid Haskell and Dafny show usable SMT-backed specifications, but their guarantees are principally source-level. F*, RefinedC, Coq, and Agda show stronger foundational assurance with heavier proof burden. TAL, PCC, and DTAL show how low-level artifacts can carry checkable evidence, but not the executable refinement-oriented source toolchain evaluated here. ATS shows dependent types supporting systems programming, but leaves the C backend in the trust boundary. Veritas targets the remaining point: automatic refinement checking in a systems-language fragment whose safety evidence is preserved into an independently checkable low-level artifact.
+Together, these systems leave a specific gap. Liquid Haskell and Dafny show usable SMT-backed specifications, but their guarantees are principally source-level. F*, RefinedC, Coq, and Agda show stronger foundational assurance with heavier proof burden. TAL, PCC, and DTAL show low-level artifacts carrying checkable evidence, but not the executable refinement-oriented source toolchain evaluated here. ATS shows dependent types for systems programming, but leaves the C backend in the trust boundary. Veritas targets the remaining point: automatic refinement checking in a systems-language fragment whose evidence is preserved into an independently checkable physical low-level artifact.
 
-In compiler-assurance terms, Veritas occupies a design point close to certifying and type-preserving compilation, rather than whole-compiler verification. Its distinguishing choice is to carry refinement-derived evidence into an executable physical-register artifact and then validate that artifact independently. This makes register allocation, spill insertion, calling-convention lowering, and target-specific expansion visible to the checker instead of treating them as trusted consequences of a compiler proof.
+In compiler-assurance terms, Veritas is close to certifying and type-preserving compilation, rather than whole-compiler verification. Its distinguishing choice is to carry refinement-derived evidence into an executable physical-register artifact and validate that artifact independently. This makes register allocation, spill insertion, calling-convention lowering, and target-specific expansion visible to the checker instead of trusted consequences of a compiler proof.
 
 Figure~\ref{fig:verification-landscape} summarises the trade-off between expressiveness and automation across the systems discussed above.
 
@@ -356,7 +356,7 @@ Figure~\ref{fig:verification-landscape} summarises the trade-off between express
 
 \section{Design decisions}\label{sec:design-decisions}
 
-This section applies the preceding theory to the language and trust model. These design choices share one goal: preserve enough semantic evidence through compilation for the final low-level artifact to be checked without trusting the compiler pipeline. That evidence also supports later optimisation: exact values, bounds, and refinement constraints remain available to backend passes instead of being erased after frontend checking.
+These design choices share one goal: preserve enough semantic evidence through compilation for the final low-level artifact to be checked without trusting the compiler pipeline. The same decision turns type information into an engineering resource: exact values, bounds, and refinement constraints remain available to backend passes instead of being erased after frontend checking.
 
 % \subsection{Compiler architecture}
 %
@@ -466,13 +466,13 @@ In Veritas, the SMT solver is invoked at several points:
   \item function contract verification (where preconditions and postconditions are checked at call sites and return points respectively).
 \end{itemize}
 
-Quantified array properties fall outside the decidable quantifier-free fragment of linear integer arithmetic, so the language restricts quantifiers to bounded forms. Because the SMT solver is in the TCB, solver risk must be minimised, and using an obscure solver would weaken this argument. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers; I chose it for maturity and reliability. Z3 also natively supports the theories featured in Veritas (Section~\ref{sec:smt-based-ver}).
+Quantified array properties fall outside quantifier-free linear integer arithmetic, so the language restricts quantifiers to bounded forms. Because the SMT solver is in the TCB, solver risk must be minimised. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers; I chose it for maturity, reliability, and native support for the theories in Veritas (Section~\ref{sec:smt-based-ver}).
 
 % For quantified specifications such as $\forall i \in [0, n).\; \mathit{arr}[i] \ge 0$, the translation uses Z3's built-in quantifier support: $\forall i.\; (0 \le i \wedge i < n) \Rightarrow \mathit{arr}[i] \ge 0$, where the array is represented as a Z3 array sort. Existential quantifiers are handled dually, asserting $\exists i.\; (a \le i \wedge i < b) \wedge P$. While quantified formulae move outside the decidable fragment of LIA, Z3's E-matching and model-based quantifier instantiation heuristics handle the bounded quantifiers that arise in practice effectively.
 
 \section{Requirements analysis}\label{sec:requirements-anal}
 
-The project requirements used the MoSCoW method to make the central technical bet explicit: first establish independent checkability, then make the pipeline executable and practical, then add systems-language extensions testing whether the architecture scales beyond the core fragment.
+The project requirements used the MoSCoW method to make the technical bet explicit: first establish independent checkability, then executable practicality, then systems-language extensions testing whether the architecture scales beyond the core fragment.
 
 \begin{table}[H]
   \centering

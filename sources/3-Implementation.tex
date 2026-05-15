@@ -1,6 +1,6 @@
 \chapter{Implementation}\label{ch:impl}
 
-This chapter implements the Chapter~\ref{ch:prep} trust model as an executable compiler-verifier pipeline. It presents the source language, typed intermediate representation, DTAL target, type-preserving compiler, independent verifier, direct x86-64 encoder, compact runtime, bare-metal target, and ownership extension as one system. It concludes by tracing a binary search program through the full pipeline.
+This chapter implements the Chapter~\ref{ch:prep} trust model as an executable compiler-verifier pipeline. It presents the source language, typed intermediate representation, DTAL target, type-preserving compiler, independent verifier, direct x86-64 encoder, compact runtime, bare-metal target, and ownership extension as one system.
 
 \section{Repository overview}\label{sec:repo-overview}
 %
@@ -75,7 +75,7 @@ veritas/
 
 \section{Pipeline overview}
 
-Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, with arrows indicating transformations. Safety evidence lowers from source refinements into verifier-facing DTAL type states and constraints; after DTAL verification, final x86-64 encoding no longer needs the annotations.
+Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, with arrows indicating transformations. Safety evidence lowers from source refinements into verifier-facing DTAL type states and constraints; the final verifier consumes the physical-register form produced after backend concretisation. After physical-DTAL validation, final x86-64 encoding no longer needs the annotations.
 
 \begin{figure}[h]
   \centering
@@ -91,7 +91,7 @@ Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named repres
 
 \section{The Veritas language}\label{sec:source-language}
 
-This section presents Veritas syntax and formal typing rules. They define the source-level contract the rest of the pipeline must preserve: any program accepted by the type checker satisfies the properties encoded in its types.
+This section presents Veritas syntax and formal typing rules. They define the source-level contract the pipeline must preserve: any program accepted by the type checker satisfies the properties encoded in its types.
 
 \subsection{Syntax}
 
@@ -355,13 +355,13 @@ An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\
 
 \section{The DTAL target language}\label{sec:dtal-target-lang}
 
-Veritas targets a first-order variant of Xi and Harper's DTAL design~\cite{Xi2001DTAL}. Xi and Harper formally established DTAL soundness, proving that well-typed programs cannot violate memory safety or type-system constraints.
+Veritas targets a first-order variant of Xi and Harper's DTAL design~\cite{Xi2001DTAL}. Xi and Harper formally established DTAL soundness, proving that well-typed programs cannot violate memory safety or type-system constraints. Veritas adapts that idea to an executable compiler pipeline whose low-level artifact carries enough evidence for a standalone checker to reconstruct the relevant safety argument.
 % the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. 
-This section describes V-DTAL's concrete instruction set and typing judgements, building on DTAL's theoretical foundation.
+This section describes V-DTAL's concrete instruction set and typing judgements.
 
 \subsection{Instruction set}\label{sec:dtal-instr-set}
 
-The DTAL instruction set resembles a standard RISC assembly language but is augmented with type annotations and constraint assertions. DTAL appears in two forms in the pipeline: a virtual-register form emitted by code generation, and a physical-register form produced after register allocation. Both carry verifier-facing type information, and the final verifier checks the physical form. The core syntax is summarised in Figure~\ref{fig:dtal-syntax}.
+The DTAL instruction set resembles a standard RISC assembly language augmented with type annotations and constraint assertions. DTAL appears in two forms: a virtual-register form emitted by code generation, and a physical-register form produced after register allocation. Both carry verifier-facing type information, and the final verifier checks the physical form. The core syntax is summarised in Figure~\ref{fig:dtal-syntax}.
 
 \begin{figure}[H]
 {\small
@@ -465,7 +465,7 @@ The DTAL type system largely mirrors the source-level type system: unit, integer
 
 The main addition is \textit{existential types} for results known only symbolically at assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; \varphi(x)$, where $\varphi$ is a predicate over integer witnesses. This retains enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
 
-The DTAL constraint language preserves the source-level specification fragment: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over DTAL index expressions rather than directly as source expressions, and conversion from source expressions is partial. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
+The DTAL constraint language preserves the source-level specification fragment: comparisons, logical connectives, and bounded quantifiers. It is represented separately as a first-order language over DTAL index expressions rather than directly as source expressions, and conversion from source expressions is partial. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
 
 \subsection{DTAL typing judgements}
 
@@ -815,7 +815,7 @@ Register allocation uses standard liveness analysis followed by graph colouring.
 
 \subsection{Physical allocation}\label{sec:physalloc}
 
-The register allocator maps virtual to physical registers; the \textit{physical allocation pass} applies this mapping to produce physical-register DTAL. This is the central transformation in the default pipeline, and it is \textit{untrusted}: the DTAL verifier checks its output before code generation. I refer to this final check as \textit{physical-DTAL validation}: the safety argument is reconstructed on the post-register-allocation artifact, after backend transformations have exposed concrete registers, stack slots, calling-convention moves, and target-specific instruction expansions.
+The register allocator maps virtual to physical registers; the \textit{physical allocation pass} applies this mapping to produce physical-register DTAL. This is the central transformation in the default pipeline, and it is \textit{untrusted}: the DTAL verifier checks its output before code generation. I refer to this final check as \textit{physical-DTAL validation}: the safety argument is reconstructed on the post-register-allocation artifact, after backend transformations expose concrete registers, stack slots, calling-convention moves, and target-specific instruction expansions. This is the strongest trust claim, because the verifier checks the form immediately before byte encoding rather than an idealised compiler IR.
 
 DTAL defines 16 physical registers: \texttt{r0}--\texttt{r12} (general purpose), \texttt{sp} (stack pointer), \texttt{fp} (frame pointer), and \texttt{lr} (link register / return value). These map directly to x86-64 registers:
 
@@ -886,7 +886,7 @@ The verifier processes each function independently. For each basic block, it:
   \item At block exits (jumps, branches, returns), performs \textit{state coercion}: checking that the computed exit state is compatible with each successor's declared entry state.
 \end{enumerate}
 
-The re-derivation in step 2 is central to the untrusted-compiler model. For example, \texttt{mov rd, 5} always derives $\texttt{rd} : \mathtt{int}(5)$ from the immediate, regardless of compiler annotation. Similarly, \texttt{add rd, r1, r2} derives $\texttt{rd} : \mathtt{int}(\texttt{r1} + \texttt{r2})$ using symbolic index algebra. Compiler annotations are only cross-checks; if the re-derived type conflicts with the annotation, the verifier reports an error.
+The re-derivation in step 2 is central to the untrusted-compiler model. For example, \texttt{mov rd, 5} always derives $\texttt{rd} : \mathtt{int}(5)$ from the immediate, regardless of compiler annotation. Similarly, \texttt{add rd, r1, r2} derives $\texttt{rd} : \mathtt{int}(\texttt{r1} + \texttt{r2})$ using symbolic index algebra. Compiler annotations are only cross-checks; if the re-derived type conflicts with the annotation, the verifier reports an error. Trust attaches to the checker derivation, not compiler provenance.
 
 \subsection{State coercion at control-flow edges}
 
@@ -934,7 +934,7 @@ This enables modular verification: each function is checked in isolation via con
 
 The verifier checks emitted DTAL from scratch using its own SMT queries; no proof state passes from source checker to verifier. Translation of DTAL constraints into SMT queries follows the compiler oracle's proof-by-refutation approach (Section~\ref{sec:smt-oracle}).
 
-For performance, constraint provability uses two tiers. A fast syntactic check handles common cases (constraint already in context, simple entailment patterns) in $O(n)$ where $n$ is the context size. The SMT solver is invoked only when this is inconclusive. This matters because the verifier issues many more queries than the compiler: one per instruction rather than one per subtyping check.
+For performance, constraint provability uses two tiers. A fast syntactic check handles common cases (constraint already in context, simple entailment patterns) in $O(n)$ where $n$ is the context size. The SMT solver is invoked only when this is inconclusive. This matters because the verifier issues one query per instruction rather than one per subtyping check.
 
 % \subsection{Verification after register allocation}
 %
