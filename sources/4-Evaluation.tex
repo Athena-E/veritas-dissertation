@@ -23,16 +23,16 @@ In this chapter, I demonstrate that the project meets the proposed goals. I intr
     \hline
     \textbf{Aim} & \textbf{Qualitative analysis} & \textbf{Quantitative analysis} \\
     \hline
-    \textbf{Trust architecture:} Build a type-preserving, DTAL-based architecture in which low-level artifacts can be independently checked.
+    \textbf{Trust architecture:} Build a type-preserving, V-DTAL-based architecture in which low-level artifacts can be independently checked.
                  &
     \evidenceitems{
-      \item Expressivity of the DTAL design for the intended trust architecture (Section~\ref{sec:dtal-eval})
+      \item Expressivity of the V-DTAL design for the intended trust architecture (Section~\ref{sec:dtal-eval})
       \item TCB size analysis (Section~\ref{sec:tcb-eval})
     }
                  &
     \evidenceitems{
-      \item Functional correctness of the verifier: verification of compiler output DTAL; rejection of tampered DTAL (Section~\ref{sec:verifier-correctness})
-      % \item Physical-DTAL verification of compiler output; DTAL tampering corpus; verifier rejection tests (Section~\ref{sec:verifier-correctness})
+      \item Functional correctness of the verifier: verification of compiler output V-DTAL; rejection of tampered V-DTAL (Section~\ref{sec:verifier-correctness})
+      % \item Physical V-DTAL verification of compiler output; V-DTAL tampering corpus; verifier rejection tests (Section~\ref{sec:verifier-correctness})
     }                                                                             \\
     \noalign{\vskip 0.3em}
     \hline
@@ -80,9 +80,9 @@ The chapter then presents the qualitative analysis (Section~\ref{sec:qualitative
 %   \item Is the design and implementation of DTAL a useful realisation of the intended trust architecture? % Trust architecture
 %   \item Are the source language and compiler implementations viable for a systems-language toolchain? % Practicality/Expressivity
 %   \item Is the source language expressive enough for the targeted verification tasks? % Expressivity
-%   \item Is the additional cost imposed by independent DTAL-level verification practical enough to keep the toolchain usable? % Practicality
+%   \item Is the additional cost imposed by independent V-DTAL-level verification practical enough to keep the toolchain usable? % Practicality
 %   \item How confident can one be about the correctness of the verifier? % Trust architecture
-%   \item What reduction in the TCB does Veritas achieve, and is that reduction substantial enough to justify the DTAL-based trust architecture? % Trust architecture
+%   \item What reduction in the TCB does Veritas achieve, and is that reduction substantial enough to justify the V-DTAL-based trust architecture? % Trust architecture
 % \end{itemize}
 
 \section{Methodology and Experimental artifacts}\label{sec:eval-method}
@@ -106,8 +106,8 @@ I wrote a suite of 35 intentionally invalid Veritas programs. It is used to eval
 The \texttt{comparison\_suite} contains six normalised verification tasks implemented in Veritas, Dafny, Liquid Haskell, and Verus: safe division, bounded array access with an offset, array initialisation with a loop invariant, binary search, sorted-head extraction, and overflow-safe midpoint arithmetic. The suite is normalised by verified property.
 % rather than by identical data representation, since each language expresses arrays and specifications differently.
 
-\paragraph{DTAL tampering corpus.}
-The DTAL tampering corpus starts from valid compiled DTAL, applies small syntax-preserving mutations, and checks that standalone DTAL verification rejects the result. It is used to test the untrusted-compiler trust boundary, with mutations covering structural mismatches, strengthened preconditions, contradictory assertions, bounds failures, arithmetic overflow, ownership violations, mutable aliasing, and entry-state mismatches. % TODO: put list in appendix
+\paragraph{V-DTAL tampering corpus.}
+The V-DTAL tampering corpus starts from valid compiled V-DTAL, applies small syntax-preserving mutations, and checks that standalone V-DTAL verification rejects the result. It is used to test the untrusted-compiler trust boundary, with mutations covering structural mismatches, strengthened preconditions, contradictory assertions, bounds failures, arithmetic overflow, ownership violations, mutable aliasing, and entry-state mismatches. % TODO: put list in appendix
 
 \subsection{Measurement methodology}
 
@@ -115,17 +115,17 @@ All dissertation-facing quantitative results are derived from fixed suite manife
 
 % \subsection{Robustness corpus}
 %
-% The fixed-seed robustness corpus contains generated valid and invalid programs in a small source-language fragment. It is used as engineering robustness evidence, checking deterministic compilation, deterministic failures, crash resistance, and successful DTAL verification for generated valid programs. It is not used as a performance benchmark.
+% The fixed-seed robustness corpus contains generated valid and invalid programs in a small source-language fragment. It is used as engineering robustness evidence, checking deterministic compilation, deterministic failures, crash resistance, and successful V-DTAL verification for generated valid programs. It is not used as a performance benchmark.
 
 \section{Qualitative analysis}\label{sec:qualitative-analysis}
 
-\subsection{DTAL design and implementation}\label{sec:dtal-eval}
+\subsection{V-DTAL design and implementation}\label{sec:dtal-eval}
 
-% In the Veritas architecture, DTAL must be expressive enough to carry the facts needed for independent low-level checking. The evaluation therefore considers whether the implemented DTAL supports the intended trust architecture, rather than whether it is a complete reimplementation of Xi and Harper's formal system.
+% In the Veritas architecture, DTAL must be expressive enough to carry the facts needed for independent low-level checking. The evaluation therefore considers whether the implemented V-DTAL supports the intended trust architecture, rather than whether it is a complete reimplementation of Xi and Harper's formal system.
 
-\subsubsection{Core DTAL features for low-level verification}
+\subsubsection{Core V-DTAL features for low-level verification}
 
-For Veritas to support the intended trust architecture, its DTAL must be expressive enough to carry the facts needed by the standalone verifier. Instead, the question is whether the implemented DTAL enables verification of the project's scoped safety policy at the low level via the chosen mechanisms:
+For Veritas to support the intended trust architecture, V-DTAL must be expressive enough to carry the facts needed by the standalone verifier. Instead, the question is whether the implemented V-DTAL enables verification of the project's scoped safety policy at the low level via the chosen mechanisms:
 \begin{itemize}
   \item \textbf{Dependent block or label state} support control-flow safety by ensuring that jumps and joins are only valid when the incoming machine state matches the target's expected typing context.
   \item \textbf{Singleton integer typing} supports arithmetic and indexing safety, since later instructions can rely on those symbolic facts when proving side conditions.
@@ -134,7 +134,7 @@ For Veritas to support the intended trust architecture, its DTAL must be express
   \item \textbf{Proof-relevant typed memory access} supports static memory-safety guarantees such as array-bound-check elimination.
 \end{itemize}
 
-This feature set is deliberately narrower than Xi and Harper's full DTAL. Veritas focuses on the low-level facts needed for fixed-size arrays, arithmetic side conditions, contracts, and borrow-aware compilation. The narrower design sacrifices some theoretical generality in exchange for automation and a logical fragment that fits SMT-backed checking.
+This feature set is deliberately narrower than full DTAL. Veritas focuses on the low-level facts needed for fixed-size arrays, arithmetic side conditions, contracts, and borrow-aware compilation. The narrower design sacrifices some theoretical generality in exchange for automation and a logical fragment that fits SMT-backed checking.
 
 The important continuity with Xi and Harper's design is the independent low-level verification model. The Veritas version of the copy-loop style example from Section~\ref{sec:dtal-background} uses different syntax, but still records block assumptions, symbolic arithmetic, and a typed memory access in the low-level artifact itself:
 
@@ -148,20 +148,20 @@ load v10, [v1 + v9]    : int(7)
 \end{verbatim}
 \end{quote}
 
-The verifier can therefore justify the array access from the DTAL type and constraint context rather than relying on a dynamic bounds check or on the compiler's internal reasoning.
+The verifier can therefore justify the array access from the V-DTAL type and constraint context rather than relying on a dynamic bounds check or on the compiler's internal reasoning.
 
 \subsubsection{Extensions and deviations}
 
-Veritas also extends DTAL in directions not targeted by Xi and Harper. First, source-level obligations survive lowering as explicit low-level refinements:
+V-DTAL also extends DTAL in directions not targeted by Xi and Harper. First, source-level obligations survive lowering as explicit low-level refinements:
 \begin{quote}
   \begin{verbatim}
 div v2, v0, v1    : {_synth_0: int | _synth_0 == (a / b) }
 load v10, [v1 + v9]    : int(7)
 \end{verbatim}
 \end{quote}
-These obligations are re-checked by the verifier against the emitted low-level code. Re-checking the obligations provides broader source-to-low-level continuity for the fragment Veritas supports, including bounds facts, contract-style obligations, and borrow-related safety constraints. Carrying more annotations gives an untrusted compiler more ways to emit inconsistent DTAL, but the main consequence is false rejection rather than false acceptance.
+These obligations are re-checked by the verifier against the emitted low-level code. Re-checking the obligations provides broader source-to-low-level continuity for the fragment Veritas supports, including bounds facts, contract-style obligations, and borrow-related safety constraints. Carrying more annotations gives an untrusted compiler more ways to emit inconsistent V-DTAL, but the main consequence is false rejection rather than false acceptance.
 
-Second, Veritas adds explicit ownership and borrow-aware operations. These operations push alias-control properties below the frontend, so that creation, use, and termination of borrows are represented and re-checked in DTAL:
+Second, Veritas adds explicit ownership and borrow-aware operations. These operations push alias-control properties below the frontend, so that creation, use, and termination of borrows are represented and re-checked in V-DTAL:
 
 \begin{quote}
   \begin{verbatim}
@@ -173,7 +173,7 @@ borrow_end v3          : &[int(7); 1]
 
 Here, \texttt{alias\_borrow} creates the shared borrowed view \texttt{v3}, the \texttt{load} uses that view, and \texttt{borrow\_end} terminates it. The verifier checks that the access occurs through a live borrow and that the borrow is ended consistently with the source-language ownership discipline.
 
-Finally, Veritas introduces a physical DTAL stage after register allocation. Physical DTAL exposes scratch-register use, stack spills, prologues and epilogues, calling-convention details, and instruction expansions such as machine-level division. These details are represented explicitly rather than hidden behind an idealised virtual assembly model. Physical DTAL is less elegant than the idealised presentation, but it moves more backend work outside the trusted path.
+Finally, Veritas introduces a physical V-DTAL stage after register allocation. Physical V-DTAL exposes scratch-register use, stack spills, prologues and epilogues, calling-convention details, and instruction expansions such as machine-level division. These details are represented explicitly rather than hidden behind an idealised virtual assembly model. Physical V-DTAL is less elegant than the idealised presentation, but it moves more backend work outside the trusted path.
 
 \subsection{Veritas as a systems-language toolchain}\label{sec:veritas-sys-eval}
 
@@ -342,7 +342,7 @@ Table~\ref{tab:polybench-binary-size-summary} shows that PolyBench kernels still
 
 \subsubsection{Veritas verification cost breakdown}
 
-On the feature-suite, mean source-to-DTAL compilation time is 27.110\,ms and mean explicit DTAL verification time is 9.116\,ms. The worst case for both is \texttt{binary\_search}, at 163.817\,ms and 55.209\,ms respectively. The extra low-level checking stage is measurable, but it does not dominate the pipeline uniformly. A subset of the feature-suite chosen to stress the verifier gives a focused view of obligation-heavy programs.
+On the feature-suite, mean source-to-V-DTAL compilation time is 27.110\,ms and mean explicit V-DTAL verification time is 9.116\,ms. The worst case for both is \texttt{binary\_search}, at 163.817\,ms and 55.209\,ms respectively. The extra low-level checking stage is measurable, but it does not dominate the pipeline uniformly. A subset of the feature-suite chosen to stress the verifier gives a focused view of obligation-heavy programs.
 
 \begin{table}[h]
   \centering
@@ -359,7 +359,7 @@ On the feature-suite, mean source-to-DTAL compilation time is 27.110\,ms and mea
     \texttt{sortedness}           & 0.0404                    & 0.0523                        & 1.293x                  \\
     \hline
   \end{tabular}
-  \caption{End-to-end wall-clock overhead of explicit DTAL verification on a subset of the feature-suite.}
+  \caption{End-to-end wall-clock overhead of explicit V-DTAL verification on a subset of the feature-suite.}
   \label{tab:verification-stress-overheads}
 \end{table}
 
@@ -368,7 +368,7 @@ Table~\ref{tab:verification-stress-overheads} shows that the cost of the indepen
 \subsubsection{Cross-system verification-cost comparison}
 
 Figure~\ref{fig:comparison-suite-wallclock} reports wall-clock verification-command latency on the six-task normalised comparison suite.
-The comparison assesses whether Veritas has plausible verification latency on a focused suite chosen around the properties central to this dissertation. The wall-clock gap is largely explained by what each command invokes. Veritas is a compact release binary checking a narrow first-order fragment and, in the compile-plus-verify mode, running its standalone physical-DTAL verifier. Dafny, Liquid Haskell, and Verus invoke larger verification toolchains, including richer frontends, module and library infrastructure, verification-condition generation, and solver orchestration. For these focused tasks, this fixed command and toolchain overhead is a substantial part of the measured time. The important methodological distinction is that Veritas reports both frontend-only and compile-plus-DTAL-verification costs for its scoped prototype, whereas the other systems primarily report source-level verification-command cost for mature, more general tools.
+The comparison assesses whether Veritas has plausible verification latency on a focused suite chosen around the properties central to this dissertation. The wall-clock gap is largely explained by what each command invokes. Veritas is a compact release binary checking a narrow first-order fragment and, in the compile-plus-verify mode, running its standalone physical V-DTAL verifier. Dafny, Liquid Haskell, and Verus invoke larger verification toolchains, including richer frontends, module and library infrastructure, verification-condition generation, and solver orchestration. For these focused tasks, this fixed command and toolchain overhead is a substantial part of the measured time. The important methodological distinction is that Veritas reports both frontend-only and compile-plus-V-DTAL-verification costs for its scoped prototype, whereas the other systems primarily report source-level verification-command cost for mature, more general tools.
 
 \begin{figure}[h]
   \centering
@@ -394,7 +394,7 @@ Figure~\ref{fig:cross-system-annotation-burden} shows that Veritas is competitiv
 
 % This section evaluates the verifier itself as an independent checking mechanism. The claim is practical reliability, not a formal proof of verifier correctness.
 
-The frontend compiler and the independent physical-DTAL verifier agree on acceptance for all feature-suite programs. The negative suite provides complementary source-level rejection evidence: all invalid programs are rejected. All low-level programs from the DTAL tampering corpus are rejected. A separate semantic-corruption test changes verifier-compatible values while preserving the checked safety policy; the verifier accepts the changed program, as expected, demonstrating that DTAL verification is not a full semantic-equivalence check.
+The frontend compiler and the independent physical V-DTAL verifier agree on acceptance for all feature-suite programs. The negative suite provides complementary source-level rejection evidence: all invalid programs are rejected. All low-level programs from the V-DTAL tampering corpus are rejected. A separate semantic-corruption test changes verifier-compatible values while preserving the checked safety policy; the verifier accepts the changed program, as expected, demonstrating that V-DTAL verification is not a full semantic-equivalence check.
 % TODO: move to methodology: Appendix~\ref{app:evaluation-supplementary}, Table~\ref{tab:dtal-tampering-corpus} lists the complete corpus, including the mutation and expected rejection class for each case.
 
 \subsection{Trust architecture and TCB}\label{sec:tcb-eval}
@@ -408,7 +408,7 @@ Table~\ref{tab:tcb-summary} separates the measured verifier-side Rust core from 
     \hline
     \textbf{Trusted component} & \textbf{Form}         & \textbf{Size}             & \textbf{Linux} & \textbf{Bare metal} \\
     \hline
-    DTAL verifier core         & Rust LOC              & 7817 / 42996 (18.2\%)     & \checkmark     & \checkmark          \\
+    V-DTAL verifier core       & Rust LOC              & 7817 / 42996 (18.2\%)     & \checkmark     & \checkmark          \\
     Direct encoder             & Rust LOC              & \~386                     & \checkmark     & \checkmark          \\
     x86 instruction encoder    & Rust LOC              & \~1660                    & \checkmark     & \checkmark          \\
     Z3 solver                  & external tool         & large external dependency & \checkmark     & \checkmark          \\
@@ -428,11 +428,11 @@ The verifier-side Rust core is 18.2\% of the counted Rust implementation. The fi
 
 \section{Summary against project aims}\label{sec:summary-eval}
 
-% The evaluation supports the three aims set out for Veritas: a DTAL-based trust architecture, a verification-oriented source language with useful expressivity, and a practical enough systems-language toolchain for the supported fragment. 
+% The evaluation supports the three aims set out for Veritas: a V-DTAL-based trust architecture, a verification-oriented source language with useful expressivity, and a practical enough systems-language toolchain for the supported fragment. 
 Overall, the chapter shows that Veritas satisfies the dissertation aims as a scoped verified systems-language: the architecture works, the source language is expressive enough for the intended verification tasks, and the implementation is practical enough to evaluate on real compiled programs. The claims remain deliberately bounded: cross-system comparisons are informative but not perfectly like-for-like, the verifier evidence is empirical rather than a formal soundness proof.
 The strongest result is architectural: safety-relevant information survives lowering into an independently checkable artifact, and the empirical evidence shows that the artifact can reject both source-level mistakes and representative backend corruptions. The TCB analysis reinforces the same point by showing that most compiler infrastructure is outside the trusted path for the checked safety policy.
 
-% The expressivity results are deliberately scoped. Veritas does not match mature verification ecosystems on heap-shaped data, recursive proofs, concurrency, or protocol-heavy reasoning, but it does cover the contract, array, arithmetic, invariant, quantified, sortedness, and borrowing properties needed to exercise the trust architecture. That coverage is enough to demonstrate the central source-to-DTAL evidence-carrying design without overstating the language as a general-purpose verifier.
+% The expressivity results are deliberately scoped. Veritas does not match mature verification ecosystems on heap-shaped data, recursive proofs, concurrency, or protocol-heavy reasoning, but it does cover the contract, array, arithmetic, invariant, quantified, sortedness, and borrowing properties needed to exercise the trust architecture. That coverage is enough to demonstrate the central source-to-V-DTAL evidence-carrying design without overstating the language as a general-purpose verifier.
 %
 % The practicality results are positive but qualified in the same way. Veritas produces executable native artifacts and runs non-trivial external kernels, but the evidence is strongest for fixed-size arrays, structured loops, local mutation, contracts, invariants, and borrow-oriented examples. The feature-suite is curated rather than exhaustive, the PolyBench results demonstrate behaviour on structured numeric kernels rather than arbitrary systems programs, and the tampering corpus covers representative backend corruptions rather than all possible miscompilations.
 %
@@ -465,7 +465,7 @@ The strongest result is architectural: safety-relevant information survives lowe
 % excluded by the suite policy should be interpreted as out of scope for the
 % current fragment, not silently reclassified as failures.
 %
-% The DTAL tampering and robustness tracks are also intentionally bounded. The
+% The V-DTAL tampering and robustness tracks are also intentionally bounded. The
 % tampering corpus covers representative low-level safety-critical mutations, not
 % all semantic miscompilations. The fixed-seed robustness corpus covers a small
 % generated fragment, not arbitrary valid or malformed Veritas and DTAL
@@ -494,7 +494,7 @@ The strongest result is architectural: safety-relevant information survives lowe
 %
 % Finally, even a completed wall-clock comparison would need careful
 % interpretation. Veritas incurs both source-level checking cost and optional
-% independent DTAL-level checking cost, whereas the other systems mainly incur
+% independent V-DTAL-level checking cost, whereas the other systems mainly incur
 % source-level verification cost. A direct timing comparison without that
 % distinction would be methodologically misleading.
 %

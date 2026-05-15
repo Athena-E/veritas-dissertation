@@ -14,7 +14,7 @@ In his 1977 paper, Leslie Lamport defined \emph{safety} as a property ensuring t
 % TODO: improvement on C/C++
 One approach, exemplified by Rust, is to enforce \emph{source-level safety properties} using mechanisms such as the borrow checker. This offers an attractive combination of performance and safety, but we trust a large and evolving compiler to preserve frontend guarantees throughout compilation. If a compiler bug miscompiles a safe source program, the resulting executable may no longer preserve source-level guarantees.
 
-A second approach is \emph{verified compilers}: compilers whose correctness are proved using formal methods. CompCert \cite{compcert}, a compiler written in Rocq for a subset of C \cite{RocqRefman}, provides guarantees of \emph{semantic preservation} and reduces the \emph{Trusted Computing Base} (TCB) from the entire compiler to Rocq's relatively smaller kernel. However, since CompCert compiles C, it is still the programmer's responsibility to uphold memory safety.
+A second approach is \emph{verified compilers}: compilers whose correctness is proved using formal methods. CompCert \cite{compcert}, a compiler written in Rocq for a subset of C \cite{RocqRefman}, provides guarantees of \emph{semantic preservation} and reduces the \emph{Trusted Computing Base} (TCB) from the entire compiler to Rocq's relatively smaller kernel. However, since CompCert compiles C, memory safety remains the programmer's responsibility.
 
 \subsection{Moving the trust boundary: Proof-Carrying Code}
 
@@ -24,16 +24,15 @@ One might suggest combining the previous two methods: a verified compiler for a 
 
 \subsection{A practical middle-ground: Veritas}\label{sec:intro-veritas}
 
-The gap addressed by this dissertation is the lack of a executable systems-language toolchain that combines source-level refinement checking with independently checkable low-level output without requiring a fully verified compiler.
+The gap addressed by this dissertation is the lack of a executable systems-language toolchain that combines source-level refinement checking with independently checkable low-level output without requiring a fully verified compiler. Figure~\ref{fig:safety-sem-taxonomy} illustrates the motivating gap.
 
-This dissertation presents \textbf{Veritas}, a toolchain that applies the ideas behind PCC to compile source programs for a systems language to a version of Dependently Typed Assembly Language (DTAL) \cite{Xi2001DTAL}.
+This dissertation presents \textbf{Veritas}, a toolchain that applies the ideas behind PCC to compile source programs for a systems language to V-DTAL, a Veritas-specific version of Dependently Typed Assembly Language (DTAL) \cite{Xi2001DTAL}.
 In the supported fragment, Veritas checks: fixed-size array bounds, function preconditions and postconditions, block-entry type-state compatibility, selected arithmetic side conditions, and ownership/borrow-state consistency.
 % Claims that are \emph{out-of-scope} are: full source-to-target semantic preservation, full memory safety for arbitrary heap and pointer behaviour, correctness of Z3, correctness of the final encoder/runtime, or full Rust-like borrow checking.
 Unless explicitly qualified otherwise, subsequent claims about independent verification, low-level safety, verifier acceptance, and the compiler being untrusted are claims about these safety properties.
 The central claim is that the compiler emits low-level output carrying enough type and constraint information for a small, trusted, independent verifier to check a low-level safety policy before execution, all without having to formally prove the compiler's correctness.
 
 % The trust argument that motivates this project suggests two axes for comparing toolchains. Figure~\ref{fig:safety-sem-taxonomy} separates two guarantees made at the \emph{executable level}: semantic preservation and executable-level memory safety.
-Figure~\ref{fig:safety-sem-taxonomy} exemplifies the gap that motivated this project.
 
 \begin{figure}[H]
   \centering
@@ -45,7 +44,7 @@ Figure~\ref{fig:safety-sem-taxonomy} exemplifies the gap that motivated this pro
 
       % 2x2 Grid Nodes
       \node[box] (c1r1) {C / C++ \\ Standard Rust};
-      \node[box, right=0cm of c1r1] (c2r1) {Veritas \\ (PCC / DTAL)};
+      \node[box, right=0cm of c1r1] (c2r1) {Veritas \\ (PCC / V-DTAL)};
       \node[box, below=0cm of c1r1] (c1r2) {CompCert};
       % Use footnotemark here instead of footnote
       \node[box, right=0cm of c1r2] (c2r2) {RustCompCert\footnotemark};

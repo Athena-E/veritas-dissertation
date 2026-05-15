@@ -1,6 +1,6 @@
 \chapter{Implementation}\label{ch:impl}
 
-This chapter describes the implementation that turns the trust model from Chapter~\ref{ch:prep} into an executable compiler-verifier pipeline. It presents the source language, typed intermediate representation, DTAL target, type-preserving compiler, independent verifier, direct x86-64 encoder, plus extensions such as a compact runtime, bare-metal target, and ownership/borrowing model as one integrated system.
+This chapter describes the implementation that turns the trust model from Chapter~\ref{ch:prep} into an executable compiler-verifier pipeline. It presents the source language, typed intermediate representation, V-DTAL target, type-preserving compiler, independent verifier, direct x86-64 encoder, plus extensions such as a compact runtime, bare-metal target, and ownership/borrowing model as one integrated system.
 
 \section{Repository overview}\label{sec:repo-overview}
 %
@@ -18,18 +18,18 @@ veritas/
 |   |-- middle/
 |   |   |-- tir/                  # Typed SSA intermediate representation
 |   |   `-- lower/                # TAST-to-TIR lowering
-|   |-- dtal/                     # DTAL syntax, constraints, and parser
+|   |-- dtal/                     # V-DTAL syntax, constraints, and parser
 |   |-- backend/
-|   |   |-- codegen/              # TIR-to-DTAL code generation
-|   |   |-- optimise/             # Typed DTAL optimisations
+|   |   |-- codegen/              # TIR-to-V-DTAL code generation
+|   |   |-- optimise/             # Typed V-DTAL optimisations
 |   |   |-- regalloc/             # Liveness analysis and allocation
 |   |   |-- physalloc/            # Physical allocation and spill insertion
-|   |   |-- emit/                 # DTAL text emission
+|   |   |-- emit/                 # V-DTAL text emission
 |   |   |-- x86_64/               # Target instruction forms and byte encoder
-|   |   |-- direct_encode.rs      # Physical-DTAL to x86-64 encoding
+|   |   |-- direct_encode.rs      # Physical V-DTAL to x86-64 encoding
 |   |   |-- elf/                  # ELF generation and bare-metal output
 |   |   `-- runtime.rs            # Hand-written runtime intrinsics
-|   |-- verifier/                 # Independent DTAL verifier
+|   |-- verifier/                 # Independent V-DTAL verifier
 |   |-- pipeline.rs               # Pipeline orchestration
 |   `-- main.rs                   # Command-line interface
 |-- eval/                         # Benchmarks, suites, and plotting scripts
@@ -77,13 +77,13 @@ veritas/
 
 \section{Pipeline overview}
 
-Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, and arrows indicate the transformations between them. Checked type annotations are preserved through from source refinements to DTAL, and are no longer needed after DTAL verification and final encoding to x86-64.
+Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, and arrows indicate the transformations between them. Checked type annotations are preserved through from source refinements to V-DTAL, and are no longer needed after V-DTAL verification and final encoding to x86-64.
 
 \begin{figure}[h]
   \centering
   \begin{tcolorbox}[colback=white, colframe=black, width=\textwidth, boxrule=0.5pt]
     \begin{center}
-      \texttt{Source} $\xrightarrow{\text{lex}}$ \texttt{Tokens} $\xrightarrow{\text{parse}}$ \texttt{AST} $\xrightarrow{\text{typecheck}}$ \texttt{\textcolor{blue}{TAST}} $\xrightarrow{\text{lower}}$ \texttt{\textcolor{blue}{TIR}} $\xrightarrow{\text{codegen}}$ \texttt{\textcolor{blue}{DTAL}} $\xrightarrow{\text{optimise}}$ \texttt{\textcolor{blue}{DTAL}} $\xrightarrow{\text{regalloc}}$ \texttt{\textcolor{blue}{DTAL}} $\xrightarrow{\text{encode}}$ \texttt{x86-64} $\xrightarrow{\text{encode}}$ \texttt{ELF}
+      \texttt{Source} $\xrightarrow{\text{lex}}$ \texttt{Tokens} $\xrightarrow{\text{parse}}$ \texttt{AST} $\xrightarrow{\text{typecheck}}$ \texttt{\textcolor{blue}{TAST}} $\xrightarrow{\text{lower}}$ \texttt{\textcolor{blue}{TIR}} $\xrightarrow{\text{codegen}}$ \texttt{\textcolor{blue}{V-DTAL}} $\xrightarrow{\text{optimise}}$ \texttt{\textcolor{blue}{V-DTAL}} $\xrightarrow{\text{regalloc}}$ \texttt{\textcolor{blue}{V-DTAL}} $\xrightarrow{\text{encode}}$ \texttt{x86-64} $\xrightarrow{\text{encode}}$ \texttt{ELF}
     \end{center}
   \end{tcolorbox}
   \caption{The Veritas compilation pipeline. Representations carrying checked type annotations are in blue.}
@@ -355,15 +355,15 @@ The constraint language supports bounded quantifiers and implication to express 
 
 An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\!\textsf{int} \mid v \ge 0\}; N]$ automatically satisfies the quantified constraint $\forall i \in [0, N).\; \mathit{arr}[i] \ge 0$. This is achieved by extracting a quantified proposition from the array's element type and adding it to the context when the array is in scope.
 
-\section{The DTAL target language}\label{sec:dtal-target-lang}
+\section{The V-DTAL target language}\label{sec:dtal-target-lang}
 
-Veritas targets a first-order variant of Xi and Harper's DTAL design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system.
-% the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. 
+In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system.
+% the compiler emV-DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. 
 This section describes the concrete instruction set and typing judgements of V-DTAL, which builds on the theoretical foundation of DTAL.
 
 \subsection{Instruction set}\label{sec:dtal-instr-set}
 
-The DTAL instruction set resembles a standard RISC assembly language but is augmented with type annotations and constraint assertions. DTAL appears in two forms in the pipeline: a virtual-register form emitted by code generation, and a physical-register form produced after register allocation. Both carry verifier-facing type information, and the final verifier checks the physical form. The core syntax is summarised in Figure~\ref{fig:dtal-syntax}.
+The V-DTAL instruction set resembles a standard RISC assembly language but is augmented with type annotations and constraint assertions. V-DTAL appears in two forms in the pipeline: a virtual-register form emitted by code generation, and a physical-register form produced after register allocation. Both carry verifier-facing type information, and the final verifier checks the physical form. The core syntax is summarised in Figure~\ref{fig:dtal-syntax}.
 
 \begin{figure}[H]
 {\small
@@ -420,13 +420,13 @@ The DTAL instruction set resembles a standard RISC assembly language but is augm
 \label{fig:dtal-syntax}
 \end{figure}
 
-\noindent The annotation instructions are the distinguishing feature of DTAL. Destination-producing instructions carry type annotations where needed, and \texttt{type} and \texttt{assert} annotations embed additional verification evidence directly into the instruction stream. These annotations record facts such as bounds proofs and loop invariants.
+\noindent The annotation instructions are the distinguishing feature of V-DTAL. Destination-producing instructions carry type annotations where needed, and \texttt{type} and \texttt{assert} annotations embed additional verification evidence directly into the instruction stream. These annotations record facts such as bounds proofs and loop invariants.
 
 % After register allocation, additional physical instructions are emitted (\texttt{prologue}, \texttt{epilogue}, spill loads/stores, \texttt{cqo}/\texttt{idiv} for division) which are verified but not relevant to the formal typing rules. Crucially, the independent verifier operates on this post-regalloc \textit{physical} DTAL rather than the virtual-register SSA form, meaning it also validates the correctness of register allocation and spilling. This strengthens the safety guarantee: the register allocator, like the rest of the compiler, is untrusted.
 
-\subsection{DTAL directives}
+\subsection{V-DTAL directives}
 
-In addition to executable instructions, the textual DTAL format contains directives that describe function metadata, block entry states, and verifier annotations. Figure~\ref{fig:dtal-directives} shows where these directives appear in a typical DTAL function.
+In addition to executable instructions, the textual V-DTAL format contains directives that describe function metadata, block entry states, and verifier annotations. Figure~\ref{fig:dtal-directives} shows where these directives appear in a typical V-DTAL function.
 
 \begin{figure}[H]
 \centering
@@ -455,23 +455,23 @@ f:
     .entry {r0: int, r1: [int; 10]}
     ret
 \end{verbatim}
-\caption{DTAL directives describe function signatures, block entry states, and verifier constraints; ordinary instructions perform computation.}
+\caption{V-DTAL directives describe function signatures, block entry states, and verifier constraints; ordinary instructions perform computation.}
 \label{fig:dtal-directives}
 \end{figure}
 
 Function-level directives define the verifier-facing signature and contract. Block-level directives declare the type state that must hold when control enters a block, and edge checking proves that predecessor states imply these entry states. Constraint directives split into assumptions, which form part of the declared block state, and assertions, which are checked at their program point before being added to the context. Physical directives such as \texttt{.prologue} and \texttt{.epilogue} appear only after register allocation.
 
-\subsection{DTAL type system}
+\subsection{V-DTAL type system}
 
-The DTAL type system largely mirrors the source-level type system: it retains unit, integer and boolean base types, machine-integer types, singleton integers $\textsf{int}(N)$, refinement types, arrays, and master types. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, DTAL index expressions may mention constants, register names, arithmetic, and $\textsf{select}(\mathit{arr}, i)$ for array element access (of an array $\mathit{arr}$ atindex $i$).
+The V-DTAL type system largely mirrors the source-level type system: it retains unit, integer and boolean base types, machine-integer types, singleton integers $\textsf{int}(N)$, refinement types, arrays, and master types. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, V-DTAL index expressions may mention constants, register names, arithmetic, and $\textsf{select}(\mathit{arr}, i)$ for array element access (of an array $\mathit{arr}$ atindex $i$).
 
 The most important addition is the use of \textit{existential types} to represent results that are known only symbolically at the assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; \varphi(x)$, where $\varphi$ is a predicate over integer witnesses. This allows the verifier to retain enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
 
-The DTAL constraint language preserves the same core logical fragment used in source-level specifications: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over DTAL index expressions rather than directly as source expressions, and conversion from source expressions to this constraint language is partial. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
+The V-DTAL constraint language preserves the same core logical fragment used in source-level specifications: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over V-DTAL index expressions rather than directly as source expressions, and conversion from source expressions to this constraint language is partial. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
 
-\subsection{DTAL typing judgements}
+\subsection{V-DTAL typing judgements}
 
-DTAL type checking operates over a \textit{type state}. The rules below show the core part of this state as $(\Phi, \Gamma)$, where $\Gamma$ maps registers to their current types and $\Phi$ is a set of constraints known to hold at a given program point. The implementation also records auxiliary verifier state such as the comparison/flag state $\mathcal{F}$, the typed stack, array versions, spill slots, and proven assertions. The core judgement for instruction typing is $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, meaning that executing $\textsf{instr}$ under constraints $\Phi$ and register state $\Gamma$ produces a new register state $\Gamma'$. Rules that read or update machine-flag state use $\Phi; \Gamma; \mathcal{F} \vdash \textsf{instr} \Rightarrow \Gamma'; \mathcal{F}'$.
+V-DTAL type checking operates over a \textit{type state}. The rules below show the core part of this state as $(\Phi, \Gamma)$, where $\Gamma$ maps registers to their current types and $\Phi$ is a set of constraints known to hold at a given program point. The implementation also records auxiliary verifier state such as the comparison/flag state $\mathcal{F}$, the typed stack, array versions, spill slots, and proven assertions. The core judgement for instruction typing is $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, meaning that executing $\textsf{instr}$ under constraints $\Phi$ and register state $\Gamma$ produces a new register state $\Gamma'$. Rules that read or update machine-flag state use $\Phi; \Gamma; \mathcal{F} \vdash \textsf{instr} \Rightarrow \Gamma'; \mathcal{F}'$.
 
 \paragraph{Move Immediate}
 Loading a constant into a register assigns it a singleton type:
@@ -504,7 +504,7 @@ $$
 % TODO: select not defined
 
 \paragraph{Conditional Branching}
-A comparison instruction updates the verifier's comparison state. We write $\mathcal{F}(\textsf{last})$ for the live pair of symbolic operands recorded by the most recent comparison instruction; this field is undefined after any instruction that clobbers machine flags. The auxiliary function $\textsf{idx}(\tau)$ extracts the index expression associated with an integer-like DTAL type, such as a singleton, refined, or existential integer type:
+A comparison instruction updates the verifier's comparison state. We write $\mathcal{F}(\textsf{last})$ for the live pair of symbolic operands recorded by the most recent comparison instruction; this field is undefined after any instruction that clobbers machine flags. The auxiliary function $\textsf{idx}(\tau)$ extracts the index expression associated with an integer-like V-DTAL type, such as a singleton, refined, or existential integer type:
 $$
 \frac{
   \Gamma(r_1) = \tau_1 \quad \Gamma(r_2) = \tau_2 \quad e_1=\textsf{idx}(\tau_1) \quad e_2=\textsf{idx}(\tau_2)
@@ -542,7 +542,7 @@ $$
 
 \noindent Each outgoing state is then coerced to the successor block's declared entry state. This is used to verify bounds checks: a comparison followed by a branch-if-greater-or-equal exits the loop, and the fall-through path continues with the assumption that the index is within bounds. Instructions that clobber machine flags invalidate $\mathcal{F}(\textsf{last})$, so a branch or \texttt{setcc} can only consume a live comparison.
 
-These rules are representative; the verifier handles all instruction variants listed in Section~\ref{sec:dtal-instr-set}. The complete set of DTAL typing rules is given in Appendix~\ref{app:dtal-rules}.
+These rules are representative; the verifier handles all instruction variants listed in Section~\ref{sec:dtal-instr-set}. The complete set of V-DTAL typing rules is given in Appendix~\ref{app:dtal-rules}.
 
 \section{Frontend}\label{sec:frontend}
 
@@ -626,7 +626,7 @@ A key extension beyond standard SSA is \textit{existential constraints on phi no
 
 \subsubsection{Representative instruction forms}
 
-TIR is designed to sit close to both the typed source language and the DTAL backend. The core forms relevant to the compilation pipeline are summarised in Figure~\ref{fig:tir-syntax}.
+TIR is designed to sit close to both the typed source language and the V-DTAL backend. The core forms relevant to the compilation pipeline are summarised in Figure~\ref{fig:tir-syntax}.
 
 In concrete terms, a TIR function stores its parameters, pre/postconditions, and a map of basic blocks. Each block contains entry phi nodes, ordinary instructions, a terminator, and an entry register state. This makes the representation explicit enough for code generation to be largely structural while still retaining the source-level type information needed for later verification.
 
@@ -762,21 +762,21 @@ Source-level constraints are rewritten from source variables to virtual register
   \label{fig:tast-to-tir-snippets}
 \end{figure}
 
-Joins also preserve refinement information. Phi nodes for loop-carried or branch-merged values may carry existential constraints, for example recording that a loop induction variable lies in $[\mathit{start},\mathit{end})$ without fixing its concrete value. This gives later DTAL generation enough information to produce block-entry type states that the verifier can check.
+Joins also preserve refinement information. Phi nodes for loop-carried or branch-merged values may carry existential constraints, for example recording that a loop induction variable lies in $[\mathit{start},\mathit{end})$ without fixing its concrete value. This gives later V-DTAL generation enough information to produce block-entry type states that the verifier can check.
 
 \section{Backend}\label{sec:backend}
 
-\subsection{DTAL code generation}
+\subsection{V-DTAL code generation}
 
-The code generator translates the TIR forms of Figure~\ref{fig:tir-syntax} to DTAL, the dependently typed assembly language described in Section~\ref{sec:dtal-target-lang}. At this stage DTAL still uses virtual registers, but each basic block is annotated with a \textit{type state}: a mapping from registers to types together with the constraints known to hold at that program point. These annotations are the core of the type-preserving design, because they give the standalone verifier enough information to re-check the program without access to the source.
+The code generator translates the TIR forms of Figure~\ref{fig:tir-syntax} to V-DTAL, the dependently typed assembly language described in Section~\ref{sec:dtal-target-lang}. At this stage V-DTAL still uses virtual registers, but each basic block is annotated with a \textit{type state}: a mapping from registers to types together with the constraints known to hold at that program point. These annotations are the core of the type-preserving design, because they give the standalone verifier enough information to re-check the program without access to the source.
 
-Most TIR instructions lower directly to DTAL. Phi nodes are implemented as parallel copies on predecessor edges, and array operations become address computations plus loads or stores with the relevant bounds constraints attached.
+Most TIR instructions lower directly to V-DTAL. Phi nodes are implemented as parallel copies on predecessor edges, and array operations become address computations plus loads or stores with the relevant bounds constraints attached.
 
 \subsection{Optimisation}
 
-Optimisation runs on virtual-register DTAL before physical allocation. The implemented pipeline performs constant folding, local peephole rewrites, copy propagation, dead-code elimination, loop-invariant code motion, and a Veritas-specific load-operation fusion pass. A notable design point is that these transformations operate over a typed assembly representation rather than an untyped IR. Rewritten instructions must retain verifier-facing type annotations, and instructions with semantic or proof relevance---stores, calls, branches, stack operations, and constraint assertions---are treated as effects rather than erased.
+Optimisation runs on virtual-register V-DTAL before physical allocation. The implemented pipeline performs constant folding, local peephole rewrites, copy propagation, dead-code elimination, loop-invariant code motion, and a Veritas-specific load-operation fusion pass. A notable design point is that these transformations operate over a typed assembly representation rather than an untyped IR. Rewritten instructions must retain verifier-facing type annotations, and instructions with semantic or proof relevance---stores, calls, branches, stack operations, and constraint assertions---are treated as effects rather than erased.
 
-Two implementation details are specific to the later backend. First, constant folding may introduce immediate-form DTAL instructions such as \texttt{AddImm} and \texttt{CmpImm}, which have verifier rules and direct encoder cases. Second, load-operation fusion creates a \texttt{LoadOp} form to exploit x86-64 memory operands, but only where the original load has a single arithmetic use. Copy propagation is similarly conservative around physical-register materialisation moves, since those copies encode ABI-oriented structure needed by physical allocation.
+Two implementation details are specific to the later backend. First, constant folding may introduce immediate-form V-DTAL instructions such as \texttt{AddImm} and \texttt{CmpImm}, which have verifier rules and direct encoder cases. Second, load-operation fusion creates a \texttt{LoadOp} form to exploit x86-64 memory operands, but only where the original load has a single arithmetic use. Copy propagation is similarly conservative around physical-register materialisation moves, since those copies encode ABI-oriented structure needed by physical allocation.
 
 \subsection{Register allocation}
 
@@ -784,16 +784,16 @@ Register allocation is implemented using standard liveness analysis followed by 
 
 \subsection{Physical allocation}\label{sec:physalloc}
 
-The register allocator produces a mapping from virtual to physical registers; the \textit{physical allocation pass} applies this mapping to produce a DTAL program that uses only physical registers. This is the central transformation in the default pipeline, and it is \textit{untrusted}---its output is verified by the DTAL verifier before code generation proceeds.
+The register allocator produces a mapping from virtual to physical registers; the \textit{physical allocation pass} applies this mapping to produce a V-DTAL program that uses only physical registers. This is the central transformation in the default pipeline, and it is \textit{untrusted}---its output is verified by the V-DTAL verifier before code generation proceeds.
 
-DTAL defines 16 physical registers: \texttt{r0}--\texttt{r12} (general purpose), \texttt{sp} (stack pointer), \texttt{fp} (frame pointer), and \texttt{lr} (link register / return value). These map directly to x86-64 registers:
+V-DTAL defines 16 physical registers: \texttt{r0}--\texttt{r12} (general purpose), \texttt{sp} (stack pointer), \texttt{fp} (frame pointer), and \texttt{lr} (link register / return value). These map directly to x86-64 registers:
 
 \begin{table}[h]
 \centering
 \small
 \begin{tabular}{l l l l}
 \hline
-\textbf{DTAL} & \textbf{x86-64} & \textbf{Role} & \textbf{Saved by} \\
+\textbf{V-DTAL} & \textbf{x86-64} & \textbf{Role} & \textbf{Saved by} \\
 \hline
 \texttt{r0}--\texttt{r5} & \texttt{rdi}, \texttt{rsi}, \texttt{rdx}, \texttt{rcx}, \texttt{r8}, \texttt{r9} & Arguments 1--6 & Caller \\
 \texttt{r6}--\texttt{r7} & \texttt{r10}, \texttt{r11} & Scratch & Caller \\
@@ -803,11 +803,11 @@ DTAL defines 16 physical registers: \texttt{r0}--\texttt{r12} (general purpose),
 \texttt{fp} & \texttt{rbp} & Frame pointer & --- \\
 \hline
 \end{tabular}
-\caption{DTAL physical register mapping to x86-64.}
+\caption{V-DTAL physical register mapping to x86-64.}
 \label{tab:regmap}
 \end{table}
 
-Beyond simple register renaming, the physical allocation pass performs several x86-specific transformations:
+Beyond register renaming, the physical allocation pass performs several x86-specific transformations:
 
 \begin{itemize}
   \item \textbf{Function prologues and epilogues}: emits explicit \texttt{Prologue} and \texttt{Epilogue} instructions that push/pop callee-saved registers and allocate a 16-byte-aligned stack frame.
@@ -832,17 +832,17 @@ since \texttt{idiv} requires its operands in the \texttt{rdx:rax} pair.
 
 \subsection{Direct encoding}\label{sec:direct-encoding}
 
-The \textit{direct encoder} translates physically-allocated DTAL to x86-64 machine code. Because the physical allocation pass has already performed all x86-specific expansions (division, calling convention, prologues), the encoder is a near-trivial 1:1 mapping: each DTAL instruction maps to exactly one x86-64 instruction (or a short fixed sequence for prologues and epilogues). The entire module is 309 lines in the current implementation.
+The \textit{direct encoder} translates physically-allocated V-DTAL to x86-64 machine code. Because the physical allocation pass has already performed all x86-specific expansions (division, calling convention, prologues), the encoder is a narrow direct mapping: each V-DTAL instruction maps to exactly one x86-64 instruction (or a short fixed sequence for prologues and epilogues). The entire module is 309 lines in the current implementation.
 
-This simplicity is deliberate and architecturally significant. Initially, I implemented a monolithic x86-64 lowering pass that performed register allocation, instruction selection, and encoding in a single trusted step. By splitting this into an untrusted physical allocation pass (verified by the DTAL verifier) and a small encoder, most register-allocation and instruction-selection logic is moved outside the trusted path. The encoder still remains trusted, so its small size is an auditability argument rather than a proof of correctness.
+This simplicity is deliberate and architecturally significant. Initially, I implemented a monolithic x86-64 lowering pass that performed register allocation, instruction selection, and encoding in a single trusted step. By splitting this into an untrusted physical allocation pass (verified by the V-DTAL verifier) and a small encoder, most register-allocation and instruction-selection logic is moved outside the trusted path. The encoder still remains trusted, so its compactness is an auditability argument rather than a proof of correctness.
 
 \subsection{Binary encoding and ELF generation}
 
-The direct encoder emits x86-64 machine code from physical DTAL, using a two-pass scheme to resolve label offsets. The resulting byte stream is then wrapped in a minimal ELF executable with entry point \texttt{main}; for the Linux target this is an ELF64 binary, while the bare-metal target uses a separate Multiboot-compatible layout described below.
+The direct encoder emits x86-64 machine code from physical V-DTAL, using a two-pass scheme to resolve label offsets. The resulting byte stream is then wrapped in a minimal ELF executable with entry point \texttt{main}; for the Linux target this is an ELF64 binary, while the bare-metal target uses a separate Multiboot-compatible layout described below.
 
 \section{Independent verifier}\label{sec:verifier}
 
-A key contribution of the type-preserving architecture is that physically-allocated DTAL can be verified independently of the compiler. The verifier re-checks the DTAL program from scratch, using only the type annotations embedded in the assembly. It follows the derivation-based verification approach of Xi and Harper~\cite{Xi2001DTAL}: types are \textit{re-derived} from instruction semantics, not trusted from compiler annotations.
+A key contribution of the type-preserving architecture is that physically-allocated V-DTAL can be verified independently of the compiler. The verifier re-checks the V-DTAL program from scratch, using only the type annotations embedded in the assembly. It follows the derivation-based verification approach of Xi and Harper~\cite{Xi2001DTAL}: types are \textit{re-derived} from instruction semantics, not trusted from compiler annotations.
 
 \subsection{Verification algorithm}
 
@@ -901,13 +901,13 @@ This enables modular verification: each function is checked in isolation, relyin
 
 \subsection{SMT oracle}
 
-The verifier checks emitted DTAL from scratch using its own SMT queries; no proof state is passed from the source checker to the verifier. The translation of DTAL constraints into SMT queries follows the same proof-by-refutation approach as the compiler's oracle (Section~\ref{sec:smt-oracle}).
+The verifier checks emitted V-DTAL from scratch using its own SMT queries; no proof state is passed from the source checker to the verifier. The translation of V-DTAL constraints into SMT queries follows the same proof-by-refutation approach as the compiler's oracle (Section~\ref{sec:smt-oracle}).
 
 To improve performance, constraint provability uses a two-tier approach. A fast syntactic check handles common cases (constraint already in context, simple entailment patterns) in $O(n)$ where $n$ is the context size. The SMT solver is invoked only when the syntactic check is inconclusive. This is important because the verifier issues many more queries than the compiler---one per instruction rather than one per subtyping check.
 
 % \subsection{Verification after register allocation}
 %
-% The verifier checks the physically-allocated DTAL, meaning that register allocation, spill insertion, and calling-convention lowering are all \textit{untrusted} for the checked safety policy: bugs in these passes manifest as a type derivation mismatch or unprovable constraint in the verified output.
+% The verifier checks the physically-allocated V-DTAL, meaning that register allocation, spill insertion, and calling-convention lowering are all \textit{untrusted} for the checked safety policy: bugs in these passes manifest as a type derivation mismatch or unprovable constraint in the verified output.
 %
 % This is a deliberate architectural choice. Register allocation is one of the most error-prone compiler passes (it involves liveness analysis, graph colouring, spill heuristics, and calling-convention details), and verifying its output rather than trusting it substantially reduces the TCB, evident in the implementation of the direct encoder (Section~\ref{sec:direct-encoding}).
 
@@ -927,12 +927,12 @@ Five intrinsics are provided:
 
 The first three intrinsics use Linux syscalls and are available only when compiling for the Linux target. The port I/O intrinsics use hardware instructions directly and are available on both Linux and bare-metal targets. The type checker enforces this distinction: a bare-metal program that calls \texttt{print\_int} is rejected at compile time rather than failing at runtime.
 
-All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so they are callable from compiled Veritas code without any marshalling. Because the runtime is hand-assembled and part of the TCB, its correctness is assumed on the basis of its small size, tests, and inspection rather than established by the DTAL verifier.
+All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so they are callable from compiled Veritas code without any marshalling. The hand-assembled runtime is part of the TCB, so the design keeps it compact, inspectable, and covered by tests.
 
 \section{Bare-metal target}\label{sec:unikernel}
 % TODO: elaborate more on implementation; highlight as extension and purpose to support I/O functionality
 
-The \texttt{--target-bare-metal} flag in the Veritas CLI produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.} without an operating system. This removes the host operating-system kernel from the normal execution path for this target, replacing it with a small trusted bootstrap and runtime. The bootstrap, runtime intrinsics, hardware model, and QEMU behaviour remain outside the DTAL verifier's guarantee.
+The \texttt{--target-bare-metal} flag in the Veritas CLI produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.} without an operating system. This removes the host operating-system kernel from the normal execution path for this target, replacing it with a small trusted bootstrap and runtime. The bootstrap, runtime intrinsics, hardware model, and QEMU behaviour remain outside the V-DTAL verifier's guarantee.
 
 \subsection{Bootstrap}
 
@@ -948,9 +948,9 @@ The bare-metal binary begins with a bootstrap blob of approximately 200 bytes th
 
 The bootstrap is hand-assembled and part of the TCB; at $\sim$200 bytes it is intended to remain small enough for line-by-line audit.
 
-\subsection{DTAL-checked serial driver}
+\subsection{V-DTAL-checked serial driver}
 
-To demonstrate DTAL-checked code generation for bare-metal I/O, the project includes a serial driver written entirely in Veritas. The driver programs the UART 16550 controller (the standard PC serial port at I/O base \texttt{0x3F8}) using the \texttt{port\_in} and \texttt{port\_out} intrinsics:
+To demonstrate V-DTAL-checked code generation for bare-metal I/O, the project includes a serial driver written entirely in Veritas. The driver programs the UART 16550 controller (the standard PC serial port at I/O base \texttt{0x3F8}) using the \texttt{port\_in} and \texttt{port\_out} intrinsics:
 
 \begin{itemize}
   \item \texttt{serial\_init()} configures the baud rate (38400), line format (8N1), and FIFO.
@@ -958,13 +958,13 @@ To demonstrate DTAL-checked code generation for bare-metal I/O, the project incl
   \item \texttt{serial\_print\_int(n: int)} recursively prints a signed integer to the serial port.
 \end{itemize}
 
-The entire driver is type-checked and compiled through the verified DTAL pipeline. When compiled with \texttt{--target-bare-metal --verify -o serial}, the resulting binary boots in QEMU and outputs to the serial console:
+The entire driver is type-checked and compiled through the verified V-DTAL pipeline. When compiled with \texttt{--target-bare-metal --verify -o serial}, the resulting binary boots in QEMU and outputs to the serial console:
 
 \begin{verbatim}
   qemu-system-x86_64 -kernel serial -serial stdio
 \end{verbatim}
 
-This demonstrates the project's long-term direction: a bare-metal Veritas target in which application code and simple drivers are checked as DTAL before encoding, while a small trusted bootstrap and runtime replace the host operating-system kernel. Figure~\ref{fig:unikernel-arch} illustrates the architecture of a bare-metal Veritas binary.
+This demonstrates the project's long-term direction: a bare-metal Veritas target in which application code and simple drivers are checked as V-DTAL before encoding, while a small trusted bootstrap and runtime replace the host operating-system kernel. Figure~\ref{fig:unikernel-arch} illustrates the architecture of a bare-metal Veritas binary.
 
 \begin{figure}[H]
   \centering
@@ -1011,9 +1011,9 @@ This demonstrates the project's long-term direction: a bare-metal Veritas target
 
     \draw[-Latex, thick] (6.7,5.0) -- (6.7,4.45);
 
-    % DTAL-checked application code
+    % V-DTAL-checked application code
     \draw[thick] (0.7,1.5) rectangle (12.7,4.35);
-    \node[anchor=west] at (1.0,4.0) {DTAL-checked Application Code};
+    \node[anchor=west] at (1.0,4.0) {V-DTAL-checked Application Code};
 
     \draw[thick] (1.15,2.15) rectangle (12.0,3.7);
     \node[anchor=west, font=\scriptsize\bfseries] at (1.4,3.45) {\texttt{serial\_driver.veri}};
@@ -1025,13 +1025,13 @@ This demonstrates the project's long-term direction: a bare-metal Veritas target
     aboveskip=4pt,
     belowskip=-8pt
   }
-  \caption{Architecture of a bare-metal Veritas binary. The binary contains a trusted Multiboot bootstrap, a small set of hand-assembled runtime intrinsics, and application code checked through the DTAL pipeline.}
+  \caption{Architecture of a bare-metal Veritas binary. The binary contains a trusted Multiboot bootstrap, a small set of hand-assembled runtime intrinsics, and application code checked through the V-DTAL pipeline.}
   \label{fig:unikernel-arch}
 \end{figure}
 
 \section{Borrowing and ownership extension}\label{sec:ownership-extension}
 
-The core refinement type system does not by itself control aliasing. This is a serious limitation for a systems-language fragment: mutation through one name can invalidate facts assumed through another name, and unrestricted references make it unclear which part of the program owns a mutable object. Veritas adds a Rust-inspired ownership and borrowing discipline: the source checker rejects obvious aliasing errors, while TIR and DTAL preserve ownership events explicitly so that the final low-level verifier can check that the backend has not introduced an illegal move, duplicated owner, or conflicting borrow.
+The core refinement type system does not by itself control aliasing. This is a serious limitation for a systems-language fragment: mutation through one name can invalidate facts assumed through another name, and unrestricted references make it unclear which part of the program owns a mutable object. Veritas adds a Rust-inspired ownership and borrowing discipline: the source checker rejects obvious aliasing errors, while TIR and V-DTAL preserve ownership events explicitly so that the final low-level verifier can check that the backend has not introduced an illegal move, duplicated owner, or conflicting borrow.
 
 % \subsection{Source-language design}
 
@@ -1104,18 +1104,18 @@ Once the frontend accepts a program, ownership behaviour is made explicit in TIR
 \label{fig:tir-ownership-forms}
 \end{figure}
 
-Scalar references require one additional implementation device. Arrays already have a memory representation in TIR and DTAL, so borrowing an array can target the array directly. A scalar value, however, must be made addressable before it can be borrowed. The lowerer therefore uses a hidden one-element cell for scalar references: it allocates a size-1 cell, stores the scalar value into it, borrows the cell, and lowers dereference to an ordinary load or store through that cell. This allows scalar references to reuse the same array load/store and bounds-checking machinery rather than introducing a separate pointer memory model.
+Scalar references require one additional implementation device. Arrays already have a memory representation in TIR and V-DTAL, so borrowing an array can target the array directly. A scalar value, however, must be made addressable before it can be borrowed. The lowerer therefore uses a hidden one-element cell for scalar references: it allocates a size-1 cell, stores the scalar value into it, borrows the cell, and lowers dereference to an ordinary load or store through that cell. This allows scalar references to reuse the same array load/store and bounds-checking machinery rather than introducing a separate pointer memory model.
 
-% \subsection{DTAL representation}
+% \subsection{V-DTAL representation}
 
-The ownership-aware TIR forms lower to explicit DTAL instructions. The extension also adds shared and mutable reference types, written $\&\tau$ and $\&\textsf{mut } \tau$, which classify registers holding borrow capabilities. These instructions do not perform computation in the ordinary arithmetic sense; they update the verifier's ownership state and make aliasing behaviour visible in the low-level artifact.
+The ownership-aware TIR forms lower to explicit V-DTAL instructions. The extension also adds shared and mutable reference types, written $\&\tau$ and $\&\textsf{mut } \tau$, which classify registers holding borrow capabilities. These instructions do not perform computation in the ordinary arithmetic sense; they update the verifier's ownership state and make aliasing behaviour visible in the low-level artifact.
 
 \begin{table}[H]
 \centering
 \small
 \begin{tabular}{p{0.32\textwidth} p{0.54\textwidth}}
 \hline
-\textbf{DTAL form} & \textbf{Verifier-visible meaning} \\
+\textbf{V-DTAL form} & \textbf{Verifier-visible meaning} \\
 \hline
 \texttt{move\_owned rd, rs : T} & Transfers ownership from \texttt{rs} to \texttt{rd}. \\
 \texttt{drop\_owned rs : T} & Consumes the owned value in \texttt{rs}. \\
@@ -1138,11 +1138,11 @@ load v5, [v3 + v4]     : int
 borrow_end v3          : &[int(7); 1]
 \end{cminted}
 \end{center}
-\caption{Verifier-visible DTAL operations for a shared array borrow.}
+\caption{Verifier-visible V-DTAL operations for a shared array borrow.}
 \label{fig:dtal-shared-borrow}
 \end{figure}
 
-The important property is that the backend cannot silently erase the source-level ownership discipline. If it emits a second mutable borrow, moves an owner while a borrow is live, or fails to end a borrow on one control-flow path, the final DTAL program is inconsistent with the verifier's ownership state and is rejected.
+The important property is that the backend cannot silently erase the source-level ownership discipline. If it emits a second mutable borrow, moves an owner while a borrow is live, or fails to end a borrow on one control-flow path, the final V-DTAL program is inconsistent with the verifier's ownership state and is rejected.
 
 % \subsection{Verifier support}
 
@@ -1157,18 +1157,18 @@ The independent verifier extends its ordinary register-and-constraint state with
     \item \textbf{Control-flow joins:} join states must agree on live ownership and borrow information; one-sided borrow endings are rejected.
 \end{itemize}
 
-This state is preserved through register allocation, spills, reloads, stack operations, and physical register shuffles. As a result, the checked property is stronger than source-level borrow checker acceptance: the post-register-allocation DTAL program must still exhibit a consistent ownership and borrowing discipline immediately before direct machine-code encoding.
-% ``the source borrow checker once accepted the program'': the post-register-allocation DTAL program must still exhibit a consistent ownership and borrowing discipline immediately before direct machine-code encoding.
+This state is preserved through register allocation, spills, reloads, stack operations, and physical register shuffles. As a result, the checked property is stronger than source-level borrow checker acceptance: the post-register-allocation V-DTAL program must still exhibit a consistent ownership and borrowing discipline immediately before direct machine-code encoding.
+% ``the source borrow checker once accepted the program'': the post-register-allocation V-DTAL program must still exhibit a consistent ownership and borrowing discipline immediately before direct machine-code encoding.
 
 % \subsection{Scope and limitations}
 %
-% The implementation is intentionally not a full Rust borrow checker. It does not infer non-lexical lifetimes, support returned references, support reborrowing, store references in aggregate values, or borrow substructure such as \texttt{\&arr[i]}. These restrictions are design trade-offs rather than parser accidents: they keep the source checker, TIR lowering, DTAL instruction set, and verifier state small enough to support the dissertation's main trust argument. Within this scoped fragment, ownership and borrowing are preserved through the full pipeline rather than remaining a source-only check.
+% The implementation is intentionally not a full Rust borrow checker. It does not infer non-lexical lifetimes, support returned references, support reborrowing, store references in aggregate values, or borrow substructure such as \texttt{\&arr[i]}. These restrictions are design trade-offs rather than parser accidents: they keep the source checker, TIR lowering, V-DTAL instruction set, and verifier state small enough to support the dissertation's main trust argument. Within this scoped fragment, ownership and borrowing are preserved through the full pipeline rather than remaining a source-only check.
 
 
 
 % \section{Worked example: binary search}\label{sec:worked-example}
 % %
-% The preceding sections describe each pipeline stage in isolation. This section demonstrates the full pipeline by tracing a \texttt{binary\_search} program, from source to verified DTAL. Binary search features most of the verification and constraint features of Veritas: quantified preconditions, refinement types, loop invariants, array bounds proofs, existential types, branch constraint refinement, and symbolic arithmetic.
+% The preceding sections describe each pipeline stage in isolation. This section demonstrates the full pipeline by tracing a \texttt{binary\_search} program, from source to verified V-DTAL. Binary search features most of the verification and constraint features of Veritas: quantified preconditions, refinement types, loop invariants, array bounds proofs, existential types, branch constraint refinement, and symbolic arithmetic.
 %
 % \subsection{Source language}
 % %
@@ -1216,7 +1216,7 @@ This state is preserved through register allocation, spills, reloads, stack oper
 %   \item \texttt{\{v: int | v >= 0\}} --- a refinement type on \texttt{lo}, constraining it to be non-negative. This is the master type: every assignment to \texttt{lo} must satisfy it.
 %   \item \texttt{invariant lo >= 0 \&\& hi < 10} --- a loop invariant that bounds both endpoints. The type checker verifies this holds initially and is preserved by the loop body.
 %   \item \texttt{arr[mid]} --- the critical array access. The type checker must prove $0 \le \mathtt{mid} < 10$ from the invariant and branch conditions.
-%   \item \texttt{for iter in 0..20} --- the loop uses a bounded iteration counter. Although Veritas also supports \texttt{while} loops, the bounded \texttt{for} loop is useful here because it yields an explicit induction-variable range in the generated SSA and DTAL.
+%   \item \texttt{for iter in 0..20} --- the loop uses a bounded iteration counter. Although Veritas also supports \texttt{while} loops, the bounded \texttt{for} loop is useful here because it yields an explicit induction-variable range in the generated SSA and V-DTAL.
 % \end{itemize}
 %
 % \subsection{Frontend type checking}
@@ -1337,14 +1337,14 @@ This state is preserved through register allocation, spills, reloads, stack oper
 %     \]
 %     This captures the loop bounds without fixing a concrete value. The existential is opened at each use, making the bound constraints available for verification.
 %   \item Mutable variables (\texttt{lo}, \texttt{hi}, \texttt{result}) are represented by phi nodes at the loop header. Their current values become explicit loop-carried registers, and useful refinements may be preserved existentially: for example, the phi node for \texttt{lo} retains the fact that it remains non-negative.
-%   \item The loop invariant appears in TIR as an \texttt{AssertConstraint} instruction at the entry of bb2. During code generation this becomes a DTAL \texttt{.assert}, allowing the later verifier to re-check the invariant independently of the frontend type checker.
+%   \item The loop invariant appears in TIR as an \texttt{AssertConstraint} instruction at the entry of bb2. During code generation this becomes a V-DTAL \texttt{.assert}, allowing the later verifier to re-check the invariant independently of the frontend type checker.
 % \end{itemize}
 %
-% \subsection{DTAL code generation and verification}
+% \subsection{V-DTAL code generation and verification}
 % %
-% The DTAL output preserves the block structure of the TIR, augmented with entry-state declarations, constraint assumptions, and type annotations on every instruction. In the current implementation, \texttt{binary\_search} now verifies successfully end-to-end. For readability, the first snippet below shows the virtual-register DTAL emitted immediately after code generation; the second shows the corresponding physical DTAL after register allocation and x86-specific expansion, which is the form actually consumed by the final verifier.
+% The V-DTAL output preserves the block structure of the TIR, augmented with entry-state declarations, constraint assumptions, and type annotations on every instruction. In the current implementation, \texttt{binary\_search} now verifies successfully end-to-end. For readability, the first snippet below shows the virtual-register V-DTAL emitted immediately after code generation; the second shows the corresponding physical V-DTAL after register allocation and x86-specific expansion, which is the form actually consumed by the final verifier.
 % %
-% \subsubsection{Virtual DTAL: midpoint computation and array access}
+% \subsubsection{Virtual V-DTAL: midpoint computation and array access}
 % %
 % \begin{quote}
 % \begin{verbatim}
@@ -1361,9 +1361,9 @@ This state is preserved through register allocation, spills, reloads, stack oper
 % \end{verbatim}
 % \end{quote}
 % %
-% This virtual DTAL is still close to the source-level reasoning. The branch constraints and invariant have already been translated into register-based assumptions, and the midpoint arithmetic is represented symbolically through the synthesised refinement types on \texttt{v16}, \texttt{v18}, and \texttt{v19}. At this level it is easy to see how the array-bounds proof is carried forward: the load of \texttt{v20} depends on the facts $v11 \ge 0$, $v10 < 10$, and $v11 \le v10$, together with the symbolic definition of the midpoint.
+% This virtual V-DTAL is still close to the source-level reasoning. The branch constraints and invariant have already been translated into register-based assumptions, and the midpoint arithmetic is represented symbolically through the synthesised refinement types on \texttt{v16}, \texttt{v18}, and \texttt{v19}. At this level it is easy to see how the array-bounds proof is carried forward: the load of \texttt{v20} depends on the facts $v11 \ge 0$, $v10 < 10$, and $v11 \le v10$, together with the symbolic definition of the midpoint.
 % %
-% \subsubsection{Physical DTAL: verifier-facing code}
+% \subsubsection{Physical V-DTAL: verifier-facing code}
 % %
 % \begin{quote}
 % \begin{verbatim}
@@ -1397,7 +1397,7 @@ This state is preserved through register allocation, spills, reloads, stack oper
 % \end{verbatim}
 % \end{quote}
 % %
-% This is the post-register-allocation DTAL that the final verifier checks. The logical structure is the same as in the virtual DTAL, but the values have been assigned to physical registers and division has been expanded into the x86-64-specific \texttt{cqo}/\texttt{idiv} sequence. This illustrates the key trust-model point of the final implementation: register allocation and target-specific expansion remain untrusted compiler passes, and the verifier validates their output rather than assuming they are correct.
+% This is the post-register-allocation V-DTAL that the final verifier checks. The logical structure is the same as in the virtual V-DTAL, but the values have been assigned to physical registers and division has been expanded into the x86-64-specific \texttt{cqo}/\texttt{idiv} sequence. This illustrates the key trust-model point of the final implementation: register allocation and target-specific expansion remain untrusted compiler passes, and the verifier validates their output rather than assuming they are correct.
 %
 % The verifier still re-derives the types of the key arithmetic instructions from their operands:
 % \begin{enumerate}
@@ -1435,7 +1435,7 @@ This state is preserved through register allocation, spills, reloads, stack oper
 % This walkthrough illustrates the central thesis of the type-preserving architecture:
 % %
 % \begin{itemize}
-%   \item \textbf{The compiler is untrusted.} Every type annotation in the DTAL output is independently verified. If the compiler emitted an incorrect type (e.g., annotating \texttt{v19} as $\mathtt{int}(5)$ instead of $\mathtt{int}((\texttt{v11} + ((\texttt{v10} - \texttt{v11}) / 2)))$), the verifier would detect the inconsistency when checking the array bounds proof.
+%   \item \textbf{The compiler is untrusted.} Every type annotation in the V-DTAL output is independently verified. If the compiler emitted an incorrect type (e.g., annotating \texttt{v19} as $\mathtt{int}(5)$ instead of $\mathtt{int}((\texttt{v11} + ((\texttt{v10} - \texttt{v11}) / 2)))$), the verifier would detect the inconsistency when checking the array bounds proof.
 %   \item \textbf{Types are re-derived from instruction semantics.} The verifier does not parse the compiler's annotations as ground truth. Instead, it symbolically executes each instruction according to the Xi and Harper typing rules, building up a constraint set from scratch. The compiler's annotations serve only as a sanity check.
 %   \item \textbf{Entry state constraints are verified at edges.} When bb6 jumps to bb1, the verifier checks that every constraint in bb1's entry state follows from bb6's exit state. This is how the loop invariant is verified inductively: bb0 establishes the base case (the initial values satisfy the invariant), and bb6 establishes the inductive step (the updated values preserve the invariant).
 %   \item \textbf{The TCB is minimal.} The only components that must be correct are the verifier itself and the Z3 SMT solver. The entire compiler frontend --- lexer, parser, type checker, lowering, code generation, and optimisation --- is outside the TCB.
