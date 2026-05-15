@@ -1,6 +1,6 @@
 \chapter{Implementation}\label{ch:impl}
 
-This chapter implements the Chapter~\ref{ch:prep} trust model as an executable compiler-verifier pipeline. It presents the source language, typed intermediate representation, DTAL target, type-preserving compiler, independent verifier, direct x86-64 encoder, compact runtime, bare-metal target, and ownership extension as one integrated system. The chapter concludes by tracing a binary search program through the full pipeline as a worked example.
+This chapter implements the Chapter~\ref{ch:prep} trust model as an executable compiler-verifier pipeline. It presents the source language, typed intermediate representation, DTAL target, type-preserving compiler, independent verifier, direct x86-64 encoder, compact runtime, bare-metal target, and ownership extension as one system. It concludes by tracing a binary search program through the full pipeline.
 
 \section{Repository overview}\label{sec:repo-overview}
 %
@@ -77,7 +77,7 @@ veritas/
 
 \section{Pipeline overview}
 
-Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, and arrows indicate the transformations between them. Safety evidence lowers from source refinements into verifier-facing DTAL type states and constraints; after DTAL verification, final encoding to x86-64 no longer needs the annotations.
+Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, with arrows indicating transformations. Safety evidence lowers from source refinements into verifier-facing DTAL type states and constraints; after DTAL verification, final x86-64 encoding no longer needs the annotations.
 
 \begin{figure}[h]
   \centering
@@ -93,11 +93,11 @@ Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named repres
 
 \section{The Veritas language}\label{sec:source-language}
 
-This section presents the syntax and formal typing rules of the Veritas source language. These define the source-level contract that the rest of the pipeline must preserve: any program accepted by the type checker satisfies the properties encoded in its types.
+This section presents Veritas syntax and formal typing rules. They define the source-level contract the rest of the pipeline must preserve: any program accepted by the type checker satisfies the properties encoded in its types.
 
 \subsection{Syntax}
 
-The abstract syntax of Veritas is defined by the grammar in Figure~\ref{fig:veritas-syntax}. The metavariables used in the grammar are:
+The abstract syntax of Veritas is defined by Figure~\ref{fig:veritas-syntax}. The grammar uses these metavariables:
 
 \begin{itemize}
   \item $n$: integer literals
@@ -106,7 +106,7 @@ The abstract syntax of Veritas is defined by the grammar in Figure~\ref{fig:veri
   \item $N$: integer expressions that must reduce to a statically known constant.
 \end{itemize}
 
-If a block has a trailing expression, its value is the block's result; otherwise, its result is unit. $\textsf{aop}$ and $\textsf{uaop}$ range over binary and unary arithmetic operators respectively; $\textsf{cop}$ over comparison operators; and $\textsf{lop}$ and $\textsf{ulop}$ over binary and unary logical operators respectively. Grey text denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
+If a block has a trailing expression, its value is the block's result; otherwise, its result is unit. $\textsf{aop}$ and $\textsf{uaop}$ range over binary and unary arithmetic operators; $\textsf{cop}$ over comparison operators; and $\textsf{lop}$ and $\textsf{ulop}$ over binary and unary logical operators. Grey text denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
 
 \begin{figure}[H]
 {\small
@@ -183,7 +183,7 @@ The typing context is a tuple $(\phi, \Gamma, \Delta, \Sigma_F)$:
 
 \subsubsection{Master types}
 
-The master type $\tau_m$ is set at declaration and never changes; the current type $\tau_c$ may be refined through control flow but must remain a subtype of $\tau_m$. To demonstrate: when a mutable variable is declared as \texttt{let mut x:T = e}, the type $T$ is recorded as the variable's master type $\tau_m$. The variable's \textit{current type} $\tau_c$ may be narrowed through assignments and control flow (e.g., after \texttt{if x > 0}, the current type narrows to $\{v\!:\!\mathtt{int} \mid v > 0\}$), but every assignment \texttt{x = e} must satisfy $\tau_e <: \tau_m$, where $\tau_e$ is the type synthesised for the right-hand-side expression $e$. At control-flow joins, current types from each branch are merged using the join operation, but the result must remain a subtype of the master type. This prevents the invalidation of refinements if \texttt{x} is reassigned. The interaction between master types and mutable variables is described in Section~\ref{sec:typechecker}.
+The master type $\tau_m$ is set at declaration and never changes; the current type $\tau_c$ may be refined through control flow but must remain a subtype of $\tau_m$. When a mutable variable is declared as \texttt{let mut x:T = e}, $T$ is recorded as its master type $\tau_m$. Its \textit{current type} $\tau_c$ may narrow through assignments and control flow (e.g., after \texttt{if x > 0}, to $\{v\!:\!\mathtt{int} \mid v > 0\}$), but every assignment \texttt{x = e} must satisfy $\tau_e <: \tau_m$, where $\tau_e$ is the right-hand side's synthesised type. At control-flow joins, branch current types are merged by join, but the result must remain a subtype of the master type. This prevents refinement invalidation if \texttt{x} is reassigned. Section~\ref{sec:typechecker} describes the implementation.
 
 \subsection{Context joining}\label{sec:context-joining}
 
@@ -199,7 +199,7 @@ At control-flow merge points (i.e., after \textbf{if-else} and loops), the typin
     \item Propositions ($\phi$): intersect (keep only propositions provable in both branches).
 \end{itemize}
 
-\noindent When $\textsf{join}$ is used in expression rules (e.g., \textsc{T-If-Expr}), the same type-joining rules apply to the result types of both branches. The implementation keeps this precision for integer singletons, so a branch that assigns either $0$ or $1$ can still verify a subsequent access into a length-two array. Boolean singleton joins are currently widened to \textsf{bool}, because Veritas' refinement predicate machinery is integer-focused; more aggressive disjunctive joining is also limited by the need to avoid unbounded SMT formula growth.
+\noindent When $\textsf{join}$ is used in expression rules (e.g., \textsc{T-If-Expr}), the same type-joining rules apply to branch result types. The implementation keeps this precision for integer singletons, so a branch assigning either $0$ or $1$ can still verify a later length-two array access. Boolean singleton joins are currently widened to \textsf{bool}, because Veritas' refinement predicates are integer-focused; more aggressive disjunctive joining is also limited by SMT formula growth.
 
 \subsection{Judgement forms}\label{sec:judgement-forms}
 
@@ -221,7 +221,7 @@ $$\frac{\phi; \Delta; \Gamma \vdash e \Rightarrow (\phi'; \Delta'; \tau_e) \quad
 
 \subsection{Subtyping rules}
 
-The subtyping relation $\phi \vdash \tau_1 <: \tau_2$ is defined by structural rules (listed in full in Appendix~\ref{app:source-rules}) and two rules that invoke the SMT solver. Mutable arrays are treated invariantly in the checked fragment; covariant element reasoning is used only for read-only facts. In both solver-backed rules, the propositions in $\phi$ are asserted as assumptions, the goal is negated, and the solver is checked for unsatisfiability:
+The subtyping relation $\phi \vdash \tau_1 <: \tau_2$ is defined by structural rules (Appendix~\ref{app:source-rules}) and two SMT-backed rules. Mutable arrays are invariant in the checked fragment; covariant element reasoning is used only for read-only facts. In both solver-backed rules, propositions in $\phi$ are asserted as assumptions, the goal is negated, and the solver is checked for unsatisfiability:
 
 $$\frac{\phi \vdash P[N/x]}{\phi \vdash \textsf{int}(N) <: \{x: \textsf{int} \mid P\}} \quad (\textsc{Sub-Singleton-Refine})$$
 
@@ -229,13 +229,13 @@ $$\frac{\phi \wedge P_1 \vdash P_2}{\phi \vdash \{x: \textsf{int} \mid P_1\} <: 
 
 \subsection{Expression typing rules}\label{sec:expr-typing-rules}
 
-For expressions whose value is used in a proof obligation, synthesis returns both a type and an SMT-level index term:
+For expressions used in proof obligations, synthesis returns both a type and an SMT-level index term:
 \[
   \phi;\Delta;\Gamma \vdash e \Rightarrow (\phi';\Delta';\tau;\iota)
 \]
-The term $\iota$ denotes the expression's value in generated constraints. For a singleton it is the singleton index; for a refinement or existential type it is the symbolic term introduced during synthesis. Boolean expressions also expose a guard proposition $\mathsf{guard}(e)$, for example $\mathsf{guard}(e_1 < e_2) = \iota_1 < \iota_2$. Conditional and loop rules use this guard, so branch facts such as \texttt{lo <= hi} enter the corresponding path context.
+The term $\iota$ denotes the expression's value in generated constraints. For a singleton it is the singleton index; for a refinement or existential type it is the symbolic term introduced during synthesis. Boolean expressions expose a guard proposition $\mathsf{guard}(e)$, for example $\mathsf{guard}(e_1 < e_2) = \iota_1 < \iota_2$. Conditional and loop rules use this guard, so branch facts such as \texttt{lo <= hi} enter the path context.
 
-Arithmetic operations use a $\textsf{join-op}$ function that performs constant folding when both operands are singletons (e.g., $\textsf{join-op}(+, \textsf{int}(1), \textsf{int}(2)) = \textsf{int}(3)$) and otherwise synthesises a refinement type via SMT refinement synthesis (e.g., $\{v\!:\!\textsf{int} \mid v = e_L + e_R\}$):
+Arithmetic operations use a $\textsf{join-op}$ function that constant-folds singleton operands (e.g., $\textsf{join-op}(+, \textsf{int}(1), \textsf{int}(2)) = \textsf{int}(3)$) and otherwise synthesises a refinement type via SMT refinement synthesis (e.g., $\{v\!:\!\textsf{int} \mid v = e_L + e_R\}$):
 
 $$
   \frac{
@@ -250,7 +250,7 @@ $$
   } \quad (\textsc{T-Op})
 $$
 
-\noindent $\textsf{arith-safe}$ requires non-zero divisors for division and modulo and includes the signed-64-bit range obligations that the current implementation checks. Arithmetic outside those emitted side conditions is not part of the scoped guarantee.
+\noindent $\textsf{arith-safe}$ requires non-zero divisors for division and modulo and includes the signed-64-bit range obligations checked by the current implementation. Arithmetic outside those emitted side conditions is not part of the scoped guarantee.
 
 Array indexing requires a bounds proof obligation, verified by the SMT solver:
 
@@ -300,7 +300,7 @@ $$
 
 \subsection{Statement typing rules}\label{sec:stmt-typing-rules}
 
-Standard rules for blocks, let bindings, array assignment, if-statements, and while loops are given in Appendix~\ref{app:source-rules}. Some of the more interesting rules are described below.
+Standard rules for blocks, let bindings, array assignment, if-statements, and while loops appear in Appendix~\ref{app:source-rules}. Key rules are described below.
 
 Assignment checks that the new value conforms to the master type:
 
@@ -353,13 +353,13 @@ $$
 
 The constraint language supports bounded quantifiers and implication to express properties over finite program ranges. Quantifiers may only appear in specification positions (preconditions, postconditions, refinement predicates), not in runtime code; the type checker enforces this restriction.
 
-An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\!\textsf{int} \mid v \ge 0\}; N]$ automatically satisfies the quantified constraint $\forall i \in [0, N).\; \mathit{arr}[i] \ge 0$. This is achieved by extracting a quantified proposition from the array's element type and adding it to the context when the array is in scope.
+An important feature is \textit{refinement lifting}: an array typed as $[\{v\!:\!\textsf{int} \mid v \ge 0\}; N]$ automatically satisfies $\forall i \in [0, N).\; \mathit{arr}[i] \ge 0$. The checker extracts this quantified proposition from the array's element type and adds it to the context while the array is in scope.
 
 \section{The DTAL target language}\label{sec:dtal-target-lang}
 
-Veritas targets a first-order variant of Xi and Harper's DTAL design~\cite{Xi2001DTAL}. In their original work, Xi and Harper formally established the soundness of DTAL, proving that well-typed programs cannot violate memory safety or the constraints of the type system.
+Veritas targets a first-order variant of Xi and Harper's DTAL design~\cite{Xi2001DTAL}. Xi and Harper formally established DTAL soundness, proving that well-typed programs cannot violate memory safety or type-system constraints.
 % the compiler emits DTAL annotated with type information, and a standalone verifier re-derives the types from scratch. If the compiler introduces an error, the annotations will be inconsistent and the verifier will reject the program. 
-This section describes the concrete instruction set and typing judgements of V-DTAL, which builds on the theoretical foundation of DTAL.
+This section describes V-DTAL's concrete instruction set and typing judgements, building on DTAL's theoretical foundation.
 
 \subsection{Instruction set}\label{sec:dtal-instr-set}
 
@@ -426,7 +426,7 @@ The DTAL instruction set resembles a standard RISC assembly language but is augm
 
 \subsection{DTAL directives}
 
-In addition to executable instructions, the textual DTAL format contains directives that describe function metadata, block entry states, and verifier annotations. Figure~\ref{fig:dtal-directives} shows where these directives appear in a typical DTAL function.
+Beyond executable instructions, textual DTAL contains directives describing function metadata, block entry states, and verifier annotations. Figure~\ref{fig:dtal-directives} shows where these directives appear in a typical DTAL function.
 
 \begin{figure}[H]
 \centering
@@ -459,19 +459,19 @@ f:
 \label{fig:dtal-directives}
 \end{figure}
 
-Function-level directives define the verifier-facing signature and contract. Block-level directives declare the type state that must hold when control enters a block, and edge checking proves that predecessor states imply these entry states. Constraint directives split into assumptions, which form part of the declared block state, and assertions, which are checked at their program point before being added to the context. Physical directives such as \texttt{.prologue} and \texttt{.epilogue} appear only after register allocation.
+Function-level directives define the verifier-facing signature and contract. Block-level directives declare the type state required on block entry, and edge checking proves that predecessor states imply these entry states. Constraint directives split into assumptions, part of the declared block state, and assertions, checked at their program point before entering the context. Physical directives such as \texttt{.prologue} and \texttt{.epilogue} appear only after register allocation.
 
 \subsection{DTAL type system}
 
-The DTAL type system largely mirrors the source-level type system: it retains unit, integer and boolean base types, machine-integer types, singleton integers $\textsf{int}(N)$, refinement types, arrays, and master types. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, DTAL index expressions may mention constants, register names, arithmetic, and $\textsf{select}(\mathit{arr}, i)$ for array element access (of an array $\mathit{arr}$ atindex $i$).
+The DTAL type system largely mirrors the source-level type system: unit, integer and boolean base types, machine-integer types, singleton integers $\textsf{int}(N)$, refinement types, arrays, and master types. The main difference is that these types classify \emph{registers} rather than source variables, so type indices are low-level expressions over register contents. DTAL index expressions may mention constants, registers, arithmetic, and $\textsf{select}(\mathit{arr}, i)$ for array element access (of array $\mathit{arr}$ atindex $i$).
 
-The most important addition is the use of \textit{existential types} to represent results that are known only symbolically at the assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; \varphi(x)$, where $\varphi$ is a predicate over integer witnesses. This allows the verifier to retain enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
+The main addition is \textit{existential types} for results known only symbolically at assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; \varphi(x)$, where $\varphi$ is a predicate over integer witnesses. This retains enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
 
-The DTAL constraint language preserves the same core logical fragment used in source-level specifications: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over DTAL index expressions rather than directly as source expressions, and conversion from source expressions to this constraint language is partial. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
+The DTAL constraint language preserves the source-level specification fragment: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over DTAL index expressions rather than directly as source expressions, and conversion from source expressions is partial. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
 
 \subsection{DTAL typing judgements}
 
-DTAL type checking operates over a \textit{type state}. The rules below show the core part of this state as $(\Phi, \Gamma)$, where $\Gamma$ maps registers to their current types and $\Phi$ is a set of constraints known to hold at a given program point. The implementation also records auxiliary verifier state such as the comparison/flag state $\mathcal{F}$, the typed stack, array versions, spill slots, and proven assertions. The core judgement for instruction typing is $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, meaning that executing $\textsf{instr}$ under constraints $\Phi$ and register state $\Gamma$ produces a new register state $\Gamma'$. Rules that read or update machine-flag state use $\Phi; \Gamma; \mathcal{F} \vdash \textsf{instr} \Rightarrow \Gamma'; \mathcal{F}'$.
+DTAL type checking operates over a \textit{type state}. The rules below show its core as $(\Phi, \Gamma)$, where $\Gamma$ maps registers to current types and $\Phi$ is the constraint set at a program point. The implementation also records auxiliary verifier state such as comparison/flag state $\mathcal{F}$, the typed stack, array versions, spill slots, and proven assertions. The core instruction-typing judgement is $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, meaning that executing $\textsf{instr}$ under constraints $\Phi$ and register state $\Gamma$ produces register state $\Gamma'$. Rules reading or updating machine flags use $\Phi; \Gamma; \mathcal{F} \vdash \textsf{instr} \Rightarrow \Gamma'; \mathcal{F}'$.
 
 \paragraph{Move Immediate}
 Loading a constant into a register assigns it a singleton type:
@@ -495,16 +495,16 @@ $$
 $$
 
 \paragraph{Memory Access (Bounds Checking)}
-A memory load is only well-typed if $\Phi$ can prove that the index is within bounds. The result type is the array's element type:
+A memory load is well-typed only if $\Phi$ can prove the index within bounds. The result type is the array's element type:
 $$
 \frac{\Gamma(r_b) = [\tau; N] \quad \Phi \vdash 0 \le e_i < N}{\Phi; \Gamma \vdash \textsf{load } r_d, [r_b, r_i] \Rightarrow \Gamma[r_d \mapsto \tau]} \quad (\textsc{D-Load})
 $$
 
-\noindent where $e_i$ is the index expression extracted from the type of $r_i$. The verifier derives the result type from the array base rather than trusting the annotation, and records a constraint equating $r_d$ with the corresponding versioned array selection. Stores are handled symmetrically, with an additional mechanism: the verifier maintains \textit{array versions} so that each store creates a fresh logical name for the array. It then adds explicit write and frame axioms over versioned $\textsf{select}$ expressions, avoiding conflation between values written at different program points. 
+\noindent where $e_i$ is the index expression extracted from the type of $r_i$. The verifier derives the result type from the array base rather than trusting the annotation, and records a constraint equating $r_d$ with the corresponding versioned array selection. Stores are symmetric, with one addition: the verifier maintains \textit{array versions}, so each store creates a fresh logical array name. It then adds explicit write and frame axioms over versioned $\textsf{select}$ expressions, avoiding conflation between values written at different program points.
 % TODO: select not defined
 
 \paragraph{Conditional Branching}
-A comparison instruction updates the verifier's comparison state. We write $\mathcal{F}(\textsf{last})$ for the live pair of symbolic operands recorded by the most recent comparison instruction; this field is undefined after any instruction that clobbers machine flags. The auxiliary function $\textsf{idx}(\tau)$ extracts the index expression associated with an integer-like DTAL type, such as a singleton, refined, or existential integer type:
+A comparison instruction updates the verifier's comparison state. We write $\mathcal{F}(\textsf{last})$ for the live symbolic operand pair recorded by the most recent comparison; this field is undefined after any instruction that clobbers machine flags. The auxiliary function $\textsf{idx}(\tau)$ extracts the index expression associated with an integer-like DTAL type, such as a singleton, refined, or existential integer type:
 $$
 \frac{
   \Gamma(r_1) = \tau_1 \quad \Gamma(r_2) = \tau_2 \quad e_1=\textsf{idx}(\tau_1) \quad e_2=\textsf{idx}(\tau_2)
@@ -517,7 +517,7 @@ $$
 }{\Phi; \Gamma; \mathcal{F} \vdash \textsf{cmp } r_1, n \Rightarrow \Gamma; \mathcal{F}[\textsf{last} \mapsto (e_1,n)]} \quad (\textsc{D-CmpImm})
 $$
 
-\noindent The rule for \texttt{setcc} consumes the same comparison state but only assigns a boolean type to the destination register. Branch refinements, rather than boolean-register refinements, are what the verifier uses for path-sensitive bounds proofs:
+\noindent The rule for \texttt{setcc} consumes the same comparison state but only assigns the destination register a boolean type. The verifier uses branch refinements, not boolean-register refinements, for path-sensitive bounds proofs:
 $$
 \frac{
   \mathcal{F}(\textsf{last}) = (e_1,e_2)
@@ -540,7 +540,7 @@ $$
 } \quad (\textsc{D-Branch})
 $$
 
-\noindent Each outgoing state is then coerced to the successor block's declared entry state. This is used to verify bounds checks: a comparison followed by a branch-if-greater-or-equal exits the loop, and the fall-through path continues with the assumption that the index is within bounds. Instructions that clobber machine flags invalidate $\mathcal{F}(\textsf{last})$, so a branch or \texttt{setcc} can only consume a live comparison.
+\noindent Each outgoing state is then coerced to the successor block's declared entry state. This verifies bounds checks: a comparison followed by branch-if-greater-or-equal exits the loop, and the fall-through path continues with the index known in bounds. Instructions clobbering machine flags invalidate $\mathcal{F}(\textsf{last})$, so branches and \texttt{setcc} can only consume live comparisons.
 
 These rules are representative; the verifier handles all instruction variants listed in Section~\ref{sec:dtal-instr-set}. The complete set of DTAL typing rules is given in Appendix~\ref{app:dtal-rules}.
 
@@ -557,15 +557,15 @@ The type checker is the most substantial frontend component. It implements the b
 
 \subsubsection{Architecture}
 
-The type checker is structured around the typing context $(\phi, \Gamma, \Delta, \Sigma_F)$. Contexts are immutable values as opposed to shared global state where each judgement takes a context as input and returns an updated context as output. This design is made practical by the \texttt{im} crate, which provides persistent (structurally shared) data structures: cloning a context at a control-flow branch is $O(\log n)$ rather than $O(n)$. This is important for the functional-style context threading used in the bidirectional type checking implementation, where each branch of an \textbf{if-else} receives its own copy of the context.
+The type checker is structured around the typing context $(\phi, \Gamma, \Delta, \Sigma_F)$. Contexts are immutable values, not shared global state: each judgement takes a context and returns an updated one. The \texttt{im} crate makes this practical with persistent (structurally shared) data structures: cloning a context at a control-flow branch is $O(\log n)$ rather than $O(n)$. This supports functional-style context threading in bidirectional type checking, where each \textbf{if-else} branch receives its own context copy.
 
 The type checker operates in two passes. The first collects all function signatures into $\Sigma_F$, enabling mutual recursion and allowing functions to be defined in any order. The second type-checks each function body against its signature.
 
 \subsubsection{Bidirectional checking}
 
-The implementation provides an explicit synthesis combinator, \texttt{synth\_expr}, which takes a typing context and an expression as input and returns either a type error or, on success, a typed expression together with its synthesised type. Integer literals produce singleton types, variable lookups return the type from $\Gamma$ or $\Delta$, and arithmetic operations use the \texttt{join\_op} helper introduced in Section~\ref{sec:expr-typing-rules}. The checking judgement is realised operationally by first synthesising a type for the expression and then verifying, via the SMT-backed subtyping check, that the synthesised type conforms to the expected one.
+The implementation provides an explicit synthesis combinator, \texttt{synth\_expr}, which takes a typing context and expression and returns either a type error or a typed expression with its synthesised type. Integer literals produce singleton types, variable lookups return the type from $\Gamma$ or $\Delta$, and arithmetic operations use the \texttt{join\_op} helper from Section~\ref{sec:expr-typing-rules}. The checking judgement is implemented by synthesising a type, then using SMT-backed subtyping to verify conformance to the expected type.
 
-Statement checking (\texttt{check\_stmts}) updates the typing context according to each statement's effect: \texttt{let} bindings extend $\Gamma$ or $\Delta$, assignments update the current type in $\Delta$, and loops are checked by proving that their invariants hold on entry and are preserved by the body, as described in the statement typing rules for loops in Section~\ref{sec:stmt-typing-rules}.
+Statement checking (\texttt{check\_stmts}) updates the typing context according to each statement's effect: \texttt{let} bindings extend $\Gamma$ or $\Delta$, assignments update the current type in $\Delta$, and loops require invariants to hold on entry and be preserved by the body, as in Section~\ref{sec:stmt-typing-rules}.
 
 \begin{figure}[h]
 \begin{center}
@@ -583,7 +583,7 @@ check_program(program) -> Result<typed_program, TypeError>
 
 When both operands of an arithmetic operation are singletons, the type checker performs constant folding at the type level: $\mathtt{int}(a) \oplus \mathtt{int}(b) = \mathtt{int}(a \oplus b)$, thereby avoiding an SMT query entirely.
 
-When one or both operands are not singletons, the checker performs \textit{refinement synthesis}: it constructs a fresh refinement type $\{v\!:\!\mathtt{int} \mid v = e_L \oplus e_R\}$ that captures the exact arithmetic relationship between the result and its operands. The bound variable $v$ is given a fresh name (e.g., \texttt{\_synth\_0}) to avoid capture. This synthesised refinement enables downstream code to reason about the result precisely---for instance, to verify that an array index computed as \texttt{lo + (hi - lo) / 2} lies within bounds, given that $\mathtt{lo} \ge 0$ and $\mathtt{hi} < n$.
+When one or both operands are not singletons, the checker performs \textit{refinement synthesis}: it constructs a fresh refinement type $\{v\!:\!\mathtt{int} \mid v = e_L \oplus e_R\}$ capturing the exact arithmetic relationship between result and operands. The bound variable $v$ gets a fresh name (e.g., \texttt{\_synth\_0}) to avoid capture. This lets downstream code reason precisely about the result---for instance, to verify that \texttt{lo + (hi - lo) / 2} lies within bounds, given $\mathtt{lo} \ge 0$ and $\mathtt{hi} < n$.
 
 % \subsubsection{Context joining}
 %
@@ -591,11 +591,11 @@ When one or both operands are not singletons, the checker performs \textit{refin
 
 \subsubsection{SMT oracle}\label{sec:smt-oracle}
 
-The SMT oracle wraps Z3 and provides a single entry point: $\texttt{is\_provable}(\phi, P)$, which returns whether proposition $P$ is valid under assumptions $\phi$. Internally, it creates a fresh Z3 context, translates each proposition in $\phi$ to a Z3 expression, asserts them, asserts $\lnot P$, and checks for unsatisfiability.
+The SMT oracle wraps Z3 behind one entry point: $\texttt{is\_provable}(\phi, P)$, returning whether proposition $P$ is valid under assumptions $\phi$. Internally, it creates a fresh Z3 context, translates each proposition in $\phi$ to a Z3 expression, asserts them, asserts $\lnot P$, and checks unsatisfiability.
 
-This translation maps Veritas specification expressions and propositions into Z3 terms and formulae. Integer expressions map to the Z3 integer sort; boolean expressions map to the Z3 boolean sort. Arrays are represented using Z3's built-in array sort (\texttt{Array(Int, Int)}), where \texttt{select} corresponds to array indexing. Bounded quantifiers such as $\mathbf{forall}\ x\ \mathbf{in}\ e_1..e_2\ \{P\}$ become $\forall x.\; (e_1 \le x \wedge x < e_2) \Rightarrow P$ using Z3's native quantifier support. While this moves outside the decidable quantifier-free fragment, Z3's E-matching heuristics handle the bounded quantifiers that arise in practice.
+This translation maps Veritas specification expressions and propositions into Z3 terms and formulae. Integer expressions map to the Z3 integer sort; boolean expressions to the Z3 boolean sort. Arrays use Z3's built-in array sort (\texttt{Array(Int, Int)}), where \texttt{select} corresponds to indexing. Bounded quantifiers such as $\mathbf{forall}\ x\ \mathbf{in}\ e_1..e_2\ \{P\}$ become $\forall x.\; (e_1 \le x \wedge x < e_2) \Rightarrow P$ using Z3's native quantifier support. While this moves outside the decidable quantifier-free fragment, Z3's E-matching heuristics handle the bounded quantifiers that arise in practice.
 
-An important feature is \textit{refinement lifting}: when an array has a refined element type (e.g., $[\{v\!:\!\mathtt{int} \mid v \ge 0\}; n]$), the oracle extracts a universally quantified proposition ($\forall i \in [0, n).\; \mathit{arr}[i] \ge 0$) and adds it to the assumption set. This allows element-level refinements to be used in quantified reasoning without the programmer restating them.
+An important feature is \textit{refinement lifting}: when an array has a refined element type (e.g., $[\{v\!:\!\mathtt{int} \mid v \ge 0\}; n]$), the oracle extracts a universally quantified proposition ($\forall i \in [0, n).\; \mathit{arr}[i] \ge 0$) and adds it to the assumptions. This lets element-level refinements support quantified reasoning without programmer restatement.
 
 % Evaluate array bounds checking in evaluation section
 % \subsubsection{Array bounds and function contracts}
@@ -604,7 +604,7 @@ An important feature is \textit{refinement lifting}: when an array has a refined
 
 \subsection{Error reporting}
 
-Type errors are represented as \texttt{TypeError} variants carrying source spans, expected and actual types, and contextual information. A separate reporting module formats these into diagnostics using the \texttt{ariadne} library, highlighting the relevant source location and explaining the failed proof obligation, including the propositions that were assumed and the goal that could not be proved.
+Type errors are \texttt{TypeError} variants carrying source spans, expected and actual types, and context. A separate reporting module formats diagnostics using \texttt{ariadne}, highlighting the relevant source location and explaining the failed proof obligation, including assumed propositions and the unproved goal.
 
 \begin{figure}[h]
   \begin{center}
@@ -622,13 +622,13 @@ The TIR is a typed SSA (Static Single Assignment) intermediate representation. E
 
 The choice of SSA was motivated by three properties: liveness analysis (required for register allocation) is straightforward, the one-definition property makes type annotations unambiguous, and phi nodes provide natural points for refinement type joining. At control-flow merge points, phi nodes select between values from different predecessor blocks.
 
-A key extension beyond standard SSA is \textit{existential constraints on phi nodes}. Each phi node may carry an optional existential constraint of the form $\exists v.\; \mathtt{int}(v) \;\mathbf{where}\; \varphi(v)$, which encodes that the phi's value satisfies predicate $\varphi$ without fixing a concrete value. For loop induction variables, this captures the loop bounds: $\exists v.\; \mathtt{int}(v) \;\mathbf{where}\; (v \ge \mathit{start} \wedge v < \mathit{end})$. For mutable variables with refined types, it preserves the refinement predicate across iterations. This mechanism avoids the information loss that would occur if phi nodes were simply widened to the base type.
+A key extension beyond standard SSA is \textit{existential constraints on phi nodes}. Each phi node may carry an optional existential constraint of the form $\exists v.\; \mathtt{int}(v) \;\mathbf{where}\; \varphi(v)$, encoding that the phi's value satisfies $\varphi$ without fixing a concrete value. For loop induction variables, this captures bounds: $\exists v.\; \mathtt{int}(v) \;\mathbf{where}\; (v \ge \mathit{start} \wedge v < \mathit{end})$. For mutable variables with refined types, it preserves the refinement predicate across iterations. This avoids the information loss of simply widening phi nodes to the base type.
 
 \subsubsection{Representative instruction forms}
 
 TIR is designed to sit close to both the typed source language and the DTAL backend. The core forms relevant to the compilation pipeline are summarised in Figure~\ref{fig:tir-syntax}.
 
-In concrete terms, a TIR function stores its parameters, pre/postconditions, and a map of basic blocks. Each block contains entry phi nodes, ordinary instructions, a terminator, and an entry register state. This makes the representation explicit enough for code generation to be largely structural while still retaining the source-level type information needed for later verification.
+A TIR function stores its parameters, pre/postconditions, and basic-block map. Each block contains entry phi nodes, ordinary instructions, a terminator, and an entry register state. This makes code generation largely structural while retaining the source-level type information needed for later verification.
 
 \begin{figure}[H]
 {\small
@@ -700,9 +700,9 @@ The grammar abstracts over the Rust data structures used in the implementation. 
 
 \subsection{Lowering from TAST to TIR}
 
-The lowering pass translates the typed AST to TIR by assigning source bindings to virtual registers and constructing a control-flow graph. Translation steps largely follow convention: expressions become three-address instructions, mutable assignments create fresh SSA values, and structured control flow becomes basic blocks and terminators. The notable difference in Veritas is that the pass preserves proof-relevant information from the frontend.
+The lowering pass translates the typed AST to TIR by assigning source bindings to virtual registers and constructing a control-flow graph. Translation largely follows convention: expressions become three-address instructions, mutable assignments create fresh SSA values, and structured control flow becomes basic blocks and terminators. Veritas differs by preserving proof-relevant frontend information.
 
-Source-level constraints are rewritten from source variables to virtual registers. The lowering context maintains the current source-to-register map, so constraints over variables are emitted over the registers that currently hold those values:
+Source-level constraints are rewritten from source variables to virtual registers. The lowering context maintains the current source-to-register map, so variable constraints are emitted over the registers currently holding those values:
 \begin{itemize}
   \item branch conditions become explicit true and false edge constraints;
   \item loop invariants are rewritten over the current loop-carried registers;
@@ -762,7 +762,7 @@ Source-level constraints are rewritten from source variables to virtual register
   \label{fig:tast-to-tir-snippets}
 \end{figure}
 
-Joins also preserve refinement information. Phi nodes for loop-carried or branch-merged values may carry existential constraints, for example recording that a loop induction variable lies in $[\mathit{start},\mathit{end})$ without fixing its concrete value. This gives later DTAL generation enough information to produce block-entry type states that the verifier can check.
+Joins also preserve refinement information. Phi nodes for loop-carried or branch-merged values may carry existential constraints, for example recording that a loop induction variable lies in $[\mathit{start},\mathit{end})$ without fixing its concrete value. This gives DTAL generation enough information to produce verifier-checkable block-entry type states.
 
 \begin{figure}[H]
   \centering
@@ -828,23 +828,23 @@ Joins also preserve refinement information. Phi nodes for loop-carried or branch
 
 \subsection{DTAL code generation}
 
-The code generator translates the TIR forms of Figure~\ref{fig:tir-syntax} to DTAL, the dependently typed assembly language described in Section~\ref{sec:dtal-target-lang}. At this stage DTAL still uses virtual registers, but each basic block is annotated with a \textit{type state}: a mapping from registers to types together with the constraints known to hold at that program point. These annotations are the core of the type-preserving design, because they give the standalone verifier enough information to re-check the program without access to the source.
+The code generator translates the TIR forms of Figure~\ref{fig:tir-syntax} to DTAL, the dependently typed assembly language described in Section~\ref{sec:dtal-target-lang}. At this stage DTAL still uses virtual registers, but each basic block is annotated with a \textit{type state}: register types plus constraints known at that program point. These annotations are the core of the type-preserving design, giving the standalone verifier enough information to re-check the program without source access.
 
 Most TIR instructions lower directly to DTAL. Phi nodes are implemented as parallel copies on predecessor edges, and array operations become address computations plus loads or stores with the relevant bounds constraints attached.
 
 \subsection{Optimisation}
 
-Optimisation runs on virtual-register DTAL before physical allocation. The implemented pipeline performs constant folding, local peephole rewrites, copy propagation, dead-code elimination, loop-invariant code motion, and a Veritas-specific load-operation fusion pass. Crucially, these transformations operate over typed assembly, not an untyped IR: explicit constants, bounds facts, and verifier-facing effects remain present. Rewritten instructions must retain verifier-facing type annotations, and instructions with semantic or proof relevance---stores, calls, branches, stack operations, ownership events, and constraint assertions---are treated as effects rather than removable bookkeeping.
+Optimisation runs on virtual-register DTAL before physical allocation. The pipeline performs constant folding, local peephole rewrites, copy propagation, dead-code elimination, loop-invariant code motion, and a Veritas-specific load-operation fusion pass. Crucially, these transformations operate over typed assembly, not an untyped IR: explicit constants, bounds facts, and verifier-facing effects remain present, giving optimisation passes facts that ordinary low-level code has lost. Rewritten instructions must retain verifier-facing type annotations, and semantically or proof-relevant instructions---stores, calls, branches, stack operations, ownership events, and constraint assertions---are treated as effects rather than removable bookkeeping.
 
-Two implementation details are specific to the later backend. First, constant folding may introduce immediate-form DTAL instructions such as \texttt{AddImm} and \texttt{CmpImm}, which have verifier rules and direct encoder cases. Second, load-operation fusion creates a \texttt{LoadOp} form to exploit x86-64 memory operands, but only where the original load has a single arithmetic use. Copy propagation is similarly conservative around physical-register materialisation moves, since those copies encode ABI-oriented structure needed by physical allocation.
+Two implementation details are specific to the later backend. First, constant folding may introduce immediate-form DTAL instructions such as \texttt{AddImm} and \texttt{CmpImm}, which have verifier rules and direct encoder cases. Second, load-operation fusion creates a \texttt{LoadOp} form to exploit x86-64 memory operands, but only when the original load has one arithmetic use. Copy propagation is similarly conservative around physical-register materialisation moves, since those copies encode ABI-oriented structure needed by physical allocation.
 
 \subsection{Register allocation}
 
-Register allocation is implemented using standard liveness analysis followed by graph colouring. The default allocator is a Chaitin--Briggs style allocator over the 11 allocatable general-purpose x86-64 registers (excluding \texttt{rsp}, \texttt{rbp}, \texttt{rax}, \texttt{rdx}, and \texttt{r11}). Registers live across function calls are constrained to callee-saved registers (\texttt{rbx}, \texttt{r12}--\texttt{r15}), reflecting the calling convention. 
+Register allocation uses standard liveness analysis followed by graph colouring. The default allocator is Chaitin--Briggs style over the 11 allocatable general-purpose x86-64 registers, excluding \texttt{rsp}, \texttt{rbp}, \texttt{rax}, \texttt{rdx}, and \texttt{r11}. Registers live across calls are constrained to callee-saved registers (\texttt{rbx}, \texttt{r12}--\texttt{r15}), reflecting the calling convention.
 
 \subsection{Physical allocation}\label{sec:physalloc}
 
-The register allocator produces a mapping from virtual to physical registers; the \textit{physical allocation pass} applies this mapping to produce a DTAL program that uses only physical registers. This is the central transformation in the default pipeline, and it is \textit{untrusted}---its output is verified by the DTAL verifier before code generation proceeds.
+The register allocator maps virtual to physical registers; the \textit{physical allocation pass} applies this mapping to produce physical-register DTAL. This is the central transformation in the default pipeline, and it is \textit{untrusted}: the DTAL verifier checks its output before code generation.
 
 DTAL defines 16 physical registers: \texttt{r0}--\texttt{r12} (general purpose), \texttt{sp} (stack pointer), \texttt{fp} (frame pointer), and \texttt{lr} (link register / return value). These map directly to x86-64 registers:
 
@@ -867,7 +867,7 @@ DTAL defines 16 physical registers: \texttt{r0}--\texttt{r12} (general purpose),
 \label{tab:regmap}
 \end{table}
 
-Beyond register renaming, the physical allocation pass performs several x86-specific transformations:
+Beyond register renaming, physical allocation performs several x86-specific transformations:
 
 \begin{itemize}
   \item \textbf{Function prologues and epilogues}: emits explicit \texttt{Prologue} and \texttt{Epilogue} instructions that push/pop callee-saved registers and allocate a 16-byte-aligned stack frame.
@@ -885,24 +885,24 @@ mov dst, rax|\footnotemark|
 \end{center}
 \footnotetext{or \texttt{rdx} for modulo.}
 since \texttt{idiv} requires its operands in the \texttt{rdx:rax} pair.
-  \item \textbf{Caller-saved register management}: at each call site, caller-saved registers that are live across the call are spilled to the stack before argument setup and restored after the call returns using explicit \texttt{SpillStore} and \texttt{SpillLoad} instructions, with the verifier checking spill-slot type consistency.
-  \item \textbf{Parameter move cycle resolution}: when function parameters must be shuffled between registers (e.g., parameter~0 in \texttt{rdi} must move to \texttt{rsi}, while parameter~1 in \texttt{rsi} must move to \texttt{rcx}), the pass detects cycles and breaks them using \texttt{r11} as a scratch register.
-  \item \textbf{Constraint remapping}: all type constraints are rewritten from virtual register names (\texttt{v3}) to physical register names (\texttt{r0}), so the verifier can check the physical program.
+  \item \textbf{Caller-saved register management}: at each call site, caller-saved registers live across the call are spilled before argument setup and restored after return using explicit \texttt{SpillStore} and \texttt{SpillLoad} instructions, with the verifier checking spill-slot type consistency.
+  \item \textbf{Parameter move cycle resolution}: when function parameters must be shuffled between registers (e.g., parameter~0 in \texttt{rdi} to \texttt{rsi}, while parameter~1 in \texttt{rsi} to \texttt{rcx}), the pass detects cycles and breaks them using \texttt{r11} as scratch.
+  \item \textbf{Constraint remapping}: all type constraints are rewritten from virtual register names (\texttt{v3}) to physical register names (\texttt{r0}), enabling physical-program verification.
 \end{itemize}
 
 \subsection{Direct encoding}\label{sec:direct-encoding}
 
-The \textit{direct encoder} translates physically-allocated DTAL to x86-64 machine code. Because the physical allocation pass has already performed all x86-specific expansions (division, calling convention, prologues), the encoder is a deliberately narrow direct mapping: each DTAL instruction maps to exactly one x86-64 instruction (or a short fixed sequence for prologues and epilogues). The entire module is 309 lines in the current implementation.
+The \textit{direct encoder} translates physically-allocated DTAL to x86-64 machine code. Because physical allocation has already performed all x86-specific expansions (division, calling convention, prologues), the encoder is a deliberately narrow direct mapping: each DTAL instruction maps to one x86-64 instruction, or a short fixed prologue/epilogue sequence. The module is 309 lines.
 
-This directness is deliberate and architecturally significant. Initially, I implemented a monolithic x86-64 lowering pass that performed register allocation, instruction selection, and encoding in a single trusted step. By splitting this into an untrusted physical allocation pass (verified by the DTAL verifier) and a compact encoder, most register-allocation and instruction-selection logic is moved outside the trusted path. The encoder remains trusted; its compactness provides an auditability argument for the final step from checked physical DTAL to machine code.
+This directness is deliberate and architecturally significant. Initially, I implemented a monolithic x86-64 lowering pass performing register allocation, instruction selection, and encoding in one trusted step. Splitting this into an untrusted physical allocation pass, verified by the DTAL verifier, and a compact encoder moves most register-allocation and instruction-selection logic outside the trusted path. The encoder remains trusted; its compactness supports auditing the final step from checked physical DTAL to machine code.
 
 \subsection{Binary encoding and ELF generation}
 
-The direct encoder emits x86-64 machine code from physical DTAL, using a two-pass scheme to resolve label offsets. The resulting byte stream is then wrapped in a minimal ELF executable with entry point \texttt{main}; for the Linux target this is an ELF64 binary, while the bare-metal target uses a separate Multiboot-compatible layout described below.
+The direct encoder emits x86-64 machine code from physical DTAL, using a two-pass scheme to resolve label offsets. The byte stream is then wrapped in a minimal ELF executable with entry point \texttt{main}; the Linux target uses ELF64, while the bare-metal target uses the Multiboot-compatible layout below.
 
 \section{Independent verifier}\label{sec:verifier}
 
-A key contribution of the type-preserving architecture is that physically-allocated DTAL can be verified independently of the compiler. The verifier re-checks the DTAL program from scratch, using only the type annotations embedded in the assembly. It follows the derivation-based verification approach of Xi and Harper~\cite{Xi2001DTAL}: types are \textit{re-derived} from instruction semantics, not trusted from compiler annotations.
+A key contribution of the type-preserving architecture is that physically-allocated DTAL can be verified independently of the compiler. The verifier re-checks the DTAL program from scratch, using only embedded assembly type annotations. It follows Xi and Harper's derivation-based approach~\cite{Xi2001DTAL}: types are \textit{re-derived} from instruction semantics, not trusted from compiler annotations.
 
 \subsection{Verification algorithm}
 
@@ -910,32 +910,32 @@ The verifier processes each function independently. For each basic block, it:
 
 \begin{enumerate}
   \item Initialises the type state from the block's declared entry state (register types and constraints).
-  \item Symbolically executes each instruction, \textit{re-deriving} the result type from the operand types according to the instruction's semantics.
+  \item Symbolically executes each instruction, \textit{re-deriving} the result type from operand types and instruction semantics.
   \item At each constraint assertion (\texttt{.assert}), invokes its own SMT oracle to verify that the constraint follows from the current type state.
-  \item At block exits (jumps, branches, returns), performs \textit{state coercion}: verifies that the computed exit state is compatible with the declared entry state of each successor block.
+  \item At block exits (jumps, branches, returns), performs \textit{state coercion}: checking that the computed exit state is compatible with each successor's declared entry state.
 \end{enumerate}
 
-The re-derivation in step 2 is central to the untrusted-compiler model. For example, \texttt{mov rd, 5} always derives $\texttt{rd} : \mathtt{int}(5)$ from the immediate value, regardless of any annotation the compiler may have emitted. Similarly, \texttt{add rd, r1, r2} derives $\texttt{rd} : \mathtt{int}(\texttt{r1} + \texttt{r2})$ using symbolic index expression algebra. The compiler's annotations serve only as a cross-check; if the re-derived type conflicts with the annotation, the verifier reports an error.
+The re-derivation in step 2 is central to the untrusted-compiler model. For example, \texttt{mov rd, 5} always derives $\texttt{rd} : \mathtt{int}(5)$ from the immediate, regardless of compiler annotation. Similarly, \texttt{add rd, r1, r2} derives $\texttt{rd} : \mathtt{int}(\texttt{r1} + \texttt{r2})$ using symbolic index algebra. Compiler annotations are only cross-checks; if the re-derived type conflicts with the annotation, the verifier reports an error.
 
 \subsection{State coercion at control-flow edges}
 
-State coercion is how the verifier checks compatibility across block boundaries. When block A jumps to block B, it must show that A's exit state is a subtype of B's declared entry state. This reduces to two checks:
+State coercion checks compatibility across block boundaries. When block A jumps to block B, A's exit state must be a subtype of B's declared entry state. This reduces to two checks:
 
 \begin{itemize}
-  \item \textbf{Register type subtyping}: for each register in B's entry state, A's exit type must be a subtype. The subtyping relation is constraint-aware: $\mathtt{int}(n) <: \mathtt{int}$ always holds, and $\mathtt{int}(n) <: \exists v.\; \mathtt{int}(v) \;\mathbf{where}\; \varphi(v)$ holds if $\varphi(n)$ is provable from A's constraints.
-  \item \textbf{Constraint entailment}: every constraint declared in B's entry state must be provable from A's exit constraints.
+  \item \textbf{Register type subtyping}: for each register in B's entry state, A's exit type must be a subtype. The relation is constraint-aware: $\mathtt{int}(n) <: \mathtt{int}$ always holds, and $\mathtt{int}(n) <: \exists v.\; \mathtt{int}(v) \;\mathbf{where}\; \varphi(v)$ holds if $\varphi(n)$ is provable from A's constraints.
+  \item \textbf{Constraint entailment}: every constraint in B's entry state must be provable from A's exit constraints.
 \end{itemize}
 
-For conditional branches, the verifier first refines the exit state on each edge. For example, \texttt{cmp r1, r2} followed by \texttt{jl target} contributes $\texttt{r1} < \texttt{r2}$ on the taken edge and $\texttt{r1} \ge \texttt{r2}$ on the fall-through edge before coercion is checked against the respective successor states.
+For conditional branches, the verifier first refines each edge's exit state. For example, \texttt{cmp r1, r2} followed by \texttt{jl target} contributes $\texttt{r1} < \texttt{r2}$ on the taken edge and $\texttt{r1} \ge \texttt{r2}$ on the fall-through edge before coercion against successor states.
 
 \subsection{Array bounds verification}
 
-Array loads and stores are the most critical instructions for the verifier. For each \texttt{load rd, [base + offset]}:
+Array loads and stores are the verifier's most critical instructions. For each \texttt{load rd, [base + offset]}:
 
 \begin{enumerate}
   \item The verifier checks that \texttt{base} has an array type $[\tau; N]$.
   \item It constructs the bounds obligation $0 \le \texttt{offset} < N$.
-  \item It attempts to prove this obligation, either via syntactic checks (e.g., is the constraint already in the context?) or the SMT oracle.
+  \item It proves this obligation using syntactic checks (e.g., is the constraint already in context?) or the SMT oracle.
   \item If the proof succeeds, it derives the element type $\tau$ for \texttt{rd} and emits a \textit{select axiom}: $\texttt{rd} = \mathit{arr}[\texttt{offset}]$, linking the loaded value to the array's logical representation.
 \end{enumerate}
 
@@ -945,7 +945,7 @@ Array loads and stores are the most critical instructions for the verifier. For 
 
   \paragraph{Frame axiom.} $\forall k \ne \texttt{offset}.\; \mathit{arr}_{\mathit{new}}[k] = \mathit{arr}_{\mathit{old}}[k]$
 \end{tcolorbox}
-The array is tracked with a version number that increments on each store, ensuring that the SMT solver can distinguish array states before and after mutations.
+The array version increments on each store, ensuring that the SMT solver can distinguish array states before and after mutations.
 
 \subsection{Interprocedural contract verification}
 
@@ -957,13 +957,13 @@ When the verifier encounters a \texttt{call} instruction, it performs three chec
   \item \textbf{Postcondition}: the callee's postcondition (similarly substituted) is added to the caller's constraint set for use by subsequent instructions.
 \end{enumerate}
 
-This enables modular verification: each function is checked in isolation, relying on contracts rather than inlining.
+This enables modular verification: each function is checked in isolation via contracts rather than inlining.
 
 \subsection{SMT oracle}
 
-The verifier checks emitted DTAL from scratch using its own SMT queries; no proof state is passed from the source checker to the verifier. The translation of DTAL constraints into SMT queries follows the same proof-by-refutation approach as the compiler's oracle (Section~\ref{sec:smt-oracle}).
+The verifier checks emitted DTAL from scratch using its own SMT queries; no proof state passes from source checker to verifier. Translation of DTAL constraints into SMT queries follows the compiler oracle's proof-by-refutation approach (Section~\ref{sec:smt-oracle}).
 
-To improve performance, constraint provability uses a two-tier approach. A fast syntactic check handles common cases (constraint already in context, simple entailment patterns) in $O(n)$ where $n$ is the context size. The SMT solver is invoked only when the syntactic check is inconclusive. This is important because the verifier issues many more queries than the compiler---one per instruction rather than one per subtyping check.
+For performance, constraint provability uses two tiers. A fast syntactic check handles common cases (constraint already in context, simple entailment patterns) in $O(n)$ where $n$ is the context size. The SMT solver is invoked only when this is inconclusive. This matters because the verifier issues many more queries than the compiler: one per instruction rather than one per subtyping check.
 
 % \subsection{Verification after register allocation}
 %
@@ -973,7 +973,7 @@ To improve performance, constraint provability uses a two-tier approach. A fast 
 
 \section{Runtime}\label{sec:runtime}
 
-The compiler provides a compact set of runtime intrinsics that are linked into every executable. These are implemented as hand-assembled x86-64 machine code totalling approximately 210 bytes, prepended to the user's compiled code in the ELF output.
+The compiler links a compact runtime intrinsic set into every executable. These are hand-assembled x86-64 machine code totalling approximately 210 bytes, prepended to the user's compiled code in the ELF output.
 
 Five intrinsics are provided:
 
@@ -985,14 +985,14 @@ Five intrinsics are provided:
   \item \texttt{port\_out(port: int, val: int)}: writes a byte to an x86 I/O port using the \texttt{out} instruction.
 \end{itemize}
 
-The first three intrinsics use Linux syscalls and are available only when compiling for the Linux target. The port I/O intrinsics use hardware instructions directly and are available on both Linux and bare-metal targets. The type checker enforces this distinction: a bare-metal program that calls \texttt{print\_int} is rejected at compile time rather than failing at runtime.
+The first three intrinsics use Linux syscalls and are Linux-target only. The port I/O intrinsics use hardware instructions directly and are available on both Linux and bare-metal targets. The type checker enforces this distinction: a bare-metal program calling \texttt{print\_int} is rejected at compile time rather than failing at runtime.
 
-All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so they are callable from compiled Veritas code without any marshalling. The hand-assembled runtime is part of the TCB, so the design keeps it compact, inspectable, and covered by tests.
+All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so compiled Veritas code calls them without marshalling. The hand-assembled runtime is part of the TCB, so the design keeps it compact, inspectable, and tested.
 
 \section{Bare-metal target}\label{sec:unikernel}
 % TODO: elaborate more on implementation; highlight as extension and purpose to support I/O functionality
 
-The \texttt{--target-bare-metal} flag in the Veritas CLI produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.} without an operating system. This demonstrates that the same checked pipeline can produce OS-independent executable artifacts. For this target, the host operating-system kernel is removed from the normal execution path and replaced by a compact trusted bootstrap and runtime. The bootstrap, runtime intrinsics, hardware model, and QEMU behaviour remain outside the DTAL verifier's guarantee.
+The Veritas CLI's \texttt{--target-bare-metal} flag produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.} without an operating system. This shows the same checked pipeline producing OS-independent executable artifacts. The host kernel is removed from the normal execution path and replaced by a compact trusted bootstrap and runtime. The bootstrap, runtime intrinsics, hardware model, and QEMU behaviour remain outside the DTAL verifier's guarantee.
 
 \subsection{Bootstrap}
 
@@ -1006,11 +1006,11 @@ The bare-metal binary begins with a bootstrap blob of approximately 200 bytes th
   \item After \texttt{main} returns, the bootstrap enters a \texttt{hlt} loop.
 \end{enumerate}
 
-The bootstrap is hand-assembled and part of the TCB; at $\sim$200 bytes it is intended to remain small enough for line-by-line audit.
+The bootstrap is hand-assembled and part of the TCB; at $\sim$200 bytes it remains small enough for line-by-line audit.
 
 \subsection{DTAL-checked serial driver}
 
-To demonstrate DTAL-checked code generation for bare-metal I/O, the project includes a serial driver written entirely in Veritas. The driver programs the UART 16550 controller (the standard PC serial port at I/O base \texttt{0x3F8}) using the \texttt{port\_in} and \texttt{port\_out} intrinsics:
+To demonstrate DTAL-checked bare-metal I/O, the project includes a serial driver written entirely in Veritas. It programs the UART 16550 controller, the standard PC serial port at I/O base \texttt{0x3F8}, using \texttt{port\_in} and \texttt{port\_out}:
 
 \begin{itemize}
   \item \texttt{serial\_init()} configures the baud rate (38400), line format (8N1), and FIFO.
@@ -1091,12 +1091,12 @@ This demonstrates the project's long-term direction: a bare-metal Veritas target
 
 \section{Borrowing and ownership extension}\label{sec:ownership-extension}
 
-Aliasing is the next pressure point for a systems-language verifier: mutation through one name can invalidate facts assumed through another name, and unrestricted references make it unclear which part of the program owns a mutable object. Veritas addresses this by adding a Rust-inspired ownership and borrowing discipline: the source checker rejects obvious aliasing errors, while TIR and DTAL preserve ownership events explicitly so that the final low-level verifier can check that the backend has not introduced an illegal move, duplicated owner, or conflicting borrow.
+Aliasing is the next pressure point for a systems-language verifier: mutation through one name can invalidate facts assumed through another, and unrestricted references obscure mutable-object ownership. Veritas addresses this with a Rust-inspired ownership and borrowing discipline: the source checker rejects obvious aliasing errors, while TIR and DTAL preserve ownership events explicitly so the final low-level verifier can check that the backend has not introduced an illegal move, duplicated owner, or conflicting borrow.
 
 % \subsection{Source-language design}
 
 % The source extension adds shared references, mutable references, borrow expressions, and dereference expressions. 
-The supported fragment is lexical and first-order: borrows are tied to source bindings, block exit ends borrows introduced in that block, and references are not stored in aggregates or returned from functions. This keeps the model compatible with the rest of the Veritas type checker while still supporting the common systems-language patterns needed by the feature suite: shared array reads, mutable array updates, scalar dereference, and reference parameters.
+The supported fragment is lexical and first-order: borrows are tied to source bindings, block exit ends borrows introduced in that block, and references are not stored in aggregates or returned from functions. This keeps the model compatible with the Veritas type checker while supporting feature-suite systems patterns: shared array reads, mutable array updates, scalar dereference, and reference parameters.
 
 \begin{figure}[H]
 \begin{center}
@@ -1132,11 +1132,11 @@ Borrowing is implemented as an extension of the ordinary bidirectional type chec
   \item \textbf{Borrow scopes}: stack of lexical scopes used to release borrows at block exit.
 \end{itemize}
 
-Creating \texttt{\&x} increments the shared-borrow count for \texttt{x}; creating \texttt{\&mut x} requires no live shared or mutable borrow. Assignments, shadowing, moves, and function calls consult the same metadata, so the checker rejects mutating a shared-borrowed owner, moving a borrowed owner, creating a shared borrow while a mutable borrow is live, and creating two simultaneous mutable borrows. These checks are integrated into \texttt{check\_stmt} and \texttt{synth\_expr}, which means the typed AST records both the ordinary type of an expression and the borrow/move behaviour needed by lowering.
+Creating \texttt{\&x} increments the shared-borrow count for \texttt{x}; creating \texttt{\&mut x} requires no live shared or mutable borrow. Assignments, shadowing, moves, and function calls consult the same metadata, so the checker rejects mutating a shared-borrowed owner, moving a borrowed owner, creating a shared borrow while a mutable borrow is live, and creating two simultaneous mutable borrows. These checks are integrated into \texttt{check\_stmt} and \texttt{synth\_expr}, so the typed AST records both expression type and borrow/move behaviour needed by lowering.
 
 % \subsection{TIR representation}
 
-Once the frontend accepts a program, ownership behaviour is made explicit in TIR. This is important because later compiler stages should not need to reconstruct ownership events from source syntax: the verifier-facing pipeline receives first-class operations for moves, drops, borrow creation, and borrow termination.
+Once the frontend accepts a program, ownership behaviour becomes explicit in TIR. Later compiler stages need not reconstruct ownership events from source syntax: the verifier-facing pipeline receives first-class operations for moves, drops, borrow creation, and borrow termination.
 
 \begin{figure}[H]
 {\small
@@ -1164,11 +1164,11 @@ Once the frontend accepts a program, ownership behaviour is made explicit in TIR
 \label{fig:tir-ownership-forms}
 \end{figure}
 
-Scalar references require one additional implementation device. Arrays already have a memory representation in TIR and DTAL, so borrowing an array can target the array directly. A scalar value, however, must be made addressable before it can be borrowed. The lowerer therefore uses a hidden one-element cell for scalar references: it allocates a size-1 cell, stores the scalar value into it, borrows the cell, and lowers dereference to an ordinary load or store through that cell. This allows scalar references to reuse the same array load/store and bounds-checking machinery rather than introducing a separate pointer memory model.
+Scalar references require one additional implementation device. Arrays already have a TIR and DTAL memory representation, so borrowing an array can target it directly. A scalar value, however, must be made addressable before borrowing. The lowerer uses a hidden one-element cell for scalar references: it allocates a size-1 cell, stores the scalar value, borrows the cell, and lowers dereference to an ordinary load or store through that cell. This lets scalar references reuse array load/store and bounds-checking machinery rather than introducing a separate pointer memory model.
 
 % \subsection{DTAL representation}
 
-The ownership-aware TIR forms lower to explicit DTAL instructions. The extension also adds shared and mutable reference types, written $\&\tau$ and $\&\textsf{mut } \tau$, which classify registers holding borrow capabilities. These instructions do not perform computation in the ordinary arithmetic sense; they update the verifier's ownership state and make aliasing behaviour visible in the low-level artifact.
+The ownership-aware TIR forms lower to explicit DTAL instructions. The extension also adds shared and mutable reference types, written $\&\tau$ and $\&\textsf{mut } \tau$, which classify registers holding borrow capabilities. These instructions do not perform ordinary arithmetic computation; they update verifier ownership state and expose aliasing behaviour in the low-level artifact.
 
 \begin{table}[H]
 \centering
@@ -1202,11 +1202,11 @@ borrow_end v3          : &[int(7); 1]
 \label{fig:dtal-shared-borrow}
 \end{figure}
 
-The important property is that the backend cannot silently erase the source-level ownership discipline. If it emits a second mutable borrow, moves an owner while a borrow is live, or fails to end a borrow on one control-flow path, the final DTAL program is inconsistent with the verifier's ownership state and is rejected.
+The key property is that the backend cannot silently erase the source-level ownership discipline. If it emits a second mutable borrow, moves an owner while a borrow is live, or fails to end a borrow on one control-flow path, the final DTAL program is inconsistent with the verifier's ownership state and is rejected.
 
 % \subsection{Verifier support}
 
-The independent verifier extends its ordinary register-and-constraint state with ownership metadata. It tracks which registers currently hold owned values, assigns object identities to owned values, records which registers hold shared or mutable borrows of each object, and records consumed registers. The instruction checker then enforces the following capability discipline:
+The independent verifier extends its ordinary register-and-constraint state with ownership metadata. It tracks registers holding owned values, assigns object identities, records shared or mutable borrows of each object, and records consumed registers. The instruction checker then enforces this capability discipline:
 
 \begin{itemize}
     \item \textbf{Move availability:} \texttt{move\_owned} requires the source register to hold a live owned object.
