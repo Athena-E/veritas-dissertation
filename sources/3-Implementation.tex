@@ -1,6 +1,6 @@
 \chapter{Implementation}\label{ch:impl}
 
-This chapter describes the implementation that turns the trust model from Chapter~\ref{ch:prep} into an executable compiler-verifier pipeline. It presents the source language, typed intermediate representation, DTAL target, type-preserving compiler, independent verifier, direct x86-64 encoder, compact runtime, bare-metal target, and ownership extension as one integrated system. The chapter concludes by tracing a binary search program through the full pipeline as a worked example.
+This chapter implements the Chapter~\ref{ch:prep} trust model as an executable compiler-verifier pipeline. It presents the source language, typed intermediate representation, DTAL target, type-preserving compiler, independent verifier, direct x86-64 encoder, compact runtime, bare-metal target, and ownership extension as one integrated system. The chapter concludes by tracing a binary search program through the full pipeline as a worked example.
 
 \section{Repository overview}\label{sec:repo-overview}
 %
@@ -77,7 +77,7 @@ veritas/
 
 \section{Pipeline overview}
 
-Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, and arrows indicate the transformations between them. Safety evidence is progressively translated from source refinements into verifier-facing DTAL type states and constraints; after DTAL verification, final encoding to x86-64 no longer needs the annotations.
+Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, and arrows indicate the transformations between them. Safety evidence lowers from source refinements into verifier-facing DTAL type states and constraints; after DTAL verification, final encoding to x86-64 no longer needs the annotations.
 
 \begin{figure}[h]
   \centering
@@ -834,7 +834,7 @@ Most TIR instructions lower directly to DTAL. Phi nodes are implemented as paral
 
 \subsection{Optimisation}
 
-Optimisation runs on virtual-register DTAL before physical allocation. The implemented pipeline performs constant folding, local peephole rewrites, copy propagation, dead-code elimination, loop-invariant code motion, and a Veritas-specific load-operation fusion pass. The important design point is that these transformations operate over typed assembly rather than an untyped IR: explicit constants, bounds facts, and verifier-facing effects are still present when optimisation runs. Rewritten instructions must retain verifier-facing type annotations, and instructions with semantic or proof relevance---stores, calls, branches, stack operations, ownership events, and constraint assertions---are treated as effects rather than removable bookkeeping.
+Optimisation runs on virtual-register DTAL before physical allocation. The implemented pipeline performs constant folding, local peephole rewrites, copy propagation, dead-code elimination, loop-invariant code motion, and a Veritas-specific load-operation fusion pass. Crucially, these transformations operate over typed assembly, not an untyped IR: explicit constants, bounds facts, and verifier-facing effects remain present. Rewritten instructions must retain verifier-facing type annotations, and instructions with semantic or proof relevance---stores, calls, branches, stack operations, ownership events, and constraint assertions---are treated as effects rather than removable bookkeeping.
 
 Two implementation details are specific to the later backend. First, constant folding may introduce immediate-form DTAL instructions such as \texttt{AddImm} and \texttt{CmpImm}, which have verifier rules and direct encoder cases. Second, load-operation fusion creates a \texttt{LoadOp} form to exploit x86-64 memory operands, but only where the original load has a single arithmetic use. Copy propagation is similarly conservative around physical-register materialisation moves, since those copies encode ABI-oriented structure needed by physical allocation.
 

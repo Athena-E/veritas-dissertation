@@ -20,7 +20,7 @@ A second approach is \emph{verified compilers}: compilers whose correctness is p
 
 A natural next step is a verified compiler for a safety-enforcing source language. That route offers strong assurance, but requires writing and maintaining thousands of lines of machine-checked mathematical proofs.
 
-\emph{Proof-carrying code} (PCC) \cite{Necula1997PCC} offers a way to move the trust boundary down to the compiled artifact without verifying the compiler itself: the code producer (i.e., compiler) generates both executable code and a safety proof; the code consumer (e.g., an operating system loader) checks the proof against a safety policy before executing the code. One way to realise this idea is \emph{type-preserving compilation}, where types carrying information about memory safety properties are preserved from the source language down to assembly. In the abstract PCC model, the typed low-level artefact can be checked by a \emph{verifier}; in a concrete implementation, the TCB would consist of just the verifier (and its dependencies).
+\emph{Proof-carrying code} (PCC) \cite{Necula1997PCC} moves the trust boundary down to the compiled artifact without verifying the compiler itself: the code producer (i.e., compiler) generates both executable code and a safety proof; the code consumer (e.g., an operating system loader) checks the proof against a safety policy before executing the code. One way to realise this idea is \emph{type-preserving compilation}, where types carrying information about memory safety properties are preserved from the source language down to assembly. In the abstract PCC model, the typed low-level artefact can be checked by a \emph{verifier}; in a concrete implementation, the TCB would consist of just the verifier (and its dependencies).
 
 \subsection{An evidence-carrying systems toolchain: Veritas}\label{sec:intro-veritas}
 
@@ -30,7 +30,7 @@ This dissertation presents \textbf{Veritas}, an executable systems-language tool
 In the supported fragment, Veritas checks: fixed-size array bounds, function preconditions and postconditions, block-entry type-state compatibility, selected arithmetic side conditions, and ownership/borrow-state consistency.
 % Claims that are \emph{out-of-scope} are: full source-to-target semantic preservation, full memory safety for arbitrary heap and pointer behaviour, correctness of Z3, correctness of the final encoder/runtime, or full Rust-like borrow checking.
 Unless explicitly qualified otherwise, subsequent claims about independent verification, low-level safety, verifier acceptance, and the compiler being untrusted are claims about these safety properties.
-The central claim is that Veritas emits executable low-level output carrying enough type and constraint information for a small, trusted, independent verifier to check the low-level safety policy before execution, without requiring a proof of compiler correctness.
+The central claim is that Veritas emits executable low-level output carrying sufficient type and constraint information for a small, trusted, independent verifier to check the low-level safety policy before execution, without proving compiler correctness.
 
 % The trust argument that motivates this project suggests two axes for comparing toolchains. Figure~\ref{fig:safety-sem-taxonomy} separates two guarantees made at the \emph{executable level}: semantic preservation and executable-level memory safety.
 Figure~\ref{fig:safety-sem-taxonomy} exemplifies the gap that motivated this project.
@@ -84,7 +84,7 @@ These components support the core question of the dissertation: whether a system
   \item \textbf{Expressive source language:} contracts, refinements, loop invariants, bounded quantifiers, and ownership state give programmers enough structure to express the evaluated safety properties.
   \item \textbf{Practicality:} the compiler produces executable artifacts, and the evaluation measures verification cost, runtime, binary size, and annotation burden.
 \end{itemize}
-The Evaluation chapter tests whether this architecture pays off empirically: whether the implementation accepts real programs, rejects invalid and tampered artifacts, keeps the trusted path small, and remains practically competitive.
+The Evaluation chapter tests whether this architecture is empirically borne out: whether the implementation accepts real programs, rejects invalid and tampered artifacts, keeps the trusted path small, and remains practically competitive.
 
 % TODO: move to requirements analysis?
 % \begin{itemize}
