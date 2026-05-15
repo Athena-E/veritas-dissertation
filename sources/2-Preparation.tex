@@ -469,7 +469,12 @@ The choice of x86-64 as the target architecture was pragmatic: the development m
 
 I designed the Veritas constraint system such that frontend type checking and low-level verification could be delegated to an SMT solver. The safety obligations Veritas supports are naturally expressed as arithmetic and logical implications over program values and SMT-solving provides an automated way to discharge these obligations without requiring manual proofs for routine constraints.
 
-In Veritas, the SMT solver is invoked at several points: subtyping checks between refinement types (where the solver verifies that one predicate implies another), array bounds verification (where the solver must prove that an index lies within $[0, N)$), and function contract verification (where preconditions and postconditions are checked at call sites and return points respectively).
+In Veritas, the SMT solver is invoked at several points:
+\begin{itemize}
+  \item subtyping checks between refinement types (where the solver verifies that one predicate implies another);
+  \item array bounds verification (where the solver must prove that an index lies within $[0, N)$);
+  \item function contract verification (where preconditions and postconditions are checked at call sites and return points respectively).
+\end{itemize}
 
 Quantified array properties fall outside the decidable quantifier-free fragment of linear integer arithmetic, so the language restricts quantifiers to bounded forms. Given the SMT solver forms part of the TCB, it is important to minimise the risk introduced by this trust and using an obscure solver would weaken this argument. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. I chose it for its maturity and reliability. Z3 also natively supports the theories featured in Veritas (Section~\ref{sec:smt-based-ver}).
 

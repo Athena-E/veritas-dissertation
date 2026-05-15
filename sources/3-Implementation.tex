@@ -557,7 +557,7 @@ The type checker is the most substantial frontend component. It implements the b
 
 \subsubsection{Architecture}
 
-The type checker is structured around the \texttt{TypingContext} $(\phi, \Gamma, \Delta, \Sigma_F)$ defined in Section~\ref{sec:typing-contexts}. Contexts are immutable values as opposed to shared global state where each judgement takes a context as input and returns an updated context as output. This design is made practical by the \texttt{im} crate, which provides persistent (structurally shared) data structures: cloning a context at a control-flow branch is $O(\log n)$ rather than $O(n)$. This is important for the functional-style context threading used in the bidirectional type checking implementation, where each branch of an \textbf{if-else} receives its own copy of the context. % TODO: define typingcontext
+The type checker is structured around the typing context $(\phi, \Gamma, \Delta, \Sigma_F)$. Contexts are immutable values as opposed to shared global state where each judgement takes a context as input and returns an updated context as output. This design is made practical by the \texttt{im} crate, which provides persistent (structurally shared) data structures: cloning a context at a control-flow branch is $O(\log n)$ rather than $O(n)$. This is important for the functional-style context threading used in the bidirectional type checking implementation, where each branch of an \textbf{if-else} receives its own copy of the context.
 
 The type checker operates in two passes. The first collects all function signatures into $\Sigma_F$, enabling mutual recursion and allowing functions to be defined in any order. The second type-checks each function body against its signature.
 
@@ -604,7 +604,7 @@ An important feature is \textit{refinement lifting}: when an array has a refined
 
 \subsection{Error reporting}
 
-Type errors are represented as structured values (\texttt{TypeError} variants) carrying source spans, expected and actual types, and contextual information. A separate reporting module formats these into diagnostics using the \texttt{ariadne} library, highlighting the relevant source location and explaining the failed proof obligation, including the propositions that were assumed and the goal that could not be proved.
+Type errors are represented as \texttt{TypeError} variants carrying source spans, expected and actual types, and contextual information. A separate reporting module formats these into diagnostics using the \texttt{ariadne} library, highlighting the relevant source location and explaining the failed proof obligation, including the propositions that were assumed and the goal that could not be proved.
 
 \begin{figure}[h]
   \begin{center}
@@ -672,68 +672,157 @@ In concrete terms, a TIR function stores its parameters, pre/postconditions, and
 
 The grammar abstracts over the Rust data structures used in the implementation. Table~\ref{tab:tir-implementation-correspondence} gives the correspondence between the grammar and constructors in the implementation.
 
-\begin{table}[H]
-\centering
-\footnotesize
-\begin{tabular}{p{0.25\textwidth} p{0.7\textwidth}}
-\hline
-\textbf{Abstract TIR form} & \textbf{Implementation form} \\
-\hline
-$\rho := n : \tau$ & \texttt{LoadImm \{ dst, value, ty \}} \\
-$\rho := \rho' : \tau$ & \texttt{Copy \{ dst, src, ty \}} \\
-$\rho := \rho_1\;\textsf{op}\;\rho_2 : \tau$ & \texttt{BinOp \{ dst, op, lhs, rhs, ty \}} \\
-$\rho := \textsf{unop}\;\rho' : \tau$ & \texttt{UnaryOp \{ dst, op, operand, ty \}} \\
-$\rho := \textsf{load}\;\rho_b[\rho_i] : \tau\;\textsf{where } C$ & \texttt{ArrayLoad \{ dst, base, index, element\_ty, bounds\_constraint \}} \\
-$\textsf{store}\;\rho_b[\rho_i] := \rho_s\;\textsf{where } C$ & \texttt{ArrayStore \{ base, index, value, bounds\_constraint \}} \\
-$\optclause{\rho :=}\;\textsf{call}\;f(\overrightarrow{\rho}) : \tau$ & \texttt{Call \{ dst?, func, args, arg\_types, result\_ty \}} \\
-$\textsf{assume } C$ & \texttt{AssumeConstraint \{ constraint \}} \\
-$\textsf{assert } C$ & \texttt{AssertConstraint \{ constraint \}} \\
-$\rho := \textsf{phi}\; \overrightarrow{(L,\rho)} : \tau$ & \texttt{PhiNode \{ dst, ty, incoming, existential\_constraint \}} \\
-$\textsf{jump } L$ & \texttt{Jump \{ target \}} \\
-$\textsf{branch } \rho\;L_t\;L_f$ & \texttt{Branch \{ cond, true\_target, false\_target, true\_constraint, false\_constraint \}} \\
-$\textsf{return}\;\optclause{\rho}$ & \texttt{Return \{ value? \}} \\
-\hline
-\end{tabular}
-\caption{Correspondence between the abstract TIR syntax and the implementation representation.}
-\label{tab:tir-implementation-correspondence}
-\end{table}
+% \begin{table}[H]
+% \centering
+% \footnotesize
+% \begin{tabular}{p{0.25\textwidth} p{0.7\textwidth}}
+% \hline
+% \textbf{Abstract TIR form} & \textbf{Implementation form} \\
+% \hline
+% $\rho := n : \tau$ & \texttt{LoadImm \{ dst, value, ty \}} \\
+% $\rho := \rho' : \tau$ & \texttt{Copy \{ dst, src, ty \}} \\
+% $\rho := \rho_1\;\textsf{op}\;\rho_2 : \tau$ & \texttt{BinOp \{ dst, op, lhs, rhs, ty \}} \\
+% $\rho := \textsf{unop}\;\rho' : \tau$ & \texttt{UnaryOp \{ dst, op, operand, ty \}} \\
+% $\rho := \textsf{load}\;\rho_b[\rho_i] : \tau\;\textsf{where } C$ & \texttt{ArrayLoad \{ dst, base, index, element\_ty, bounds\_constraint \}} \\
+% $\textsf{store}\;\rho_b[\rho_i] := \rho_s\;\textsf{where } C$ & \texttt{ArrayStore \{ base, index, value, bounds\_constraint \}} \\
+% $\optclause{\rho :=}\;\textsf{call}\;f(\overrightarrow{\rho}) : \tau$ & \texttt{Call \{ dst?, func, args, arg\_types, result\_ty \}} \\
+% $\textsf{assume } C$ & \texttt{AssumeConstraint \{ constraint \}} \\
+% $\textsf{assert } C$ & \texttt{AssertConstraint \{ constraint \}} \\
+% $\rho := \textsf{phi}\; \overrightarrow{(L,\rho)} : \tau$ & \texttt{PhiNode \{ dst, ty, incoming, existential\_constraint \}} \\
+% $\textsf{jump } L$ & \texttt{Jump \{ target \}} \\
+% $\textsf{branch } \rho\;L_t\;L_f$ & \texttt{Branch \{ cond, true\_target, false\_target, true\_constraint, false\_constraint \}} \\
+% $\textsf{return}\;\optclause{\rho}$ & \texttt{Return \{ value? \}} \\
+% \hline
+% \end{tabular}
+% \caption{Correspondence between the abstract TIR syntax and the implementation representation.}
+% \label{tab:tir-implementation-correspondence}
+% \end{table}
 
 \subsection{Lowering from TAST to TIR}
 
-The lowering pass translates the typed AST to TIR. A \texttt{LoweringContext} maintains a mapping from source-level variable names to virtual registers and tracks the current basic block under construction.
+The lowering pass translates the typed AST to TIR by assigning source bindings to virtual registers and constructing a control-flow graph. Translation steps largely follow convention: expressions become three-address instructions, mutable assignments create fresh SSA values, and structured control flow becomes basic blocks and terminators. The notable difference in Veritas is that the pass preserves proof-relevant information from the frontend.
 
-Lowering begins from the typed AST: each function arrives with typed parameters, a typed statement list, and an optional typed trailing expression. For each function, the lowerer:
+Source-level constraints are rewritten from source variables to virtual registers. The lowering context maintains the current source-to-register map, so constraints over variables are emitted over the registers that currently hold those values:
+\begin{itemize}
+  \item branch conditions become explicit true and false edge constraints;
+  \item loop invariants are rewritten over the current loop-carried registers;
+  \item array reads and writes carry the bounds constraints already proved by the type checker.
+\end{itemize}
 
-\begin{enumerate}
-  \item creates an entry block and initialises a fresh \texttt{LoweringContext};
-  \item allocates a fresh virtual register for each parameter and records the corresponding source-variable binding;
-  \item lowers the body statements in order, threading the context through the traversal;
-  \item lowers the trailing expression, if present, to obtain the function's result register;
-  \item closes the current block with a \texttt{Return} terminator;
-  \item packages the accumulated basic blocks, phi nodes, entry states, and translated pre/postconditions into a \texttt{TirFunction}.
-\end{enumerate}
+% \begin{figure}[H]
+%   \centering
+%   \begin{tikzpicture}[
+%       node distance=0.55cm and 0.8cm,
+%       box/.style={draw, rounded corners, align=center, font=\footnotesize,
+%                   minimum height=0.8cm, text width=0.28\textwidth},
+%       arrow/.style={-Latex, thick}
+%     ]
+%     \node[box] (src) {TAST constraint\\over source names\\\texttt{lo <= hi}};
+%     \node[box, right=of src] (map) {lowering context\\\texttt{lo -> v11}\\\texttt{hi -> v10}};
+%     \node[box, right=of map] (tir) {TIR constraint\\over registers\\\texttt{v11 <= v10}};
+%
+%     \draw[arrow] (src) -- (map);
+%     \draw[arrow] (map) -- (tir);
+%   \end{tikzpicture}
+%
+%   \captionsetup{aboveskip=4pt, belowskip=2pt}
+%   \caption{Lowering rewrites source-level proof obligations into verifier-facing TIR constraints.}
+%   \label{fig:tast-to-tir-pipeline}
+% \end{figure}
 
-\subsubsection{Syntax-directed translation}
+\begin{figure}[H]
+  \newcommand{\flowkw}[1]{\textcolor{blue!70!black}{#1}}
+  \newcommand{\flowlo}[1]{\textcolor{teal!70!black}{#1}}
+  \newcommand{\flowhi}[1]{\textcolor{orange!85!black}{#1}}
+  \newcommand{\flowmid}[1]{\textcolor{red!70!black}{#1}}
+  \newcommand{\flowarr}[1]{\textcolor{violet!75!black}{#1}}
+  \newcommand{\flowob}[1]{\textcolor{green!45!black}{#1}}
+  \newcommand{\flowval}[1]{\textcolor{magenta!70!black}{#1}}
+  \newcommand{\flowblk}[1]{\textcolor{gray!75!black}{#1}}
+  \centering
+  \begin{minipage}{0.47\textwidth}
+    \footnotesize\ttfamily
+    \flowkw{while} \flowlo{lo} \flowob{<=} \flowhi{hi} \flowkw{invariant} \flowlo{lo} \flowob{>= 0} \flowkw{\textbraceleft}\\
+    \null\hspace*{1em}\flowkw{let} \flowmid{mid}: int = \flowlo{lo} + (\flowhi{hi} - \flowlo{lo}) / 2;\\
+    \null\hspace*{1em}\flowkw{let} \flowval{val}: int = \flowarr{arr}[\flowmid{mid}];\\
+    \null\hspace*{1em}\flowblk{...}\\
+    \flowkw{\textbraceright}
+  \end{minipage}
+  \hspace{0.03\textwidth}
+  \begin{minipage}{0.47\textwidth}
+    \footnotesize\ttfamily
+    \flowkw{branch} \flowob{v\_cmp} \flowblk{bb\_body} \flowblk{bb\_exit}\\
+    \null\hspace*{1em}\flowkw{where} \flowlo{v11} \flowob{<=} \flowhi{v10}, !(\flowlo{v11} \flowob{<=} \flowhi{v10})\\
+    \flowkw{assert} \flowlo{v11} \flowob{>= 0}\\
+    \flowval{v20} := \flowkw{load} \flowarr{v\_arr}[\flowmid{v19}] : int\\
+    \null\hspace*{1em}\flowkw{where} \flowob{0 <=} \flowmid{v19} \flowob{\&\&} \flowmid{v19} \flowob{< 10}
+  \end{minipage}
+  \captionsetup{aboveskip=4pt, belowskip=2pt}
+  \caption{Source-level control-flow and memory-safety obligations after lowering to TIR; matching colours show how source facts are rewritten over virtual registers.}
+  \label{fig:tast-to-tir-snippets}
+\end{figure}
 
-Lowering is syntax-directed: each typed source construct becomes a small fragment of SSA code while threading the current variable-to-register map. Variable uses read the register currently associated with that source variable. A \texttt{let} binding lowers its right-hand side to a fresh virtual register and then extends the map with the new binding. For mutable variables, assignment lowers the right-hand side and updates the map so subsequent uses of the variable refer to the newly produced register. Because TIR is in SSA form, the old register is never overwritten.
+Joins also preserve refinement information. Phi nodes for loop-carried or branch-merged values may carry existential constraints, for example recording that a loop induction variable lies in $[\mathit{start},\mathit{end})$ without fixing its concrete value. This gives later DTAL generation enough information to produce block-entry type states that the verifier can check.
 
-Expression forms lower similarly. Integer literals become \texttt{LoadImm}; arithmetic and comparisons become \texttt{BinOp} or \texttt{UnaryOp}; array reads and writes become \texttt{ArrayLoad} and \texttt{ArrayStore} with an explicit bounds constraint; and function calls become \texttt{Call} instructions carrying the argument registers, parameter-passing modes, and result type. Control-flow constructs introduce new basic blocks and terminators: an \texttt{if} expression lowers to a branch, two successor blocks, and a merge block with phi nodes for values and mutable variables that differ across the two paths; loops lower to entry/header/body/exit blocks with header phi nodes for loop-carried values.
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+      >=Latex,
+      font=\footnotesize,
+      block/.style={
+        draw,
+        rounded corners,
+        align=center,
+        minimum height=0.95cm,
+        text width=0.20\textwidth,
+        inner sep=4pt
+      },
+      smallblock/.style={
+        draw,
+        rounded corners,
+        align=center,
+        minimum height=0.75cm,
+        text width=0.11\textwidth,
+        inner sep=4pt
+      },
+      phiblock/.style={
+        draw,
+        rounded corners,
+        align=center,
+        minimum height=1.15cm,
+        text width=0.32\textwidth,
+        inner sep=4pt,
+        fill=blue!5
+      },
+      flow/.style={->, thick}
+    ]
 
-\subsubsection{Control flow}
+    \node[smallblock] (entry)  at (0,0) {entry\\\texttt{i = 0}};
+    \node[phiblock] (header) at (5.6,0)
+      {loop header\\
+       \texttt{v\_i = phi(0, v\_next)}\\
+       $\exists v.\,\mathsf{int}(v)\ \mathbf{where}\ 0 \le v < 10$};
+    \node[block]    (body)   at (9.8,-3.6)
+      {body\\
+       \texttt{load arr[v\_i]}\\
+       requires $0 \le v_i < 10$};
+    \node[block]    (back)   at (5.6,-3.6)
+      {back edge\\
+       \texttt{v\_next = v\_i + 1}};
+    \node[smallblock] (exit)   at (13,0) {exit};
 
-\textbf{Conditionals} are lowered in the standard SSA style: the condition branches to `then' and `else' blocks, which rejoin at a merge block. The only Veritas-specific detail is that each branch edge carries a logical constraint derived from the condition, so an \texttt{if x > 0} yields assumptions $x > 0$ and $\neg(x > 0)$ on the respective successors. Phi nodes are inserted only for variables whose assigned register differs between the two branches.
+    \draw[flow] (entry) -- (header);
+    \draw[flow] (header.east) -| node[pos=0.28, right, font=\scriptsize] {$v_i < 10$} (body.north);
+    \draw[flow] (body.west) -- (back.east);
+    \draw[flow] (back.north) -- node[right, font=\scriptsize] {back edge} (header.south);
+    \draw[flow] (header) -- node[above, font=\scriptsize] {$v_i \ge 10$} (exit);
 
-\textbf{For-loops} use the usual entry, header, body, and exit structure. The induction variable is represented by a header phi node with incoming values from the entry edge and the back-edge, and this phi carries an existential constraint recording the loop range $[\mathit{start}, \mathit{end})$. Mutable variables in scope also receive header phi nodes so that loop-carried values and loop-invariant values are explicit to the verifier.
+  \end{tikzpicture}
 
-\textbf{While-loops} are lowered similarly, except that the condition is re-evaluated in the header. Because the condition need not be a simple interval test, the lowerer cannot attach the same explicit range constraint used for \texttt{for} induction variables; verification instead relies on the translated branch condition and any programmer-supplied invariant.
-
-\subsubsection{Constraint propagation}
-
-Branch conditions are translated into the TIR's constraint language, which supports the same logical fragment as source-level specifications: linear arithmetic comparisons, logical connectives, bounded quantifiers, and array indexing. The crucial difference is that TIR constraints are expressed over virtual register names rather than source-level variables. This translation converts source-level expressions into \texttt{Constraint} values via a recursive traversal: comparisons map directly, logical operators produce constraint connectives, and quantifiers map to bounded quantified constraints.
-
-The source-to-register shift is implemented by a variable-to-register substitution pass: constraints in the TAST refer to source-level variable names, but the TIR and DTAL operate on virtual register names. During lowering, the context maintains a substitution map from variable names to register names (e.g., \texttt{"lo"} $\mapsto$ \texttt{"v11"}), and all emitted constraints are rewritten accordingly. This ensures constraints remain valid through register allocation and DTAL verification.
-
-Loop invariants are emitted in TIR as \texttt{AssertConstraint} instructions at the start of the loop body, after applying the variable-to-register substitution. During code generation, these become DTAL \texttt{assert} instructions. They are the TIR counterpart of invariant verification in the type checker: the type checker proves that the invariant holds, and the lower stages record it as an assertion for the verifier to re-check independently.
+  \captionsetup{aboveskip=4pt, belowskip=2pt}
+  \caption{CFG showing how existential phi constraints preserve loop-range facts needed for a later array-bounds proof.}
+  \label{fig:tir-existential-phi}
+\end{figure}
 
 \section{Backend}\label{sec:backend}
 
@@ -846,7 +935,7 @@ Array loads and stores are the most critical instructions for the verifier. For 
 \begin{enumerate}
   \item The verifier checks that \texttt{base} has an array type $[\tau; N]$.
   \item It constructs the bounds obligation $0 \le \texttt{offset} < N$.
-  \item It attempts to prove this obligation, first via fast syntactic checks (e.g., is the constraint already in the context?), then via the SMT oracle.
+  \item It attempts to prove this obligation, either via syntactic checks (e.g., is the constraint already in the context?) or the SMT oracle.
   \item If the proof succeeds, it derives the element type $\tau$ for \texttt{rd} and emits a \textit{select axiom}: $\texttt{rd} = \mathit{arr}[\texttt{offset}]$, linking the loaded value to the array's logical representation.
 \end{enumerate}
 
@@ -872,7 +961,7 @@ This enables modular verification: each function is checked in isolation, relyin
 
 \subsection{SMT oracle}
 
-The verifier uses its own Z3 instance independent of the one used during compilation. The translation follows the same proof-by-refutation approach as the compiler's oracle (Section~\ref{sec:smt-oracle}).
+The verifier checks emitted DTAL from scratch using its own SMT queries; no proof state is passed from the source checker to the verifier. The translation of DTAL constraints into SMT queries follows the same proof-by-refutation approach as the compiler's oracle (Section~\ref{sec:smt-oracle}).
 
 To improve performance, constraint provability uses a two-tier approach. A fast syntactic check handles common cases (constraint already in context, simple entailment patterns) in $O(n)$ where $n$ is the context size. The SMT solver is invoked only when the syntactic check is inconclusive. This is important because the verifier issues many more queries than the compiler---one per instruction rather than one per subtyping check.
 
@@ -1009,62 +1098,39 @@ The core refinement type system does not by itself control aliasing. This is a s
 % The source extension adds shared references, mutable references, borrow expressions, and dereference expressions. 
 The supported fragment is lexical and first-order: borrows are tied to source bindings, block exit ends borrows introduced in that block, and references are not stored in aggregates or returned from functions. This keeps the model compatible with the rest of the Veritas type checker while still supporting the common systems-language patterns needed by the feature suite: shared array reads, mutable array updates, scalar dereference, and reference parameters.
 
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{p{0.28\textwidth} p{0.30\textwidth} p{0.32\textwidth}}
-\hline
-\textbf{Source form} & \textbf{Meaning} & \textbf{Main check} \\
-\hline
-\texttt{\&T} & Shared reference type & Read-only alias to a value of type \texttt{T}. \\
-\texttt{\&mut T} & Mutable reference type & Unique mutable alias to a value of type \texttt{T}. \\
-\texttt{\&x} & Shared borrow & Rejected if \texttt{x} is currently mutably borrowed. \\
-\texttt{\&mut x} & Mutable borrow & Rejected unless \texttt{x} is mutable and has no live borrows. \\
-\texttt{*r} & Scalar dereference & Requires \texttt{r} to have reference type; assignment through \texttt{*r} requires \texttt{\&mut}. \\
-\texttt{r[i]} & Array-reference indexing & Uses the referenced array and proves the usual bounds obligation. \\
-\hline
-\end{tabular}
-\caption{Source-level ownership and borrowing forms.}
-\label{tab:source-ownership-forms}
-\end{table}
-
-% For example, a mutable scalar borrow is written directly in the source language:
-
 \begin{figure}[H]
 \begin{center}
 \begin{cminted}{rust}
-fn main() -> int {
+fn ownership_forms() -> int {
     let mut x: int = 0;
-    let mx: &mut int = &mut x;
-    *mx = 9;
-    *mx
+    {
+        let rx: &int = &x; // shared reference type and shared borrow
+        let y: int = *rx;  // scalar dereference through a read-only reference
+    }                      // block exit ends the shared borrow of x
+    {
+        let mx: &mut int = &mut x; // unique mutable reference to mutable x
+        *mx = 9;                   // assignment through *mx requires &mut int
+    }                              // block exit ends the mutable borrow
+    let arr: [int; 4] = [7; 4];
+    let rarr: &[int; 4] = &arr;  // shared array reference
+    rarr[0]                      // array-reference indexing proves 0 <= 0 < 4
 }
 \end{cminted}
 \end{center}
-\caption{A mutable scalar borrow in the Veritas source language.}
-\label{fig:source-mutable-borrow}
+\caption{Source-level ownership and borrowing forms in Veritas.}
+\label{fig:source-ownership-forms}
 \end{figure}
 
 % \subsection{Frontend implementation}
 
-Borrowing is implemented as an extension of the ordinary bidirectional type checker. In addition to the contexts $(\phi, \Gamma, \Delta \Sigma_F)$, the concrete \texttt{TypingContext} records ownership metadata:
+Borrowing is implemented as an extension of the ordinary bidirectional type checker. In addition to the contexts $(\phi, \Gamma, \Delta \Sigma_F)$, the frontend context records ownership metadata:
 
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{p{0.30\textwidth} p{0.58\textwidth}}
-\hline
-\textbf{Context component} & \textbf{Role} \\
-\hline
-\texttt{moved\_bindings} & Bindings whose ownership has been transferred and cannot be used again until reinitialised. \\
-\texttt{active\_borrows} & For each owner, records live shared-borrow counts and whether a mutable borrow is live. \\
-\texttt{borrow\_bindings} & Maps reference bindings back to the owner they borrow from and the borrow kind. \\
-\texttt{borrow\_scopes} & Stack of lexical scopes used to release borrows at block exit. \\
-\hline
-\end{tabular}
-\caption{Ownership-specific state maintained by the frontend typing context.}
-\label{tab:frontend-ownership-context}
-\end{table}
+\begin{itemize}
+  \item \textbf{Moved bindings}: bindings whose ownership has been transferred and cannot be used again until reinitialised.
+  \item \textbf{Active borrows}: for each owner, records live shared-borrow counts and whether a mutable borrow is live.
+  \item \textbf{Borrow bindings}: maps reference bindings back to the owner they borrow from and the borrow kind.
+  \item \textbf{Borrow scopes}: stack of lexical scopes used to release borrows at block exit.
+\end{itemize}
 
 Creating \texttt{\&x} increments the shared-borrow count for \texttt{x}; creating \texttt{\&mut x} requires no live shared or mutable borrow. Assignments, shadowing, moves, and function calls consult the same metadata, so the checker rejects mutating a shared-borrowed owner, moving a borrowed owner, creating a shared borrow while a mutable borrow is live, and creating two simultaneous mutable borrows. These checks are integrated into \texttt{check\_stmt} and \texttt{synth\_expr}, which means the typed AST records both the ordinary type of an expression and the borrow/move behaviour needed by lowering.
 
@@ -1072,24 +1138,31 @@ Creating \texttt{\&x} increments the shared-borrow count for \texttt{x}; creatin
 
 Once the frontend accepts a program, ownership behaviour is made explicit in TIR. This is important because later compiler stages should not need to reconstruct ownership events from source syntax: the verifier-facing pipeline receives first-class operations for moves, drops, borrow creation, and borrow termination.
 
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{p{0.34\textwidth} p{0.52\textwidth}}
-\hline
-\textbf{TIR form} & \textbf{Purpose} \\
-\hline
-\texttt{MoveOwned \{ dst, src, ty \}} & Transfers ownership from \texttt{src} to \texttt{dst}; the old owner cannot be used as owned afterwards. \\
-\texttt{DropOwned \{ src, ty \}} & Ends ownership of a value at a known program point. \\
-\texttt{BorrowShared \{ dst, src, ty \}} & Creates a shared borrow of \texttt{src}. \\
-\texttt{BorrowMut \{ dst, src, ty \}} & Creates a unique mutable borrow of \texttt{src}. \\
-\texttt{BorrowEnd \{ src, ty \}} & Ends the borrow held in \texttt{src}. \\
-\texttt{Call \{ ..., arg\_kinds, ownership, ... \}} & Records whether parameters are plain values, owned values, shared borrows, or mutable borrows. \\
-\hline
-\end{tabular}
-\caption{Ownership-aware TIR instructions and metadata.}
-\label{tab:tir-ownership-forms}
-\end{table}
+\begin{figure}[H]
+{\small
+\[
+\renewcommand{\arraystretch}{1.09}
+\begin{array}{@{}r@{\ }c@{\ }l@{\hspace{1.2em}}p{0.28\textwidth}@{}}
+  I_\mathsf{own} & ::= &
+  \parbox[t]{0.58\textwidth}{
+    $\rho_d := \textsf{move\_owned}\; \rho_s : \tau \,|\, \textsf{drop\_owned}\; \rho_s : \tau \,|\, {}$\\
+    $\rho_d := \textsf{borrow\_shared}^{\ell?}\; \rho_s : \&\tau \,|\, {}$\\
+    $\rho_d := \textsf{borrow\_mut}^{\ell?}\; \rho_s : \&\textsf{mut }\tau \,|\, {}$\\
+    $\textsf{borrow\_end}^{\ell?}\; \rho_s : \&\tau \text{ or } \&\textsf{mut }\tau$
+  }
+  & \textbf{(Ownership instructions)} \\[4pt]
+  a & ::= &
+  \textsf{plain} \mid \textsf{owned} \mid \textsf{borrow} \mid \textsf{borrow\_mut}
+  & \textbf{(Argument kinds)} \\[2pt]
+  I & ::= &
+  \cdots \mid I_\mathsf{own} \mid \optclause{\rho :=}\; \textsf{call}\; f(\overrightarrow{a\,\rho}) : \tau
+  & \textbf{(Extended instructions)}
+\end{array}
+\]
+}
+\caption{Ownership-aware extension to the TIR syntax.}
+\label{fig:tir-ownership-forms}
+\end{figure}
 
 Scalar references require one additional implementation device. Arrays already have a memory representation in TIR and DTAL, so borrowing an array can target the array directly. A scalar value, however, must be made addressable before it can be borrowed. The lowerer therefore uses a hidden one-element cell for scalar references: it allocates a size-1 cell, stores the scalar value into it, borrows the cell, and lowers dereference to an ordinary load or store through that cell. This allows scalar references to reuse the same array load/store and bounds-checking machinery rather than introducing a separate pointer memory model.
 
@@ -1133,26 +1206,16 @@ The important property is that the backend cannot silently erase the source-leve
 
 % \subsection{Verifier support}
 
-The independent verifier extends its ordinary register-and-constraint state with ownership metadata. It tracks which registers currently hold owned values, assigns object identities to owned values, records which registers hold shared or mutable borrows of each object, and records consumed registers. The instruction checker then enforces the capability discipline shown in Table~\ref{tab:verifier-ownership-rules}.
+The independent verifier extends its ordinary register-and-constraint state with ownership metadata. It tracks which registers currently hold owned values, assigns object identities to owned values, records which registers hold shared or mutable borrows of each object, and records consumed registers. The instruction checker then enforces the following capability discipline:
 
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{p{0.32\textwidth} p{0.54\textwidth}}
-\hline
-\textbf{Rule} & \textbf{Effect} \\
-\hline
-Move availability & \texttt{move\_owned} requires the source register to hold a live owned object. \\
-Borrow exclusion & \texttt{borrow\_mut} is rejected if the object has any live shared or mutable borrow. \\
-Shared borrow compatibility & \texttt{alias\_borrow} is allowed for shared borrows but rejected while a mutable borrow is live. \\
-Borrowed-owner protection & \texttt{move\_owned} and \texttt{drop\_owned} are rejected while the object is borrowed. \\
-Borrow termination & \texttt{borrow\_end} requires the register to hold a live borrow and releases it from the object state. \\
-Control-flow joins & Join states must agree on live ownership and borrow information; one-sided borrow endings are rejected. \\
-\hline
-\end{tabular}
-\caption{Ownership rules enforced by the DTAL verifier.}
-\label{tab:verifier-ownership-rules}
-\end{table}
+\begin{itemize}
+    \item \textbf{Move availability:} \texttt{move\_owned} requires the source register to hold a live owned object.
+    \item \textbf{Borrow exclusion:} \texttt{borrow\_mut} is rejected if the object has any live shared or mutable borrow.
+    \item \textbf{Shared borrow compatibility:} \texttt{alias\_borrow} is allowed for shared borrows but rejected while a mutable borrow is live.
+    \item \textbf{Borrowed-owner protection:} \texttt{move\_owned} and \texttt{drop\_owned} are rejected while the object is borrowed.
+    \item \textbf{Borrow termination:} \texttt{borrow\_end} requires the register to hold a live borrow and releases it from the object state.
+    \item \textbf{Control-flow joins:} join states must agree on live ownership and borrow information; one-sided borrow endings are rejected.
+\end{itemize}
 
 This state is preserved through register allocation, spills, reloads, stack operations, and physical register shuffles. As a result, the checked property is stronger than source-level borrow checker acceptance: the post-register-allocation DTAL program must still exhibit a consistent ownership and borrowing discipline immediately before direct machine-code encoding.
 % ``the source borrow checker once accepted the program'': the post-register-allocation DTAL program must still exhibit a consistent ownership and borrowing discipline immediately before direct machine-code encoding.
