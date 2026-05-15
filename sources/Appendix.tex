@@ -463,29 +463,29 @@ The ownership verifier state $\Omega$ maps object identifiers to an owner, borro
   \centering
   \scriptsize
   \begin{tabularx}{\linewidth}{p{0.22\linewidth} p{0.36\linewidth} p{0.34\linewidth}}
-    \hline
+    \tablehline
     \textbf{Instruction} & \textbf{Required state} & \textbf{Successor state} \\
-    \hline
+    \tablehline
     $\textsf{move\_owned } r_d, r_s, o$
     & $\Omega(o)=\textsf{owned}(r_s)$ and $o$ has no live borrows.
     & $\Omega(o)=\textsf{owned}(r_d)$; $r_s$ is marked consumed; $\Gamma(r_d)=\Gamma(r_s)$. \\
-    \hline
+    \tablehline
     $\textsf{alias\_borrow } b, o$
     & $o$ is owned and has no live mutable borrow.
     & Adds shared borrow $b$ for $o$. \\
-    \hline
+    \tablehline
     $\textsf{borrow\_mut } b, o$
     & $o$ is owned and has no live shared or mutable borrows.
     & Adds the unique mutable borrow $b$ for $o$. \\
-    \hline
+    \tablehline
     $\textsf{borrow\_end } b$
     & $b$ is a live borrow in $\Omega$.
     & Removes $b$ from the borrow set. \\
-    \hline
+    \tablehline
     $\textsf{drop\_owned } o$
     & $o$ is owned, live, and unborrowed.
     & Marks $o$ consumed and removes its owner. \\
-    \hline
+    \tablehline
   \end{tabularx}
   \caption{Ownership and borrow-state transitions checked by the V-DTAL verifier.}
   \label{tab:dtal-ownership-rules}
@@ -497,9 +497,9 @@ The ownership verifier state $\Omega$ maps object identifiers to an owner, borro
   \centering
   \scriptsize
   \begin{tabular}{p{0.06\textwidth} p{0.20\textwidth} p{0.31\textwidth} p{0.33\textwidth}}
-    \hline
+    \tablehline
     \textbf{ID} & \textbf{Program} & \textbf{Features exercised} & \textbf{Role in the suite} \\
-    \hline
+    \tablehline
     F01 & Simple arithmetic
         & Arithmetic, return values
         & Baseline frontend and executable smoke test \\
@@ -584,7 +584,7 @@ The ownership verifier state $\Omega$ maps object identifiers to an owner, borro
     F28 & Sortedness
         & Sortedness, quantifiers, specifications
         & Reusable sortedness-specification reasoning \\
-    \hline
+    \tablehline
   \end{tabular}
   \caption{Definition of the curated feature-suite used for compiler throughput, verifier agreement, and executable functional-correctness evidence. The table uses descriptive names; the fixed executable manifest records the corresponding \texttt{.veri} files.}
   \label{tab:feature-suite-definition}
@@ -594,9 +594,9 @@ The ownership verifier state $\Omega$ maps object identifiers to an owner, borro
   \centering
   \scriptsize
   \begin{tabular}{p{0.06\textwidth} p{0.20\textwidth} p{0.31\textwidth} p{0.33\textwidth}}
-    \hline
+    \tablehline
     \textbf{ID} & \textbf{Task} & \textbf{Verified property} & \textbf{Implementations compared} \\
-    \hline
+    \tablehline
     C01 & \texttt{safe\_division}
         & Division is only performed under a non-zero divisor precondition.
         & Veritas, Dafny, Liquid Haskell, Verus \\
@@ -615,7 +615,7 @@ The ownership verifier state $\Omega$ maps object identifiers to an owner, borro
     C06 & \texttt{safe\_midpoint}
         & Midpoint arithmetic remains within the specified integer range.
         & Veritas, Dafny, Liquid Haskell, Verus \\
-    \hline
+    \tablehline
   \end{tabular}
   \caption{Definition of the normalised cross-system comparison suite. The tasks are matched by verified property rather than by identical data representation.}
   \label{tab:comparison-suite-definition}
@@ -632,9 +632,9 @@ The ownership verifier state $\Omega$ maps object identifiers to an owner, borro
   \centering
   \scriptsize
   \begin{tabular}{p{0.17\textwidth} p{0.17\textwidth} p{0.31\textwidth} p{0.25\textwidth}}
-    \hline
+    \tablehline
     \textbf{Kernel} & \textbf{Fixed \texttt{MEDIUM} params} & \textbf{Program / algorithm}                                                       & \textbf{Main features exercised}                                                                     \\
-    \hline
+    \tablehline
     Floyd--Warshall & \texttt{N=500}                        & All-pairs shortest paths via dynamic programming over a weighted graph matrix.     & Nested loops, fixed-size 2D arrays, arithmetic updates, regular indexed mutation                     \\
     Jacobi-1D       & \texttt{N=400}, \texttt{T=100}        & One-dimensional iterative stencil update over an array across repeated time steps. & Structured loop nests, fixed-size arrays, repeated affine indexing, arithmetic recurrence            \\
     Jacobi-2D       & \texttt{N=250}, \texttt{T=100}        & Two-dimensional iterative stencil computation over a grid.                         & Nested loops, fixed-size 2D arrays, neighbourhood indexing, arithmetic recurrence                    \\
@@ -642,7 +642,7 @@ The ownership verifier state $\Omega$ maps object identifiers to an owner, borro
     MVT             & \texttt{N=400}                        & Matrix-vector and transposed-matrix-vector multiplication kernel.                  & Fixed-size arrays, matrix/vector indexing, arithmetic accumulation, sequential imperative loops      \\
     ATAX            & \texttt{M=390}, \texttt{N=410}        & Matrix-transpose-times-vector style kernel with intermediate accumulation.         & Matrix/vector array reasoning, multiple loop phases, arithmetic accumulation, indexed mutation       \\
     GESUMMV         & \texttt{N=250}                        & Scalar-weighted sum of two matrix-vector products.                                 & Fixed-size arrays, linear-algebra style arithmetic, nested loops, deterministic numeric accumulation \\
-    \hline
+    \tablehline
   \end{tabular}
   \caption{PolyBench-style kernels used in the Veritas evaluation, with their
     fixed \texttt{MEDIUM}-class parameters, algorithmic role, and the main
@@ -654,9 +654,9 @@ The ownership verifier state $\Omega$ maps object identifiers to an owner, borro
   \centering
   \small
   \begin{tabular}{l r}
-    \hline
+    \tablehline
     \textbf{Error class}           & \textbf{Total} \\
-    \hline
+    \tablehline
     Type error                     & 7              \\
     Name resolution                & 2              \\
     Control flow                   & 3              \\
@@ -669,7 +669,7 @@ The ownership verifier state $\Omega$ maps object identifiers to an owner, borro
     Arithmetic safety              & 2              \\
     Overflow safety                & 5              \\
     Other grouped frontend classes & 3              \\
-    \hline
+    \tablehline
   \end{tabular}
   \caption{Rejection of invalid programs in the curated negative suite.}
   \label{tab:negative-suite-summary}
@@ -679,9 +679,9 @@ The ownership verifier state $\Omega$ maps object identifiers to an owner, borro
   \centering
   \scriptsize
   \begin{tabular}{p{0.06\textwidth} p{0.23\textwidth} p{0.43\textwidth} p{0.18\textwidth}}
-    \hline
+    \tablehline
     \textbf{ID} & \textbf{Tampering class} & \textbf{Mutation} & \textbf{Expected rejection reason} \\
-    \hline
+    \tablehline
     T01 & Return signature mismatch
         & Change a function return signature from \texttt{.returns int} to \texttt{.returns bool}.
         & Return type mismatch \\
@@ -736,7 +736,7 @@ The ownership verifier state $\Omega$ maps object identifiers to an owner, borro
     T18 & Unprovable postcondition
         & Replace the sorted-array postcondition with a contradictory order claim over the returned array.
         & Postcondition not provable \\
-    \hline
+    \tablehline
   \end{tabular}
   \caption{V-DTAL tampering corpus used to test the standalone verifier against syntax-preserving low-level corruptions. Each case starts from valid compiler output and checks that physical V-DTAL verification rejects the mutated artifact.}
   \label{tab:dtal-tampering-corpus}

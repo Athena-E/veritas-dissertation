@@ -1,71 +1,29 @@
 \chapter{Evaluation}\label{ch:eval}
 
-% This chapter evaluates Veritas against its goals and success criteria. It begins by assessing the design and implementation of Veritas' DTAL in relation to Xi and Harper's DTAL (Section~\ref{sec:dtal-eval}). It then assesses the Veritas source language and compiler as a systems-language toolchain (Section~\ref{sec:source-lang-eval}), followed by an evaluation of the source language along a separate axis of expressiveness as a verification-oriented system (Section~\ref{sec:source-lang-eval}). Section~\ref{sec:verification-perf} and Section~\ref{sec:verifier-correctness} evaluates the verifier: the cost and performance of performing verification and the functional correctness of its implementation. Finally, Section~\ref{sec:tcb-eval} evaluates the overall trust architecture and size of the TCB.
+In this chapter, I demonstrate that the project meets the proposed goals. I introduce the methodology, frameworks, and benchmarking suites used for evaluation (Section~\ref{sec:eval-method}). I restates the project aims and the corresponding evaluation evidence:
 
+\paragraph{Trust architecture:}
+Build a type-preserving, V-DTAL-based architecture in which low-level artifacts can be independently checked.
+\begin{itemize}
+  \item Expressivity of the V-DTAL design for the intended trust architecture (Section~\ref{sec:dtal-eval})
+  \item TCB size analysis (Section~\ref{sec:tcb-eval})
+  \item Functional correctness of the verifier: verification of compiler output V-DTAL; rejection of tampered V-DTAL (Section~\ref{sec:verifier-correctness})
+\end{itemize}
 
-% no formalisation/proof of DTAL; does it successfully build on the foundation of xi and harper's DTAL (can their proofs be used as evidence/support here)?
+\paragraph{Expressive source language:}
+Provide a verification-oriented source language expressive enough for the intended safety properties.
+\begin{itemize}
+  \item Expressiveness comparison with verification-oriented languages (Section~\ref{sec:source-lang-eval})
+  \item Comparison-suite annotation burden (Section~\ref{sec:verification-perf})
+\end{itemize}
 
-In this chapter, I demonstrate that the project meets the proposed goals. I introduce the methodology, frameworks, and benchmarking suites used for evaluation (Section~\ref{sec:eval-method}). Table~\ref{tab:goal-evidence-map} restates the project aims and the corresponding qualitative and quantitative evidence.
-
-\begin{table}[h]
-  \centering
-  \scriptsize
-  \newcommand{\evidenceitems}[1]{%
-    \vspace{-0.5\baselineskip}%
-    \begin{itemize}[leftmargin=*,nosep,topsep=0pt,partopsep=0pt]
-      #1
-    \end{itemize}%
-    \vspace{-0.2\baselineskip}%
-  }
-  \begin{tabular}{p{0.29\textwidth} p{0.31\textwidth} p{0.31\textwidth}}
-    \hline
-    \textbf{Aim} & \textbf{Qualitative analysis} & \textbf{Quantitative analysis} \\
-    \hline
-    \textbf{Trust architecture:} Build a type-preserving, V-DTAL-based architecture in which low-level artifacts can be independently checked.
-                 &
-    \evidenceitems{
-      \item Expressivity of the V-DTAL design for the intended trust architecture (Section~\ref{sec:dtal-eval})
-      \item TCB size analysis (Section~\ref{sec:tcb-eval})
-    }
-                 &
-    \evidenceitems{
-      \item Functional correctness of the verifier: verification of compiler output V-DTAL; rejection of tampered V-DTAL (Section~\ref{sec:verifier-correctness})
-      % \item Physical V-DTAL verification of compiler output; V-DTAL tampering corpus; verifier rejection tests (Section~\ref{sec:verifier-correctness})
-    }                                                                             \\
-    \noalign{\vskip 0.3em}
-    \hline
-    \noalign{\vskip 0.3em}
-    \textbf{Expressive source language:} Provide a verification-oriented source language expressive enough for the intended safety properties
-                 &
-    \evidenceitems{
-      \item Expressiveness comparison with verification-oriented languages (Section~\ref{sec:source-lang-eval})
-    }
-                 &
-    \evidenceitems{
-      % \item feature-suite (Section~\ref{sec:compiler-correctness-eval})
-      % \item Negative suite (Section~\ref{sec:verifier-correctness})
-      \item Comparison-suite annotation burden (Section~\ref{sec:verification-perf})
-    }                                                                             \\
-    \noalign{\vskip 0.3em}
-    \hline
-    \noalign{\vskip 0.3em}
-    \textbf{Practicality:} Make the system practical enough to compile, run, and evaluate real programs in the supported systems-language fragment
-                 &
-    \evidenceitems{
-      \item Systems-language feature analysis (Section~\ref{sec:veritas-sys-eval})
-    }
-                 &
-    \evidenceitems{
-      % \item Feature-suite execution; PolyBench checksum validation (Section~\ref{sec:compiler-correctness-eval})
-      \item Functional correctness of the compiler (Section~\ref{sec:compiler-correctness-eval})
-      \item Compile-time, runtime, and binary-size measurements (Section~\ref{sec:compiler-runtime-practicality})
-      \item Verification wall-clock measurements (Section~\ref{sec:verification-perf})
-    }                                                                             \\
-    \hline
-  \end{tabular}
-  \caption{Project goals and the evaluation evidence used to assess them.}
-  \label{tab:goal-evidence-map}
-\end{table}
+\paragraph{Practicality:} Make the system practical enough to compile, run, and evaluate real programs in the supported systems-language fragment.
+\begin{itemize}
+  \item Systems-language feature analysis (Section~\ref{sec:veritas-sys-eval})
+  \item Functional correctness of the compiler (Section~\ref{sec:compiler-correctness-eval})
+  \item Compile-time, runtime, and binary-size measurements (Section~\ref{sec:compiler-runtime-practicality})
+  \item Verification wall-clock measurements (Section~\ref{sec:verification-perf})
+\end{itemize}
 
 The chapter then presents the qualitative analysis (Section~\ref{sec:qualitative-analysis}) followed by the quantitative analysis (Section~\ref{sec:quantitative-analysis}), concluding with a reflection on the results of the evaluation (Section~\ref{sec:summary-eval}).
 
@@ -186,27 +144,28 @@ Compared with C and Rust, Veritas currently occupies an intermediate position. L
 \begin{table}[h]
   \centering
   \footnotesize
-  \begin{tabular}{p{0.35\textwidth} c c c}
-    \hline
+  \newcommand{\veritasonly}{\textcolor{green!45!black}{\checkmark}}
+  \begin{tabular}{p{0.35\textwidth} c c >{\columncolor{blue!6}}c}
+    \tablehline
     \textbf{Feature}                            & \textbf{C} & \textbf{Rust} & \textbf{Veritas}                      \\
-    \hline
-    Mutable local state                         & \checkmark & \checkmark    & \checkmark                            \\
-    Fixed-size arrays                           & \checkmark & \checkmark    & \checkmark                            \\
-    Structured loop control flow                & \checkmark & \checkmark    & \checkmark                            \\
-    Native-code compilation                     & \checkmark & \checkmark    & \checkmark                            \\
-    Built-in ownership discipline               &            & \checkmark    & scoped arrays / refs                  \\
-    Borrow facts rechecked in compiled artifact &            &               & \checkmark                            \\
-    Refinement/contracts/invariants             &            &               & \checkmark                            \\
-    Independent low-level verifier              &            &               & \checkmark                            \\
-    User-defined structs / algebraic data types & \checkmark & \checkmark    & arrays / refs only                    \\
-    General heap allocation model               & \checkmark & \checkmark    & restricted \texttt{alloca}-style only \\
-    General unrestricted pointers               & \checkmark & \checkmark    &                                       \\
-    Basic I/O and runtime interaction           & \checkmark & \checkmark    & partial                               \\
-    Mature module / package ecosystem           & \checkmark & \checkmark    &                                       \\
-    FFI / systems-library integration story     & \checkmark & \checkmark    & minimal                               \\
-    Heap-heavy general systems idioms           & \checkmark & \checkmark    & array / ref kernels only              \\
-    Concurrency model in current fragment       & \checkmark & \checkmark    &                                       \\
-    \hline
+    \tablehline
+    Mutable local state                          & \checkmark & \checkmark   & \checkmark                              \\
+    Fixed-size arrays                            & \checkmark & \checkmark   & \checkmark                              \\
+    Structured loop control flow                 & \checkmark & \checkmark   & \checkmark                              \\
+    Native-code compilation                      & \checkmark & \checkmark   & \checkmark                              \\
+    Built-in ownership discipline                &            & \checkmark   & scoped arrays / refs                    \\
+    Borrow facts rechecked in compiled artifact  &            &              & \veritasonly                            \\
+    Refinement/contracts/invariants              &            &              & \veritasonly                            \\
+    Independent low-level verifier               &            &              & \veritasonly                            \\
+    User-defined structs / algebraic data types  & \checkmark & \checkmark   & arrays / refs only                      \\
+    General heap allocation model                & \checkmark & \checkmark   & restricted \texttt{alloca}-style only   \\
+    General unrestricted pointers                & \checkmark & \checkmark   &                                         \\
+    Basic I/O and runtime interaction            & \checkmark & \checkmark   & partial                                 \\
+    Mature module / package ecosystem            & \checkmark & \checkmark   &                                         \\
+    FFI / systems-library integration story      & \checkmark & \checkmark   & minimal                                 \\
+    Heap-heavy general systems idioms            & \checkmark & \checkmark   & array / ref kernels only                \\
+    Concurrency model in current fragment        & \checkmark & \checkmark   &                                         \\
+    \tablehline
   \end{tabular}
 
   \caption{High-level comparison of Veritas with C and Rust as systems-language
@@ -228,26 +187,27 @@ but not for the full range of properties supported by mature verification ecosys
 \begin{table}[h]
   \centering
   \footnotesize
-  \begin{tabular}{l c c c c c}
-    \hline
-    \textbf{Safety property / constraint class}         & \textbf{Veritas} & \textbf{Dafny} & \textbf{Liquid Haskell} & \textbf{Verus} & \textbf{ATS} \\
-    \hline
-    Array bounds safety                                 & \checkmark       & \checkmark     & partial                 & \checkmark     & \checkmark   \\
-    Division-by-zero safety                             & \checkmark       & \checkmark     & \checkmark              & \checkmark     & \checkmark   \\
-    Overflow / arithmetic side-condition reasoning      & \checkmark       & partial        & partial                 & \checkmark     & \checkmark   \\
-    Preconditions and postconditions                    & \checkmark       & \checkmark     & \checkmark              & \checkmark     & \checkmark   \\
-    Loop invariant reasoning                            & \checkmark       & \checkmark     & partial                 & \checkmark     & partial      \\
-    Quantified specifications                           & \checkmark       & \checkmark     & partial                 & \checkmark     & partial      \\
-    Sortedness / predicate-rich functional properties   & \checkmark       & \checkmark     & \checkmark              & \checkmark     & \checkmark   \\
-    Ownership / aliasing discipline                     & \checkmark       &                &                         & \checkmark     & partial      \\
-    Heap-allocated linked data structure invariants     &                  & \checkmark     & \checkmark              & partial        & partial      \\
-    Recursive structural functional correctness proofs  &                  & \checkmark     & \checkmark              & \checkmark     & \checkmark   \\
-    Concurrency / data-race freedom properties          &                  &                &                         & \checkmark     &              \\
-    Ghost-state-heavy protocol reasoning                & partial          & \checkmark     & partial                 & \checkmark     & \checkmark   \\
-    Information-flow / noninterference-style properties &                  & partial        & partial                 & partial        & partial      \\
-    Low-level preservation of checked constraints       & \checkmark       &                &                         &                &              \\
-    Independent checking of compiled artifact           & \checkmark       &                &                         &                &              \\
-    \hline
+  \newcommand{\veritasonlysafety}{\textcolor{green!45!black}{\checkmark}}
+  \begin{tabular}{l c c c c >{\columncolor{blue!6}}c}
+    \tablehline
+    \textbf{Safety property / constraint class}         & \textbf{Dafny} & \textbf{Liquid Haskell} & \textbf{Verus} & \textbf{ATS} & \textbf{Veritas} \\
+    \tablehline
+    Array bounds safety                                     & \checkmark    & partial                & \checkmark   & \checkmark & \checkmark         \\
+    Division-by-zero safety                                 & \checkmark    & \checkmark             & \checkmark   & \checkmark & \checkmark         \\
+    Overflow / arithmetic side-condition reasoning          & partial       & partial                & \checkmark   & \checkmark & \checkmark         \\
+    Preconditions and postconditions                        & \checkmark    & \checkmark             & \checkmark   & \checkmark & \checkmark         \\
+    Loop invariant reasoning                                & \checkmark    & partial                & \checkmark   & partial    & \checkmark         \\
+    Quantified specifications                               & \checkmark    & partial                & \checkmark   & partial    & \checkmark         \\
+    Sortedness / predicate-rich functional properties       & \checkmark    & \checkmark             & \checkmark   & \checkmark & \checkmark         \\
+    Ownership / aliasing discipline                         &               &                        & \checkmark   & partial    & \checkmark         \\
+    Heap-allocated linked data structure invariants         & \checkmark    & \checkmark             & partial      & partial    &                    \\
+    Recursive structural functional correctness proofs      & \checkmark    & \checkmark             & \checkmark   & \checkmark &                    \\
+    Concurrency / data-race freedom properties              &               &                        & \checkmark   &            &                    \\
+    Ghost-state-heavy protocol reasoning                    & \checkmark    & partial                & \checkmark   & \checkmark & partial            \\
+    Information-flow / noninterference-style properties     & partial       & partial                & partial      & partial    &                    \\
+    Low-level preservation of checked constraints           &               &                        &              &            & \veritasonlysafety \\
+    Independent checking of compiled artifact               &               &                        &              &            & \veritasonlysafety \\
+    \tablehline
   \end{tabular}
   \caption{Comparison of the main safety properties and specification classes relevant to this dissertation. ``partial'' indicates that the property is expressible, but less naturally or less directly in the style of programs considered here.}
   \label{tab:verification-safety-properties}
@@ -319,9 +279,9 @@ Binary size is used as a proxy for artifact compactness and backend code density
   \centering
   \scriptsize
   \begin{tabular}{l r r r r r}
-    \hline
+    \tablehline
     \textbf{Kernel}               & \textbf{Veritas ELF} & \textbf{Veritas code} & \textbf{GCC -O3 ELF} & \textbf{GCC -O3 \texttt{.text}} & \textbf{checked C -O3 \texttt{.text}} \\
-    \hline
+    \tablehline
     \texttt{floyd\_warshall\_500} & 1775                 & 1775                  & 16128                & 793                             & 793                                   \\
     \texttt{jacobi\_1d\_400\_100} & 1420                 & 1420                  & 16000                & 1001                            & 1001                                  \\
     \texttt{jacobi\_2d\_250\_100} & 2416                 & 2416                  & 16000                & 1513                            & 1513                                  \\
@@ -329,7 +289,7 @@ Binary size is used as a proxy for artifact compactness and backend code density
     \texttt{mvt\_400}             & 2166                 & 2166                  & 16072                & 1209                            & 1209                                  \\
     \texttt{atax\_390\_410}       & 2045                 & 2045                  & 16040                & 1385                            & 1385                                  \\
     \texttt{gesummv\_250}         & 1886                 & 1886                  & 16040                & 1449                            & 1449                                  \\
-    \hline
+    \tablehline
   \end{tabular}
   \caption{Binary-size comparison for the committed PolyBench \texttt{MEDIUM}-class suite against GCC \texttt{-O3} and checked C \texttt{-O3}. For Veritas, the code-bearing size again falls back to total ELF size because the emitted freestanding binaries do not carry a conventional section table.}
   \label{tab:polybench-binary-size-summary}
@@ -347,16 +307,16 @@ On the feature-suite, mean source-to-V-DTAL compilation time is 27.110\,ms and m
   \centering
   \small
   \begin{tabular}{l r r r}
-    \hline
+    \tablehline
     \textbf{Program}              & \textbf{Compile only (s)} & \textbf{Compile + verify (s)} & \textbf{Overhead ratio} \\
-    \hline
+    \tablehline
     \texttt{array\_init}          & 0.0702                    & 0.3143                        & 4.476x                  \\
     \texttt{array\_assignment}    & 0.1029                    & 0.1418                        & 1.379x                  \\
     \texttt{quantifier\_showcase} & 0.1319                    & 0.1957                        & 1.483x                  \\
     \texttt{binary\_search}       & 0.2809                    & 0.3810                        & 1.356x                  \\
     \texttt{bubble\_sort}         & 0.1310                    & 0.1976                        & 1.508x                  \\
     \texttt{sortedness}           & 0.0404                    & 0.0523                        & 1.293x                  \\
-    \hline
+    \tablehline
   \end{tabular}
   \caption{End-to-end wall-clock overhead of explicit V-DTAL verification on a subset of the feature-suite.}
   \label{tab:verification-stress-overheads}
@@ -404,9 +364,9 @@ Table~\ref{tab:tcb-summary} separates the measured verifier-side Rust core from 
   \centering
   \small
   \begin{tabular}{l l l c c}
-    \hline
+    \tablehline
     \textbf{Trusted component} & \textbf{Form}         & \textbf{Size}             & \textbf{Linux} & \textbf{Bare metal} \\
-    \hline
+    \tablehline
     V-DTAL verifier core       & Rust LOC              & 7817 / 42996 (18.2\%)     & \checkmark     & \checkmark          \\
     Direct encoder             & Rust LOC              & \~386                     & \checkmark     & \checkmark          \\
     x86 instruction encoder    & Rust LOC              & \~1660                    & \checkmark     & \checkmark          \\
@@ -414,7 +374,7 @@ Table~\ref{tab:tcb-summary} separates the measured verifier-side Rust core from 
     Runtime blob               & machine code          & 228 bytes                 & \checkmark     &                     \\
     Multiboot bootstrap        & machine code          & 206 bytes                 &                & \checkmark          \\
     Host OS / kernel           & execution environment & large external dependency & \checkmark     &                     \\
-    \hline
+    \tablehline
   \end{tabular}
   \caption{Decomposed trust architecture for the current Veritas
     implementation. The verifier-side Rust LOC measurement captures the main
@@ -428,7 +388,7 @@ The verifier-side Rust core is 18.2\% of the counted Rust implementation. The fi
 \section{Summary against project aims}\label{sec:summary-eval}
 
 % The evaluation supports the three aims set out for Veritas: a V-DTAL-based trust architecture, a verification-oriented source language with useful expressivity, and a practical enough systems-language toolchain for the supported fragment. 
-Overall, the chapter shows that Veritas satisfies the dissertation aims as a scoped verified systems-language: the architecture works, the source language is expressive enough for the intended verification tasks, and the implementation is practical enough to evaluate on real compiled programs. The claims remain deliberately bounded: cross-system comparisons are informative but not perfectly like-for-like, the verifier evidence is empirical rather than a formal soundness proof.
+Overall, the chapter shows that Veritas satisfies the dissertation aims as a scoped verified systems language: the architecture works, the source language is expressive enough for the intended verification tasks, and the implementation is practical enough to evaluate on real compiled programs. The claims remain deliberately bounded: cross-system comparisons are informative but not perfectly like-for-like, the verifier evidence is empirical rather than a formal soundness proof.
 The strongest result is architectural: safety-relevant information survives lowering into an independently checkable artifact, and the empirical evidence shows that the artifact can reject both source-level mistakes and representative backend corruptions. The TCB analysis reinforces the same point by showing that most compiler infrastructure is outside the trusted path for the checked safety policy.
 
 % The expressivity results are deliberately scoped. Veritas does not match mature verification ecosystems on heap-shaped data, recursive proofs, concurrency, or protocol-heavy reasoning, but it does cover the contract, array, arithmetic, invariant, quantified, sortedness, and borrowing properties needed to exercise the trust architecture. That coverage is enough to demonstrate the central source-to-V-DTAL evidence-carrying design without overstating the language as a general-purpose verifier.

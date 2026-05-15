@@ -487,11 +487,12 @@ The requirements of the project were categorised using the MoSCoW method to prio
 \begin{table}[H]
   \centering
   \small
+  \renewcommand{\arraystretch}{1.08}
 
   \begin{tabular}{p{0.16\textwidth} p{0.76\textwidth}}
-    \hline
+    \tablehline
     \textbf{Priority} & \textbf{Requirements} \\
-    \hline
+    \tablehline
 
     Must-have         &
     \begin{minipage}[t]{\linewidth}
@@ -507,7 +508,7 @@ The requirements of the project were categorised using the MoSCoW method to prio
     \end{minipage}
     \\
 
-    \hline
+    \tablehline
 
     Should-have       &
     \begin{minipage}[t]{\linewidth}
@@ -520,7 +521,7 @@ The requirements of the project were categorised using the MoSCoW method to prio
     \end{minipage}
     \\
 
-    \hline
+    \tablehline
 
     Could-have        &
     \begin{minipage}[t]{\linewidth}
@@ -533,7 +534,7 @@ The requirements of the project were categorised using the MoSCoW method to prio
     \end{minipage}
     \\
 
-    \hline
+    \tablehline
 
     Won't-have        &
     \begin{minipage}[t]{\linewidth}
@@ -546,7 +547,7 @@ The requirements of the project were categorised using the MoSCoW method to prio
     \end{minipage}
     \\
 
-    \hline
+    \tablehline
   \end{tabular}
 
   \caption{MoSCoW requirements used to keep the project focused on type-preserving compilation and independent low-level verification.}
@@ -581,6 +582,73 @@ The requirements of the project were categorised using the MoSCoW method to prio
 
 \paragraph{Development process.} Initial planning resembled a waterfall model for defining compiler pipeline modules, source and target language features and specifications. Development then followed a spiral approach: the pipeline was built end-to-end to support integer arithmetic, then extended with arrays, mutable variables, refinement types, function contracts, and quantifiers. Work items were planned for two-week sprints. Each feature was accompanied by positive tests that should compile and negative tests that should be rejected with a specific error.
 
+
+\begin{figure}[H]
+  \centering
+  \scriptsize
+  \begin{tikzpicture}[
+      x=0.56cm,
+      y=0.52cm,
+      planned/.style={fill=blue!35, draw=blue!60!black, line width=0.2pt},
+      actual/.style={fill=green!45!black!35, draw=green!45!black, line width=0.2pt},
+      gridline/.style={draw=gray!35, line width=0.2pt},
+      axis/.style={draw=black, line width=0.35pt}
+    ]
+    \def\ncols{15}
+    \def\nrows{7}
+
+    % Grid
+    \foreach \x in {0,...,15} {\draw[gridline] (\x,0) -- (\x,-\nrows);}
+    \foreach \y in {0,...,7} {\draw[gridline] (0,-\y) -- (\ncols,-\y);}
+    \draw[axis] (0,0) rectangle (\ncols,-\nrows);
+
+    % Sprint labels. Each column is a two-week sprint from the proposal timetable.
+    \foreach \x/\s in {0/S1,1/S2,2/S3,3/S4,4/S5,5/S6,6/S7,7/S8,8/S9,9/S10,10/S11,11/S12,12/S13,13/S14,14/S15} {
+        \node[font=\scriptsize] at (\x+0.5,0.36) {\s};
+      }
+    \node[anchor=east, font=\scriptsize\bfseries] at (-0.25,0.36) {Sprint};
+
+    % Row labels
+    \node[anchor=east, align=right] at (-0.25,-0.5) {Language design\\and parser};
+    \node[anchor=east, align=right] at (-0.25,-1.5) {Type checker\\and SMT};
+    \node[anchor=east, align=right] at (-0.25,-2.5) {TIR lowering\\and codegen};
+    \node[anchor=east, align=right] at (-0.25,-3.5) {Register allocation\\and encoder};
+    \node[anchor=east, align=right] at (-0.25,-4.5) {V-DTAL verifier};
+    \node[anchor=east, align=right] at (-0.25,-5.5) {Extensions\\and runtime};
+    \node[anchor=east, align=right] at (-0.25,-6.5) {Evaluation and\\dissertation};
+
+    % Planned bars from the proposal schedule: upper half of each row.
+    \draw[planned] (0.05,-0.15) rectangle (2.95,-0.42);
+    \draw[planned] (2.05,-1.15) rectangle (3.95,-1.42);
+    \draw[planned] (4.05,-2.15) rectangle (5.95,-2.42);
+    \draw[planned] (6.05,-3.15) rectangle (6.95,-3.42);
+    \draw[planned] (7.05,-4.15) rectangle (8.95,-4.42);
+    \draw[planned] (11.05,-5.15) rectangle (13.95,-5.42);
+    \draw[planned] (9.05,-6.15) rectangle (14.95,-6.42);
+
+    % Approximate actual progression: lower half of each row.
+    \draw[actual] (0.05,-0.58) rectangle (3.45,-0.85);
+    \draw[actual] (2.55,-1.58) rectangle (5.95,-1.85);
+    \draw[actual] (4.05,-2.58) rectangle (7.95,-2.85);
+    \draw[actual] (6.05,-3.58) rectangle (9.95,-3.85);
+    \draw[actual] (7.05,-4.58) rectangle (11.45,-4.85);
+    \draw[actual] (9.05,-5.58) rectangle (13.95,-5.85);
+    \draw[actual] (9.55,-6.58) rectangle (14.95,-6.85);
+
+    % Legend
+    \draw[planned] (9.1,0.75) rectangle (9.55,0.98);
+    \node[anchor=west] at (9.65,0.86) {proposal};
+    \draw[actual] (12.25,0.75) rectangle (12.7,0.98);
+    \node[anchor=west] at (12.8,0.86) {actual};
+  \end{tikzpicture}
+  \captionsetup{
+    aboveskip=4pt,
+    belowskip=-8pt
+  }
+  \caption{Gantt chart of the project; columns are two-week sprints.}
+  \label{fig:project-gantt}
+\end{figure}
+
 \paragraph{Version control.} Version control was managed using Git, following a trunk-based development strategy with short-lived feature branches merged into the main branch. CI was done using GitHub Actions.
 
 \paragraph{Code quality and testing.} The CI pipeline enforced formatting and linting standards using \texttt{cargo fmt} and \texttt{cargo clippy}. It also validated example programs and ran the test suite on Ubuntu Linux and macOS, covering the main systems development platforms and different Z3/libc environments. The test suite has unit tests for each significant module and integration tests between pipeline components.
@@ -597,17 +665,17 @@ Table~\ref{tab:veritas-crates} lists the external Rust crates used in Veritas.
   \centering
   \small
   \begin{tabular}{p{0.1\textwidth} p{0.1\textwidth} p{0.1\textwidth} p{0.6\textwidth}}
-    \hline
+    \tablehline
     \textbf{Crate}                                                           & \textbf{Version} & \textbf{Licence} & \textbf{Role}                                                                                                                            \\
-    \hline
+    \tablehline
     \texttt{z3}\footnote{\url{https://docs.rs/z3/latest/z3/}}                & v0.19            & MIT              & Rust bindings for the Z3 SMT solver~\cite{DeMoura2008Z3}, used for proof obligations in both the type checker and verifier.              \\
-    \hline
+    \tablehline
     \texttt{chumsky}\footnote{\url{https://docs.rs/chumsky/latest/chumsky/}} & v1.0.0-alpha.8   & MIT              & Parser combinator library used for the lexer and parser.                                                                                 \\
-    \hline
+    \tablehline
     \texttt{im}\footnote{\url{https://docs.rs/im/latest/im/}}                & v15.1            & MPL-2.0+         & Persistent (structurally shared) data structures, used for efficient context cloning during type checking.                               \\
-    \hline
+    \tablehline
     \texttt{ariadne}\footnote{\url{https://docs.rs/ariadne/latest/ariadne/}} & v0.5             & MIT              & Diagnostic rendering library used for formatting error messages with source-location highlights; it handles the presentation layer only. \\
-    \hline
+    \tablehline
   \end{tabular}
   \caption{Main external Rust crates used in the Veritas implementation.}
   \label{tab:veritas-crates}

@@ -792,16 +792,16 @@ V-DTAL defines 16 physical registers: \texttt{r0}--\texttt{r12} (general purpose
 \centering
 \small
 \begin{tabular}{l l l l}
-\hline
+\tablehline
 \textbf{V-DTAL} & \textbf{x86-64} & \textbf{Role} & \textbf{Saved by} \\
-\hline
+\tablehline
 \texttt{r0}--\texttt{r5} & \texttt{rdi}, \texttt{rsi}, \texttt{rdx}, \texttt{rcx}, \texttt{r8}, \texttt{r9} & Arguments 1--6 & Caller \\
 \texttt{r6}--\texttt{r7} & \texttt{r10}, \texttt{r11} & Scratch & Caller \\
 \texttt{r8}--\texttt{r12} & \texttt{rbx}, \texttt{r12}--\texttt{r15} & General & Callee \\
 \texttt{lr} & \texttt{rax} & Return value & Caller \\
 \texttt{sp} & \texttt{rsp} & Stack pointer & --- \\
 \texttt{fp} & \texttt{rbp} & Frame pointer & --- \\
-\hline
+\tablehline
 \end{tabular}
 \caption{V-DTAL physical register mapping to x86-64.}
 \label{tab:regmap}
@@ -970,7 +970,7 @@ This demonstrates the project's long-term direction: a bare-metal Veritas target
   \centering
   \begin{tikzpicture}[
       font=\small,
-      scale=0.8
+      scale=0.8,
     ]
     % Hardware
     \draw[thick] (0,11.0) rectangle (13.4,12.35);
@@ -1114,15 +1114,15 @@ The ownership-aware TIR forms lower to explicit V-DTAL instructions. The extensi
 \centering
 \small
 \begin{tabular}{p{0.32\textwidth} p{0.54\textwidth}}
-\hline
+\tablehline
 \textbf{V-DTAL form} & \textbf{Verifier-visible meaning} \\
-\hline
+\tablehline
 \texttt{move\_owned rd, rs : T} & Transfers ownership from \texttt{rs} to \texttt{rd}. \\
 \texttt{drop\_owned rs : T} & Consumes the owned value in \texttt{rs}. \\
 \texttt{alias\_borrow rd, rs : \&T} & Creates a shared borrow of the object held by \texttt{rs}. \\
 \texttt{borrow\_mut rd, rs : \&mut T} & Creates a mutable borrow of the object held by \texttt{rs}. \\
 \texttt{borrow\_end rs : \&T} or \texttt{\&mut T} & Ends the borrow held in \texttt{rs}. \\
-\hline
+\tablehline
 \end{tabular}
 \caption{Ownership and borrowing instructions added to V-DTAL.}
 \label{tab:dtal-ownership-forms}

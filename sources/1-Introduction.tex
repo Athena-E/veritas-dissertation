@@ -24,7 +24,7 @@ One might suggest combining the previous two methods into a verified compiler fo
 
 \subsection{A practical middle-ground: Veritas}\label{sec:intro-veritas}
 
-The gap addressed by this dissertation is the lack of a systems-language toolchain that combines source-level refinement checking with independently checkable low-level output without requiring a fully verified compiler. Figure~\ref{fig:safety-sem-taxonomy} illustrates the motivating gap.
+The gap addressed by this dissertation is the lack of a systems-language toolchain that enables independent checking of low-level output. Figure~\ref{fig:safety-sem-taxonomy} illustrates the motivating gap.
 
 This dissertation presents \textbf{Veritas}, a toolchain that applies the ideas behind PCC to compile source programs for a systems language to V-DTAL, a Veritas-specific version of Dependently Typed Assembly Language (DTAL) \cite{Xi2001DTAL}.
 In the supported fragment, Veritas checks: fixed-size array bounds, function preconditions and postconditions, block-entry type-state compatibility, selected arithmetic side conditions, and ownership/borrow-state consistency.
