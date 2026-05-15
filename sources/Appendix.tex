@@ -253,7 +253,7 @@ $$
 
 \chapter{Complete V-DTAL typing rules}\label{app:dtal-rules}
 
-This appendix lists the complete set of typing rules implemented by the V-DTAL verifier. Most rules have the form $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, where $\Phi$ is the constraint context, $\Gamma$ maps registers to types, and $\Gamma'$ is the updated register map. Rules that also touch spill slots, comparison flags, array versions, physical-division metadata, or ownership state extend this judgement with the corresponding auxiliary state. We write $\textsf{idx}(\tau)$ for the index expression extracted from a type (e.g., $\textsf{idx}(\textsf{int}(e)) = e$), and use $\varphi$ for predicates over integer witnesses. Rules marked with $\star$ are also presented in Chapter~\ref{ch:impl}.
+This appendix lists the complete set of typing rules implemented by the V-DTAL verifier. Most rules have the form $\Phi; \Gamma \vdash \textsf{instr} \Rightarrow \Gamma'$, where $\Phi$ is the constraint context, $\Gamma$ maps registers to types, and $\Gamma'$ is the updated register map. Rules that also touch spill slots, comparison flags, array versions, physical-division metadata, or ownership state extend this judgement with the corresponding auxiliary state. We write $\textsf{idx}(\tau)$ for the index expression extracted from a type (e.g., $\textsf{idx}(\textsf{int}(e)) = e$) and use $\varphi$ for predicates over integer witnesses. Rules marked with $\star$ are also presented in Chapter~\ref{ch:impl}.
 
 \section*{Data movement}
 
@@ -491,160 +491,135 @@ The ownership verifier state $\Omega$ maps object identifiers to an owner, borro
   \label{tab:dtal-ownership-rules}
 \end{table}
 
-\chapter{Preservation proof sketch}\label{app:preservation-sketch}
+\chapter{Evaluation tables}\label{app:evaluation-supplementary}
 
-This appendix gives a structured proof sketch for the claim that Veritas preserves verifier-facing type evidence through the compilation pipeline. The claim is intentionally scoped: it is not a formal source-to-target semantic-preservation theorem, and it does not prove that the generated machine code computes the same value as the source program. Instead, it justifies the engineering claim that the compiler is designed to carry the evidence needed by the final physical V-DTAL verifier.
-
-\section*{Claim and assumptions}
-
-\paragraph{Claim.}
-If a Veritas source program is accepted by the source checker, the compiler emits physical V-DTAL, and the independent physical V-DTAL verifier accepts that artifact, then the safety evidence relevant to the checked policy has been preserved into the verifier-facing low-level program. The checked policy covers fixed-size array bounds, function preconditions and postconditions, block-entry type-state compatibility, selected arithmetic side conditions, and the supported ownership/borrowing discipline.
-
-\paragraph{Assumptions.}
-The argument assumes that the verifier implementation, its SMT translation, Z3, the direct encoder, runtime intrinsics, and target machine model behave according to their intended specifications. The compiler stages before physical V-DTAL verification are not trusted for the checked safety policy: if they corrupt safety-relevant evidence in a way that violates the V-DTAL rules, the final verifier should reject the artifact. A type-consistent semantic miscompilation can still pass, because the verifier checks the scoped safety policy rather than full program equivalence.
-
-\section*{Pass invariants}
-
-Table~\ref{tab:pass-preservation-invariants} records the preservation obligation at each stage and the evidence used in the dissertation. The table is not a machine-checked proof, but it makes explicit which invariant each pass is intended to maintain and which later check validates it.
-
-\begin{table}[H]
+\begin{table}[p]
   \centering
   \scriptsize
-  \begin{tabularx}{\linewidth}{p{0.16\linewidth} p{0.20\linewidth} p{0.34\linewidth} p{0.22\linewidth}}
+  \begin{tabular}{p{0.06\textwidth} p{0.20\textwidth} p{0.31\textwidth} p{0.33\textwidth}}
     \hline
-    \textbf{Stage} & \textbf{Input/output} & \textbf{Preservation obligation} & \textbf{Evidence/status} \\
+    \textbf{ID} & \textbf{Program} & \textbf{Features exercised} & \textbf{Role in the suite} \\
     \hline
-    Source checking
-    & Source $\rightarrow$ TAST
-    & Establish well-formed contracts, refinements, loop invariants, bounds obligations, arithmetic side conditions, and ownership events.
-    & Source rules in Appendix~\ref{app:source-rules}; negative suite; not trusted by final low-level policy. \\
+    F01 & Simple arithmetic
+        & Arithmetic, return values
+        & Baseline frontend and executable smoke test \\
+    F02 & Conditionals
+        & Conditionals, branching, control flow
+        & Explicit conditional control-flow baseline \\
+    F03 & Arrays
+        & Fixed-size arrays, indexing
+        & Basic array creation and indexed access \\
+    F04 & References
+        & References, borrowing
+        & Basic reference semantics \\
+    F05 & Comparisons
+        & Comparisons, booleans, predicates
+        & Predicate and boolean comparison baseline \\
+    F06 & Function calls
+        & Function calls, parameters
+        & Call-structure baseline \\
+    F07 & Mutable variables
+        & Mutable variables, assignment
+        & Local state-update baseline \\
+    F08 & Advanced types
+        & Type annotations, structural checks
+        & Wider source type-system coverage \\
+    F09 & For loops
+        & \texttt{for} loops, iteration
+        & Bounded-loop control-flow baseline \\
+    F10 & Array initialisation
+        & Arrays, initialisation, proof obligations
+        & Obligation-heavy array setup \\
+    F11 & Array assignment
+        & Arrays, mutation, proof obligations
+        & Array-update reasoning \\
+    F12 & Preconditions
+        & Preconditions, contracts
+        & Contract definition \\
+    F13 & Precondition use
+        & Preconditions, calls, contracts
+        & Contract use at call sites \\
+    F14 & Loop invariant
+        & Loop invariants, \texttt{while} loops
+        & Invariant-checking baseline \\
+    F15 & Quantifier showcase
+        & Quantifiers, proof obligations, logic
+        & Quantifier reasoning \\
+    F16 & Array loop invariant
+        & Arrays, loop invariants, proof obligations
+        & Array invariant reasoning \\
+    F17 & Binary search
+        & Binary search, invariants, quantifiers, sortedness
+        & Canonical search proof \\
+    F18 & Safe division
+        & Division, preconditions, arithmetic safety
+        & Positive arithmetic-safety baseline \\
+    F19 & Bubble sort
+        & Sorting, loop invariants, mutation, sortedness
+        & Canonical sorting proof \\
+    F20 & While loop
+        & \texttt{while} loops, control flow
+        & Imperative loop baseline \\
+    F21 & Safe \texttt{i64} midpoint
+        & \texttt{i64}, overflow safety, preconditions
+        & Overflow-aware arithmetic \\
+    F22 & Shared array borrow
+        & Shared array borrows, references
+        & Shared-borrow semantics \\
+    F23 & Mutable array borrow
+        & Mutable array borrows, mutation
+        & Exclusive-borrow semantics \\
+    F24 & Shared scalar dereference
+        & Shared scalar borrows, dereference
+        & Shared scalar-reference dereference \\
+    F25 & Mutable scalar dereference
+        & Mutable scalar borrows, dereference, mutation
+        & Mutable scalar-reference dereference \\
+    F26 & Shared scalar borrow call
+        & Shared scalar borrows, function calls
+        & Shared borrow passing across calls \\
+    F27 & Mutable scalar borrow call
+        & Mutable scalar borrows, function calls, mutation
+        & Mutable borrow passing across calls \\
+    F28 & Sortedness
+        & Sortedness, quantifiers, specifications
+        & Reusable sortedness-specification reasoning \\
     \hline
-    Lowering
-    & TAST $\rightarrow$ TIR
-    & Replace source variables by SSA registers while translating branch facts, disjunctive joins of integer singleton/refined types, contracts, loop invariants, bounds obligations, and ownership events into register-indexed constraints.
-    & TIR design in Chapter~\ref{ch:impl}; binary-search walkthrough in Appendix~\ref{app:worked-example}; checked again downstream. \\
-    \hline
-    V-DTAL generation
-    & TIR $\rightarrow$ virtual V-DTAL
-    & Emit block-entry type states, instruction annotations, assertions, assumptions, function contracts, and existential facts sufficient for independent checking.
-    & V-DTAL rules in Appendix~\ref{app:dtal-rules}; feature-suite verifier acceptance. \\
-    \hline
-    Optimisation
-    & virtual V-DTAL $\rightarrow$ virtual V-DTAL
-    & Preserve verifier-visible effects: assertions, assumptions, calls, stores, branches, and type annotations must not be silently dropped or made inconsistent.
-    & Optional pass output is still fed to the final verifier; incorrect safety-relevant rewrites should be rejected. \\
-    \hline
-    Physical allocation
-    & virtual V-DTAL $\rightarrow$ physical V-DTAL
-    & Substitute virtual registers with physical registers in both instructions and constraints; expose spills, reloads, prologues, epilogues, and division expansion as verifier-visible operations.
-    & Post-register-allocation verifier; spill and physical-instruction rules; V-DTAL tampering corpus. \\
-    \hline
-    Independent verifier
-    & physical V-DTAL $\rightarrow$ accept/reject
-    & Re-derive register types and constraints from instruction semantics, prove assertions and side conditions, and check every control-flow edge against target entry states.
-    & Trusted implementation core; rules in Appendix~\ref{app:dtal-rules}; positive and tampering suites. \\
-    \hline
-    Direct encoding and runtime
-    & accepted physical V-DTAL $\rightarrow$ x86-64/ELF
-    & Map checked physical instructions to the intended byte sequences and provide trusted runtime effects.
-    & Small trusted encoder/runtime; tested by executable examples; outside the preservation proof sketch. \\
-    \hline
-  \end{tabularx}
-  \caption{Pass-by-pass preservation obligations and supporting evidence.}
-  \label{tab:pass-preservation-invariants}
+  \end{tabular}
+  \caption{Definition of the curated feature-suite used for compiler throughput, verifier agreement, and executable functional-correctness evidence. The table uses descriptive names; the fixed executable manifest records the corresponding \texttt{.veri} files.}
+  \label{tab:feature-suite-definition}
 \end{table}
 
-\section*{Proof sketch}
-
-The argument proceeds by induction over the pipeline stages in Table~\ref{tab:pass-preservation-invariants}, with the final step discharged by the physical V-DTAL verifier.
-
-\paragraph{Source checking.}
-For an accepted source program, the type checker has assigned every expression and statement a type under a context of logical assumptions. Array accesses and stores require a proof of $0 \le i < N$; calls require the callee precondition; returns require the postcondition; loop bodies must preserve their invariants; and assignments to mutable variables must remain within the declared master type. Therefore the TAST contains both executable structure and the source-level evidence that later stages must carry.
-
-\paragraph{Lowering to TIR.}
-Lowering is syntax-directed. The induction hypothesis is that each already-lowered subexpression has a virtual register and a type/constraint description corresponding to the source judgement. Variable lookup is translated by the source-to-register environment; mutation becomes SSA reassignment; branches attach translated guard constraints to successor edges; and loop-carried values are represented by phi nodes. Source-level joins preserve integer singleton alternatives as disjunctive refinements where possible, and existential constraints on phi nodes preserve facts such as induction-variable bounds without requiring a concrete singleton value. Thus TIR preserves the safety-relevant source evidence in a register-indexed form.
-
-\paragraph{V-DTAL generation.}
-The code generator maps each TIR instruction to virtual V-DTAL while preserving its verifier-facing type. Arithmetic instructions carry result refinements or existential summaries; array operations carry bounds constraints; calls carry contract information; branch successors receive the corresponding assumptions; and loop invariants become \texttt{.assert} directives. Phi nodes are lowered to edge copies plus declared block-entry states. The result is a virtual V-DTAL program whose annotations are sufficient for an independent verifier to reconstruct the intended type state.
-
-\paragraph{Optimisation and physical allocation.}
-Optimisations are required to preserve verifier-visible instructions and update the types on rewritten instructions. Physical allocation then applies a register substitution to instructions, annotations, and constraints. Extra backend work introduced by the target architecture is made explicit: spills and reloads carry stack-slot types, division expansion appears as physical instructions, and prologues/epilogues are represented in V-DTAL rather than hidden below the verifier. These stages are not trusted; their preservation obligation is validated by the final physical V-DTAL check.
-
-\paragraph{Physical V-DTAL verification.}
-The verifier checks each function block by block. Its state contains a register typing environment, logical constraints, stack and spill-slot types, array-version information, function contracts, comparison state, and ownership metadata. For each instruction, it re-derives the successor type state from the instruction semantics rather than trusting compiler annotations. Loads and stores require an SMT proof of the bounds obligation, stores update array versions, calls check preconditions and import postconditions, branches refine outgoing edge states, and jumps must coerce the current state to the target block's entry state. Ownership instructions update object and borrow state while rejecting moves, drops, or borrows that violate the supported discipline.
-
-Consequently, if the verifier accepts the physical V-DTAL, every checked instruction has a locally justified transition and every control-flow edge preserves the declared type state. This substantiates the type-preservation claim in the implementation sense: safety-relevant type evidence is carried to a low-level artifact and independently checked there. It remains a proof sketch, not a mechanised preservation theorem, and it leaves full compiler semantic preservation as future work.
-
-% \chapter{Pipeline correspondence tables}\label{app:pipeline-correspondence}
-%
-% \begin{table}[h]
-%   \centering
-%   \scriptsize
-%   \begin{tabular}{p{0.27\textwidth} p{0.32\textwidth} p{0.32\textwidth}}
-%     \hline
-%     \textbf{Source construct} & \textbf{TIR representation} & \textbf{V-DTAL representation} \\
-%     \hline
-%     Integer / boolean literal
-%     & $\rho := n : \tau$
-%     & \texttt{mov} into a register with a singleton or base type annotation \\
-%     Variable use
-%     & Read the virtual register currently bound to the source variable
-%     & Use the corresponding virtual or physical register in later instructions \\
-%     Immutable binding \texttt{let x:T = e}
-%     & Lower $e$ to a fresh virtual register and bind $x$ to that register
-%     & Instructions computing $e$, with the result type carried on the destination register \\
-%     Mutable assignment \texttt{x = e}
-%     & Lower $e$ to a fresh virtual register and update the variable-to-register map
-%     & Ordinary computation instructions; SSA reassignment has already been made explicit in TIR \\
-%     Arithmetic expression \texttt{e1 op e2}
-%     & \texttt{BinOp \{ dst, op, lhs, rhs, ty \}}
-%     & Arithmetic instruction such as \texttt{add}, \texttt{sub}, or \texttt{mul}, carrying the derived result type \\
-%     Comparison expression
-%     & \texttt{BinOp} or branch condition register with true/false constraints
-%     & \texttt{cmp} followed by \texttt{setcc} or conditional branch; branch facts refine the verifier context \\
-%     Conditional expression / statement
-%     & \texttt{Branch \{ cond, true\_target, false\_target, true\_constraint, false\_constraint \}} plus merge phi nodes
-%     & \texttt{cmp}/branch instructions and labelled blocks with checked entry states \\
-%     Loop
-%     & Header/body/exit blocks, loop-carried phi nodes, and translated invariant assertions
-%     & Labelled blocks with \texttt{.entry}, \texttt{.assume}, branches, and \texttt{.assert} constraints \\
-%     Function call
-%     & \texttt{Call \{ dst?, func, args, arg\_types, result\_ty \}}
-%     & Argument registers following the calling convention, \texttt{call}, precondition check, and postcondition context update \\
-%     Return
-%     & \texttt{Return \{ value? \}}
-%     & Move result to the return register where needed, then \texttt{ret} \\
-%     Array creation
-%     & Allocation or initialisation instructions, depending on the source form
-%     & Stack/runtime allocation support plus array type information and initialisation facts \\
-%     Array read \texttt{a[i]}
-%     & \texttt{ArrayLoad \{ dst, base, index, element\_ty, bounds\_constraint \}}
-%     & Address computation plus typed \texttt{load}; verifier proves the bounds constraint \\
-%     Array write \texttt{a[i] = e}
-%     & \texttt{ArrayStore \{ base, index, value, bounds\_constraint \}}
-%     & Address computation plus typed \texttt{store}; verifier proves the bounds constraint \\
-%     Function precondition
-%     & Function-level constraint and call-site proof obligation
-%     & \texttt{.precondition}; verifier checks callers establish the required constraint \\
-%     Function postcondition
-%     & Function-level result constraint
-%     & \texttt{.postcondition}; verifier adds the instantiated fact after a verified call \\
-%     Loop invariant / assertion
-%     & \texttt{AssertConstraint \{ constraint \}}
-%     & \texttt{.assert}; checked before being added to the V-DTAL constraint context \\
-%     Path assumption
-%     & \texttt{AssumeConstraint \{ constraint \}}
-%     & \texttt{.assume}; contributes to the declared block-entry context \\
-%     SSA join
-%     & \texttt{PhiNode \{ dst, ty, incoming, existential\_constraint \}}
-%     & Edge copies plus block-entry type state; existential facts preserve joined refinement information \\
-%     \hline
-%   \end{tabular}
-%   \caption{Correspondence between representative source constructs, TIR forms, and verifier-facing V-DTAL forms.}
-%   \label{tab:source-tir-dtal-correspondence}
-% \end{table}
-
-\chapter{Evaluation tables}\label{app:evaluation-supplementary}
+\begin{table}[h]
+  \centering
+  \scriptsize
+  \begin{tabular}{p{0.06\textwidth} p{0.20\textwidth} p{0.31\textwidth} p{0.33\textwidth}}
+    \hline
+    \textbf{ID} & \textbf{Task} & \textbf{Verified property} & \textbf{Implementations compared} \\
+    \hline
+    C01 & \texttt{safe\_division}
+        & Division is only performed under a non-zero divisor precondition.
+        & Veritas, Dafny, Liquid Haskell, Verus \\
+    C02 & \texttt{bounded\_read\_offset}
+        & Array access through an offset index is within bounds under caller-supplied preconditions.
+        & Veritas, Dafny, Liquid Haskell, Verus \\
+    C03 & \texttt{fill\_with\_ones}
+        & A loop fills a fixed-size array while maintaining the required array invariant.
+        & Veritas, Dafny, Liquid Haskell, Verus \\
+    C04 & \texttt{binary\_search}
+        & Sorted-array binary search preserves loop invariants and performs only in-bounds reads.
+        & Veritas, Dafny, Liquid Haskell, Verus \\
+    C05 & \texttt{sorted\_head}
+        & A sortedness precondition is used to justify the returned head element specification.
+        & Veritas, Dafny, Liquid Haskell, Verus \\
+    C06 & \texttt{safe\_midpoint}
+        & Midpoint arithmetic remains within the specified integer range.
+        & Veritas, Dafny, Liquid Haskell, Verus \\
+    \hline
+  \end{tabular}
+  \caption{Definition of the normalised cross-system comparison suite. The tasks are matched by verified property rather than by identical data representation.}
+  \label{tab:comparison-suite-definition}
+\end{table}
 
 \begin{figure}[h]
   \centering
@@ -673,34 +648,6 @@ Consequently, if the verifier accepts the physical V-DTAL, every checked instruc
     fixed \texttt{MEDIUM}-class parameters, algorithmic role, and the main
     language/compiler features they exercise.}
   \label{tab:polybench-kernels}
-\end{table}
-
-\begin{table}[h]
-  \centering
-  \small
-  \begin{tabular}{p{0.33\textwidth} c c p{0.4\textwidth}}
-    \hline
-    \textbf{Feature}                           & \textbf{Xi--Harper} & \textbf{Veritas} & \textbf{Notes}                                                                                                               \\
-    \hline
-    Independent low-level verification         & Yes                 & Yes              & Core architectural idea shared by both systems.                                                                              \\
-    Dependent block / label state types        & Yes                 & Yes              & Xi--Harper uses typed labels; Veritas uses \texttt{.entry} plus \texttt{.assume}.                                            \\
-    Singleton integer types \texttt{int(x)}    & Yes                 & Yes              & Present in both; Veritas derives symbolic index expressions similarly.                                                       \\
-    Size-indexed array types                   & Yes                 & Yes              & Xi--Harper uses \texttt{int array(m)}; Veritas uses array types indexed by \texttt{IndexExpr}.                               \\
-    Array-bound-check elimination support      & Yes                 & Yes              & Central purpose in Xi--Harper; preserved in Veritas's array reasoning.                                                       \\
-    Typed stack discipline                     & Yes                 & Yes              & Present in both, though exposed differently in the concrete syntax.                                                          \\
-    Existential dependent types                & Yes                 & Partial          & Xi--Harper uses them centrally; Veritas currently supports existential integers, but not the broader original style.         \\
-    Tuple / product heap objects               & Yes                 & No               & Xi--Harper has \texttt{prod(...)} and \texttt{newtuple}; Veritas does not currently expose general tuple allocation in V-DTAL. \\
-    Sum / tag reasoning                        & Yes                 & No               & Xi--Harper extends DTAL for sums and tag-check elimination; Veritas does not currently have this V-DTAL feature.               \\
-    Explicit array allocation primitives       & Yes                 & No               & Xi--Harper has \texttt{newarray} and \texttt{arraysize}; Veritas uses a different allocation story.                          \\
-    Ownership / borrow operations              & No                  & Yes              & Veritas adds \texttt{move\_owned}, \texttt{alias\_borrow}, \texttt{borrow\_mut}, \texttt{borrow\_end}, \texttt{drop\_owned}. \\
-    Mutable vs shared alias discipline         & No                  & Yes              & Not present in Xi--Harper; central extension in Veritas.                                                                     \\
-    Physical post-regalloc verification target & No                  & Yes              & Veritas verifies physically allocated V-DTAL after register allocation.                                                        \\
-    ABI / calling-convention instructions      & No                  & Yes              & Veritas includes \texttt{spill\_store}, \texttt{spill\_load}, \texttt{.prologue}, \texttt{.epilogue}.                        \\
-    Machine-level division expansion           & No                  & Yes              & Veritas includes physical instructions such as \texttt{cqo} and \texttt{idiv}.                                               \\
-    \hline
-  \end{tabular}
-  \caption{Feature comparison between Xi and Harper's DTAL and V-DTAL.}
-  \label{tab:dtal-xi-harper-comparison}
 \end{table}
 
 \begin{table}[h]
@@ -793,70 +740,6 @@ Consequently, if the verifier accepts the physical V-DTAL, every checked instruc
   \end{tabular}
   \caption{V-DTAL tampering corpus used to test the standalone verifier against syntax-preserving low-level corruptions. Each case starts from valid compiler output and checks that physical V-DTAL verification rejects the mutated artifact.}
   \label{tab:dtal-tampering-corpus}
-\end{table}
-
-\begin{table}[h]
-  \centering
-  \small
-  \begin{tabular}{l r r r r}
-    \hline
-    \textbf{Task}                  & \textbf{Veritas} & \textbf{Dafny} & \textbf{Liquid Haskell} & \textbf{Verus} \\
-    \hline
-    \texttt{safe\_division}        & 0.167            & 0.125          & 0.400                   & 0.100          \\
-    \texttt{bounded\_read\_offset} & 0.111            & 0.267          & 0.286                   & 0.182          \\
-    \texttt{fill\_with\_ones}      & 0.154            & 0.267          & 0.364                   & 0.250          \\
-    \texttt{binary\_search}        & 0.077            & 0.229          & 0.200                   & 0.222          \\
-    \texttt{sorted\_head}          & 0.125            & 0.263          & 0.417                   & 0.235          \\
-    \texttt{safe\_midpoint}        & 0.143            & 0.250          & 0.400                   & 0.200          \\
-    \hline
-  \end{tabular}
-  \caption{Annotation-to-code ratios for the normalised cross-system comparison suite.}
-  \label{tab:cross-system-annotation-burden}
-\end{table}
-
-\begin{table}[h]
-  \centering
-  \small
-  \begin{tabularx}{\linewidth}{
-      >{\ttfamily}l
-      >{\centering\arraybackslash}X
-      >{\centering\arraybackslash}X
-      >{\centering\arraybackslash}X
-      >{\centering\arraybackslash}X
-      >{\centering\arraybackslash}X
-    }
-    \hline
-    \textbf{Task}                       &
-    \textbf{Veritas compile-only (s)}   &
-    \textbf{Veritas compile+verify (s)} &
-    \textbf{Dafny (s)}                  &
-    \textbf{Liquid Haskell (s)}         &
-    \textbf{Verus (s)}                                                      \\
-    \hline
-
-    safe\_division                      &
-    0.0240                              & 0.0253 & 0.9259 & 1.1794 & 0.4484 \\
-
-    bounded\_read\_offset               &
-    0.0278                              & 0.0437 & 1.0118 & 1.2807 & 0.4604 \\
-
-    fill\_with\_ones                    &
-    0.0611                              & 0.0890 & 1.0015 & 1.2213 & 0.4924 \\
-
-    binary\_search                      &
-    0.2645                              & 0.3103 & 1.2629 & 1.3219 & 0.5285 \\
-
-    sorted\_head                        &
-    0.0259                              & 0.0308 & 1.0054 & 1.1942 & 0.5068 \\
-
-    safe\_midpoint                      &
-    0.0228                              & 0.0259 & 0.8856 & 1.1624 & 0.4939 \\
-    \hline
-  \end{tabularx}
-
-  \caption{Exact mean wall-clock timings for the normalised six-task
-    cross-system comparison suite.}
-  \label{tab:comparison-suite-wallclock}
 \end{table}
 
 \chapter{Worked example: binary search}\label{app:worked-example}

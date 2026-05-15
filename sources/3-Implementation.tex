@@ -77,7 +77,7 @@ veritas/
 
 \section{Pipeline overview}
 
-Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, and arrows indicate the transformations between them. Checked type annotations are preserved through from source refinements to V-DTAL, and are no longer needed after V-DTAL verification and final encoding to x86-64.
+Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named representation is shown in sequence, with arrows indicating the transformations. Checked type annotations are preserved from source refinements to V-DTAL and are no longer needed after V-DTAL verification and final encoding to x86-64.
 
 \begin{figure}[h]
   \centering
@@ -93,11 +93,11 @@ Figure~\ref{fig:pipeline} summarises the compilation pipeline. Each named repres
 
 \section{The Veritas language}\label{sec:source-language}
 
-This section presents the syntax and formal typing rules of the Veritas source language. These define the contract that the compiler must uphold: any program accepted by the type checker satisfies the properties encoded in its types.
+This section presents the syntax and typing rules of the Veritas source language. These define the contract that the compiler must uphold: any program accepted by the type checker satisfies the properties encoded in its types.
 
 \subsection{Syntax}
 
-The abstract syntax of Veritas is defined by the grammar in Figure~\ref{fig:veritas-syntax}. The metavariables used in the grammar are:
+The abstract syntax of Veritas is defined by the grammar in Figure~\ref{fig:veritas-syntax}. The grammar uses the metavariables:
 
 \begin{itemize}
   \item $n$: integer literals
@@ -106,7 +106,7 @@ The abstract syntax of Veritas is defined by the grammar in Figure~\ref{fig:veri
   \item $N$: integer expressions that must reduce to a statically known constant.
 \end{itemize}
 
-If a block has a trailing expression, its value is the block's result; otherwise, its result is unit. $\textsf{aop}$ and $\textsf{uaop}$ range over binary and unary arithmetic operators respectively; $\textsf{cop}$ over comparison operators; and $\textsf{lop}$ and $\textsf{ulop}$ over binary and unary logical operators respectively. Grey text denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
+If a block has a trailing expression, its value is the block's result; otherwise, its result is unit. $\textsf{aop}$ and $\textsf{uaop}$ range over binary and unary arithmetic operators; $\textsf{cop}$ over comparison operators; and $\textsf{lop}$ and $\textsf{ulop}$ over binary and unary logical operators respectively. Grey text denotes an optional clause; $(\cdot)^*$ denotes zero or more repetitions.
 
 \begin{figure}[H]
 {\small
@@ -183,7 +183,7 @@ The typing context is a tuple $(\phi, \Gamma, \Delta, \Sigma_F)$:
 
 \subsubsection{Master types}
 
-The master type $\tau_m$ is set at declaration and never changes; the current type $\tau_c$ may be refined through control flow but must remain a subtype of $\tau_m$. To demonstrate: when a mutable variable is declared as \texttt{let mut x:T = e}, the type $T$ is recorded as the variable's master type $\tau_m$. The variable's \textit{current type} $\tau_c$ may be narrowed through assignments and control flow (e.g., after \texttt{if x > 0}, the current type narrows to $\{v\!:\!\mathtt{int} \mid v > 0\}$), but every assignment \texttt{x = e} must satisfy $\tau_e <: \tau_m$, where $\tau_e$ is the type synthesised for the right-hand-side expression $e$. At control-flow joins, current types from each branch are merged using the join operation, but the result must remain a subtype of the master type. This prevents the invalidation of refinements if \texttt{x} is reassigned. The interaction between master types and mutable variables is described in Section~\ref{sec:typechecker}.
+The master type $\tau_m$ is set at declaration and never changes; the current type $\tau_c$ may be refined through control flow but must remain a subtype of $\tau_m$. When a mutable variable is declared as \texttt{let mut x:T = e}, $T$ is recorded as the variable's master type $\tau_m$. The variable's \textit{current type} $\tau_c$ may be narrowed through assignments and control flow (e.g., after \texttt{if x > 0}, the current type narrows to $\{v\!:\!\mathtt{int} \mid v > 0\}$), but every assignment \texttt{x = e} must satisfy $\tau_e <: \tau_m$, where $\tau_e$ is the type synthesised for the right-hand-side expression $e$. At control-flow joins, current types from each branch are merged using the join operation, but the result must remain a subtype of the master type. This prevents the invalidation of refinements if \texttt{x} is reassigned. 
 
 \subsection{Context joining}\label{sec:context-joining}
 
@@ -199,7 +199,7 @@ At control-flow merge points (i.e., after \textbf{if-else} and loops), the typin
     \item Propositions ($\phi$): intersect (keep only propositions provable in both branches).
 \end{itemize}
 
-\noindent When $\textsf{join}$ is used in expression rules (e.g., \textsc{T-If-Expr}), the same type-joining rules apply to the result types of both branches. The implementation keeps this precision for integer singletons, so a branch that assigns either $0$ or $1$ can still verify a subsequent access into a length-two array. Boolean singleton joins are currently widened to \textsf{bool}, because Veritas' refinement predicate machinery is integer-focused; more aggressive disjunctive joining is also limited by the need to avoid unbounded SMT formula growth.
+\noindent When $\textsf{join}$ is used in expression rules (e.g., \textsc{T-If-Expr}), the same type-joining rules apply to the result types of both branches. The implementation keeps this precision for integer singletons, so a branch assigning either $0$ or $1$ can still verify a subsequent access into a length-two array. Boolean singleton joins are currently widened to \textsf{bool} because Veritas' refinement predicates are integer-focused; more aggressive disjunctive joining is also limited by the need to avoid unbounded SMT formula growth.
 
 \subsection{Judgement forms}\label{sec:judgement-forms}
 
@@ -233,9 +233,9 @@ For expressions whose value is used in a proof obligation, synthesis returns bot
 \[
   \phi;\Delta;\Gamma \vdash e \Rightarrow (\phi';\Delta';\tau;\iota)
 \]
-The term $\iota$ denotes the expression's value in generated constraints. For a singleton it is the singleton index; for a refinement or existential type it is the symbolic term introduced during synthesis. Boolean expressions also expose a guard proposition $\mathsf{guard}(e)$, for example $\mathsf{guard}(e_1 < e_2) = \iota_1 < \iota_2$. Conditional and loop rules use this guard, so branch facts such as \texttt{lo <= hi} enter the corresponding path context.
+The term $\iota$ denotes the expression's value in generated constraints. For a singleton it is the singleton index; for a refinement or existential type it is the symbolic term introduced during synthesis. Boolean expressions expose a guard proposition $\mathsf{guard}(e)$, for example $\mathsf{guard}(e_1 < e_2) = \iota_1 < \iota_2$. Conditional and loop rules use this guard, so branch facts such as \texttt{lo <= hi} enter the corresponding path context.
 
-Arithmetic operations use a $\textsf{join-op}$ function that performs constant folding when both operands are singletons (e.g., $\textsf{join-op}(+, \textsf{int}(1), \textsf{int}(2)) = \textsf{int}(3)$) and otherwise synthesises a refinement type via SMT refinement synthesis (e.g., $\{v\!:\!\textsf{int} \mid v = e_L + e_R\}$):
+Arithmetic operations use a $\textsf{join-op}$ function that constant-folds singleton operands (e.g., $\textsf{join-op}(+, \textsf{int}(1), \textsf{int}(2)) = \textsf{int}(3)$) and otherwise synthesises a refinement type via SMT refinement synthesis (e.g., $\{v\!:\!\textsf{int} \mid v = e_L + e_R\}$):
 
 $$
   \frac{
@@ -300,7 +300,7 @@ $$
 
 \subsection{Statement typing rules}\label{sec:stmt-typing-rules}
 
-Standard rules for blocks, let bindings, array assignment, if-statements, and while loops are given in Appendix~\ref{app:source-rules}. Some of the more interesting rules are described below.
+Standard rules for blocks, let bindings, array assignment, if-statements, and while loops appear in Appendix~\ref{app:source-rules}. Some of the more interesting rules are described below.
 
 Assignment checks that the new value conforms to the master type:
 
@@ -363,7 +363,7 @@ This section describes the concrete instruction set and typing judgements of V-D
 
 \subsection{Instruction set}\label{sec:dtal-instr-set}
 
-The V-DTAL instruction set resembles a standard RISC assembly language but is augmented with type annotations and constraint assertions. V-DTAL appears in two forms in the pipeline: a virtual-register form emitted by code generation, and a physical-register form produced after register allocation. Both carry verifier-facing type information, and the final verifier checks the physical form. The core syntax is summarised in Figure~\ref{fig:dtal-syntax}.
+The V-DTAL instruction set resembles a standard RISC assembly language augmented with type annotations and constraint assertions. V-DTAL appears in two forms: a virtual-register form emitted by code generation, and a physical-register form produced after register allocation. Both carry verifier-facing type information, and the final verifier checks the physical form. The core syntax is summarised in Figure~\ref{fig:dtal-syntax}.
 
 \begin{figure}[H]
 {\small
@@ -426,7 +426,7 @@ The V-DTAL instruction set resembles a standard RISC assembly language but is au
 
 \subsection{V-DTAL directives}
 
-In addition to executable instructions, the textual V-DTAL format contains directives that describe function metadata, block entry states, and verifier annotations. Figure~\ref{fig:dtal-directives} shows where these directives appear in a typical V-DTAL function.
+Beyond executable instructions, the textual V-DTAL contains directives describing function metadata, block entry states, and verifier annotations. Figure~\ref{fig:dtal-directives} shows where these directives appear in a typical V-DTAL function.
 
 \begin{figure}[H]
 \centering
@@ -459,13 +459,13 @@ f:
 \label{fig:dtal-directives}
 \end{figure}
 
-Function-level directives define the verifier-facing signature and contract. Block-level directives declare the type state that must hold when control enters a block, and edge checking proves that predecessor states imply these entry states. Constraint directives split into assumptions, which form part of the declared block state, and assertions, which are checked at their program point before being added to the context. Physical directives such as \texttt{.prologue} and \texttt{.epilogue} appear only after register allocation.
+Function-level directives define the verifier-facing signature and contract. Block-level directives declare the type state required on block entry, and edge checking proves that predecessor states imply these entry states. Constraint directives split into assumptions, which form part of the declared block state, and assertions, which are checked at their program point before being added to the context. Physical directives such as \texttt{.prologue} and \texttt{.epilogue} appear only after register allocation.
 
 \subsection{V-DTAL type system}
 
-The V-DTAL type system largely mirrors the source-level type system: it retains unit, integer and boolean base types, machine-integer types, singleton integers $\textsf{int}(N)$, refinement types, arrays, and master types. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, V-DTAL index expressions may mention constants, register names, arithmetic, and $\textsf{select}(\mathit{arr}, i)$ for array element access (of an array $\mathit{arr}$ atindex $i$).
+The V-DTAL type system largely mirrors the source-level type system: unit, integer and boolean base types, machine-integer types, singleton integers $\textsf{int}(N)$, refinement types, arrays, and master types. The main difference is that these types classify \emph{registers} rather than source variables, so the indices appearing in types are low-level expressions over register contents. In particular, V-DTAL index expressions may mention constants, register names, arithmetic, and $\textsf{select}(\mathit{arr}, i)$ for array element access (of an array $\mathit{arr}$ atindex $i$).
 
-The most important addition is the use of \textit{existential types} to represent results that are known only symbolically at the assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; \varphi(x)$, where $\varphi$ is a predicate over integer witnesses. This allows the verifier to retain enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
+The main addition is the use of \textit{existential types} to represent results that are known only symbolically at the assembly level. When arithmetic on non-singleton operands cannot preserve an exact singleton type, the result is represented as an existential such as $\exists x.\; \textsf{int}(x) \;\mathbf{where}\; \varphi(x)$, where $\varphi$ is a predicate over integer witnesses. This allows the verifier to retain enough logical structure for later proof obligations without requiring every intermediate value to have a concrete singleton type.
 
 The V-DTAL constraint language preserves the same core logical fragment used in source-level specifications: comparisons, logical connectives, and bounded quantifiers. However, it is represented separately as a first-order language over V-DTAL index expressions rather than directly as source expressions, and conversion from source expressions to this constraint language is partial. These constraints are threaded through the verifier's type state and refined by comparisons, branches, assertions, and function contracts.
 
@@ -552,7 +552,7 @@ The lexer and parser are built using the \texttt{chumsky} parser combinator libr
 
 \subsection{Type checker}\label{sec:typechecker}
 
-The type checker is the most substantial frontend component. It implements the bidirectional typing rules described in Section~\ref{sec:source-language}, using Z3 as an SMT oracle.
+The type checker is the most substantial frontend component. It implements the bidirectional typing rules described in Section~\ref{sec:source-language} using Z3 as an SMT oracle.
 % the bidirectional type system described in Chapter~\ref{ch:prep}, using Z3 as an SMT oracle.
 
 \subsubsection{Architecture}
@@ -563,7 +563,7 @@ The type checker operates in two passes. The first collects all function signatu
 
 \subsubsection{Bidirectional checking}
 
-The implementation provides an explicit synthesis combinator, \texttt{synth\_expr}, which takes a typing context and an expression as input and returns either a type error or, on success, a typed expression together with its synthesised type. Integer literals produce singleton types, variable lookups return the type from $\Gamma$ or $\Delta$, and arithmetic operations use the \texttt{join\_op} helper introduced in Section~\ref{sec:expr-typing-rules}. The checking judgement is realised operationally by first synthesising a type for the expression and then verifying, via the SMT-backed subtyping check, that the synthesised type conforms to the expected one.
+The implementation provides an explicit synthesis combinator, \texttt{synth\_expr}, which takes a typing context and an expression as input and returns either a type error or, on success, a typed expression together with its synthesised type. Integer literals produce singleton types, variable lookups return the type from $\Gamma$ or $\Delta$, and arithmetic operations use the \texttt{join\_op} helper introduced in Section~\ref{sec:expr-typing-rules}. The checking judgement is realised operationally by first synthesising a type for the expression and then using the SMT-backed subtyping check to verify that the synthesised type conforms to the expected one.
 
 Statement checking (\texttt{check\_stmts}) updates the typing context according to each statement's effect: \texttt{let} bindings extend $\Gamma$ or $\Delta$, assignments update the current type in $\Delta$, and loops are checked by proving that their invariants hold on entry and are preserved by the body, as described in the statement typing rules for loops in Section~\ref{sec:stmt-typing-rules}.
 
@@ -1072,11 +1072,11 @@ Borrowing is implemented as an extension of the ordinary bidirectional type chec
   \item \textbf{Borrow scopes}: stack of lexical scopes used to release borrows at block exit.
 \end{itemize}
 
-Creating \texttt{\&x} increments the shared-borrow count for \texttt{x}; creating \texttt{\&mut x} requires no live shared or mutable borrow. Assignments, shadowing, moves, and function calls consult the same metadata, so the checker rejects mutating a shared-borrowed owner, moving a borrowed owner, creating a shared borrow while a mutable borrow is live, and creating two simultaneous mutable borrows. These checks are integrated into \texttt{check\_stmt} and \texttt{synth\_expr}, which means the typed AST records both the ordinary type of an expression and the borrow/move behaviour needed by lowering.
+Creating \texttt{\&x} increments the shared-borrow count for \texttt{x}; creating \texttt{\&mut x} requires no live shared or mutable borrow. Assignments, shadowing, moves, and function calls consult the same metadata, so the checker rejects mutating a shared-borrowed owner, moving a borrowed owner, creating a shared borrow while a mutable borrow is live, and creating two simultaneous mutable borrows. These checks are integrated into \texttt{check\_stmt} and \texttt{synth\_expr}, so the typed AST records both the ordinary type of an expression and the borrow/move behaviour needed by lowering.
 
 % \subsection{TIR representation}
 
-Once the frontend accepts a program, ownership behaviour is made explicit in TIR. This is important because later compiler stages should not need to reconstruct ownership events from source syntax: the verifier-facing pipeline receives first-class operations for moves, drops, borrow creation, and borrow termination.
+Once the frontend accepts a program, ownership behaviour is made explicit in TIR. Later compiler stages need not reconstruct ownership events from source syntax: the verifier-facing pipeline receives first-class operations for moves, drops, borrow creation, and borrow termination.
 
 \begin{figure}[H]
 {\small

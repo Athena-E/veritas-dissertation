@@ -18,13 +18,13 @@ A second approach is \emph{verified compilers}: compilers whose correctness is p
 
 \subsection{Moving the trust boundary: Proof-Carrying Code}
 
-One might suggest combining the previous two methods: a verified compiler for a safety-enforcing source language. Verifying such a compiler, however, comes at the cost of writing and maintaining thousands of lines of machine-checked mathematical proofs.
+One might suggest combining the previous two methods into a verified compiler for a safety-enforcing source language. Verifying such a compiler, however, comes at the cost of writing and maintaining thousands of lines of machine-checked mathematical proofs.
 
-\emph{Proof-carrying code} (PCC) \cite{Necula1997PCC} offers a way to move the trust boundary down to the compiled artifact without verifying the compiler itself: the code producer (i.e., compiler) generates both executable code and a safety proof; the code consumer (e.g., an operating system loader) checks the proof against a safety policy before executing the code. One way to realise this idea is \emph{type-preserving compilation} in which types carrying information about memory safety properties are preserved from the source language down to assembly. In the abstract PCC model, the typed low-level artefact can be checked by a \emph{verifier}. In a concrete implementation, the TCB would consist of just the verifier (and its dependencies).
+\emph{Proof-carrying code} (PCC) \cite{Necula1997PCC} offers a way to move the trust boundary down to the compiled artifact without verifying the compiler itself: the code producer (i.e., compiler) generates both executable code and a safety proof; the code consumer (e.g., an operating system loader) checks the proof against a safety policy before executing the code. One way to realise this idea is \emph{type-preserving compilation}, a process in which types carrying information about memory safety properties are preserved from the source language down to assembly. In the abstract PCC model, the typed low-level artefact can be checked by a \emph{verifier}. In a concrete implementation, the TCB would consist of just the verifier (and its dependencies).
 
 \subsection{A practical middle-ground: Veritas}\label{sec:intro-veritas}
 
-The gap addressed by this dissertation is the lack of a executable systems-language toolchain that combines source-level refinement checking with independently checkable low-level output without requiring a fully verified compiler. Figure~\ref{fig:safety-sem-taxonomy} illustrates the motivating gap.
+The gap addressed by this dissertation is the lack of a systems-language toolchain that combines source-level refinement checking with independently checkable low-level output without requiring a fully verified compiler. Figure~\ref{fig:safety-sem-taxonomy} illustrates the motivating gap.
 
 This dissertation presents \textbf{Veritas}, a toolchain that applies the ideas behind PCC to compile source programs for a systems language to V-DTAL, a Veritas-specific version of Dependently Typed Assembly Language (DTAL) \cite{Xi2001DTAL}.
 In the supported fragment, Veritas checks: fixed-size array bounds, function preconditions and postconditions, block-entry type-state compatibility, selected arithmetic side conditions, and ownership/borrow-state consistency.

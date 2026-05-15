@@ -13,7 +13,7 @@ This chapter gives the background needed to understand Veritas, the type-system 
 The fundamental theorem that connects type systems to safety is \emph{type soundness}: a well-typed program cannot `go wrong' at runtime~\cite{Milner1978Theory}. Wright and Felleisen formalised this via the \emph{progress} and \emph{preservation} lemmas~\cite{Wright1994Syntactic}:
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black]
-  \paragraph{Progress.} If $\emptyset \vdash e : \tau$, then either $e$ is already a value, or there exists some expression $e'$ such that $e \to e'$. \\
+  \paragraph{Progress.} If $\emptyset \vdash e : \tau$, then either $e$ is a value, or there exists some expression $e'$ such that $e \to e'$. \\
 
   \paragraph{Preservation.} If $\emptyset \vdash e : \tau$ and $e \to e'$, then $\emptyset \vdash e' : \tau$.
 \end{tcolorbox}
@@ -266,7 +266,7 @@ The branch \texttt{bgte r5, finish} refines the type state: on the fall-through 
 The design of Veritas synthesises several established approaches to software verification: automated refinement checking, systems-language design, and proof-carrying code.
 
 \subsection{Refinement Types and Automated Verification}
-Liquid Haskell~\cite{Vazou2014Refinement} and Liquid Types~\cite{Rondon2008Liquid} provide the main precedent for SMT-backed refinement checking. Dafny~\cite{Leino2010Dafny} similarly uses SMT solving for imperative contracts and loop invariants. Veritas adapts this style of automatic proof discharge, but preserves the resulting constraints into assembly rather than erasing them after source-level verification.
+Liquid Haskell~\cite{Vazou2014Refinement} and Liquid Types~\cite{Rondon2008Liquid} provide the main precedent for SMT-backed refinement checking. Dafny~\cite{Leino2010Dafny} similarly uses SMT solving for imperative contracts and loop invariants. Veritas adapts this style of automatic proof discharge but preserves the resulting constraints into assembly rather than erasing them after source-level verification.
 
 \subsection{Foundational and Dependent Verification}
 At the more expressive end of the spectrum are systems such as F*~\cite{Swamy2016Dependent}, which supports full dependent types, and RefinedC~\cite{Sammler2021RefinedC}, which applies refinement and ownership types to C code to enable machine-checked Rocq proofs. Veritas chooses an automated SMT-backed foundation rather than foundational proof, trading proof-assistant generality for automatic checking in the compiled artifact once specifications are supplied.
@@ -457,17 +457,17 @@ Supporting mutation also required care: refinements about a variable may become 
 % TODO: define V-DTAL
 The target V-DTAL is a variant of Xi and Harper's DTAL~\cite{Xi2001DTAL}, extended for Veritas' refinement type system and targeting a RISC-like subset of x86-64. Simple instructions are easier to type, easier to verify, and map naturally from the compiler’s SSA-style intermediate representation. V-DTAL is then augmented with type annotations on registers, constraint assertions embedded in the instruction stream, and declared type states at basic block entry points.
 
-I also defined V-DTAL with its own \textit{physical register model} that maps directly to x86-64 registers. This allows verification \textit{after} register allocation: the register allocator is untrusted and its output is verified before the final x86-64 encoding.
+I also defined V-DTAL with its own \textit{physical register model} that maps directly to x86-64 registers. This allows verification \textit{after} register allocation: the allocator is untrusted and its output verified before final x86-64 encoding.
 
 \subsection{Machine code encoding and ELF generation}
 
-Veritas encodes x86-64 instructions directly as bytes. The trusted path below physically-allocated V-DTAL is intentionally trivial: each V-DTAL instruction translates to exactly one x86-64 instruction (or a small fixed sequence for prologues/epilogues), making the path amenable to manual audit.
+Veritas encodes x86-64 instructions directly as bytes. The trusted path below physically-allocated V-DTAL is intentionally trivial: each V-DTAL instruction translates to exactly one x86-64 instruction (or a small fixed prologues/epilogue sequence), making the path amenable to manual audit.
 
-The choice of the x86-64 target architecture was pragmatic: the development machine runs x86-64 Linux, enabling direct execution and testing of compiled binaries without emulation. Targeting another ISA would require replacing only the instruction mapping, byte encoder, and register definitions, while leaving the V-DTAL type system and verifier structure largely unchanged.
+The choice of the x86-64 target architecture was pragmatic: the development machine runs x86-64 Linux, enabling direct execution and testing of compiled binaries without emulation. Targeting another ISA would require replacing only instruction mapping, byte encoding, and register definitions, while leaving the V-DTAL type system and verifier structure largely unchanged.
 
 \subsection{Verification via SMT}
 
-I designed the Veritas constraint system such that frontend type checking and low-level verification could be delegated to an SMT solver. The safety obligations Veritas supports are naturally expressed as arithmetic and logical implications over program values and SMT-solving provides an automated way to discharge these obligations without requiring manual proofs for routine constraints.
+The Veritas constraint system delegates frontend type checking and low-level verification to an SMT solver. The supported safety obligations are naturally expressed as arithmetic and logical implications over program values, and SMT-solving discharges them automatically without manual proofs for routine constraints.
 
 In Veritas, the SMT solver is invoked at several points:
 \begin{itemize}
@@ -476,7 +476,7 @@ In Veritas, the SMT solver is invoked at several points:
   \item function contract verification (where preconditions and postconditions are checked at call sites and return points respectively).
 \end{itemize}
 
-Quantified array properties fall outside the decidable quantifier-free fragment of linear integer arithmetic, so the language restricts quantifiers to bounded forms. Given the SMT solver forms part of the TCB, it is important to minimise the risk introduced by this trust and using an obscure solver would weaken this argument. Z3~\cite{DeMoura2008Z3}, developed by Microsoft Research, is one of the most widely used SMT solvers and is the solver used in this project. I chose it for its maturity and reliability. Z3 also natively supports the theories featured in Veritas (Section~\ref{sec:smt-based-ver}).
+Quantified array properties fall outside the decidable quantifier-free fragment of linear integer arithmetic, so the language restricts quantifiers to bounded forms. Because the SMT solver is in the TCB, it is important to minimise the risk introduced by this trust and using an obscure solver would weaken this argument. Z3~\cite{DeMoura2008Z3} is one of the most widely used SMT solvers and is the solver used in this project. I chose it for its maturity and reliability. Z3 also natively supports the theories featured in Veritas (Section~\ref{sec:smt-based-ver}).
 
 % For quantified specifications such as $\forall i \in [0, n).\; \mathit{arr}[i] \ge 0$, the translation uses Z3's built-in quantifier support: $\forall i.\; (0 \le i \wedge i < n) \Rightarrow \mathit{arr}[i] \ge 0$, where the array is represented as a Z3 array sort. Existential quantifiers are handled dually, asserting $\exists i.\; (a \le i \wedge i < b) \wedge P$. While quantified formulae move outside the decidable fragment of LIA, Z3's E-matching and model-based quantifier instantiation heuristics handle the bounded quantifiers that arise in practice effectively.
 
@@ -579,11 +579,11 @@ The requirements of the project were categorised using the MoSCoW method to prio
 
 \subsection{Methodology}
 
-\paragraph{Development process.} Initial planning resembled a waterfall model for defining compiler pipeline modules, source and target language features and specifications. Software development then followed a spiral approach: the pipeline was built end-to-end to support integer arithmetic, then extended with arrays, mutable variables, refinement types, function contracts, and quantifiers. Work items were planned for two-week sprints managed using Jira. Each feature was accompanied by positive tests that should compile and negative tests that should be rejected with a specific error.
+\paragraph{Development process.} Initial planning resembled a waterfall model for defining compiler pipeline modules, source and target language features and specifications. Development then followed a spiral approach: the pipeline was built end-to-end to support integer arithmetic, then extended with arrays, mutable variables, refinement types, function contracts, and quantifiers. Work items were planned for two-week sprints. Each feature was accompanied by positive tests that should compile and negative tests that should be rejected with a specific error.
 
 \paragraph{Version control.} Version control was managed using Git, following a trunk-based development strategy with short-lived feature branches merged into the main branch. CI was done using GitHub Actions.
 
-\paragraph{Code quality and testing.} To maintain clean code, the CI pipeline enforced formatting and linting standards using \texttt{cargo fmt} and \texttt{cargo clippy}. It validated the suite of example programs, and executed the test suite across both Ubuntu Linux and macOS environments; this gave coverage across the main systems development platforms and different Z3/libc environments. The test suite features unit tests for each significant module and integration tests between the components of the pipeline.
+\paragraph{Code quality and testing.} The CI pipeline enforced formatting and linting standards using \texttt{cargo fmt} and \texttt{cargo clippy}. It also validated example programs and ran the test suite on Ubuntu Linux and macOS, covering the main systems development platforms and different Z3/libc environments. The test suite has unit tests for each significant module and integration tests between pipeline components.
 % TODO: unit/integration test coverage (stats)
 
 \paragraph{Documentation.} I wrote module-level Rust doc comments and generated crate documentation using \texttt{cargo doc --open}.
@@ -591,7 +591,7 @@ The requirements of the project were categorised using the MoSCoW method to prio
 \subsection{Tools and Technologies}
 The project was implemented in Rust, chosen for its type system, pattern matching, and memory safety without garbage collection. Rust's ownership model also influenced the later borrow-oriented parts of Veritas.
 
-Table~\ref{tab:veritas-crates} lists all the external Rust crates used in the Veritas implementation.
+Table~\ref{tab:veritas-crates} lists the external Rust crates used in Veritas.
 
 \begin{table}[H]
   \centering
