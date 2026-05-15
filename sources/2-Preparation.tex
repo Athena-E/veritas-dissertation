@@ -4,7 +4,7 @@
 
 \chapter{Preparation}\label{ch:prep}
 
-This chapter gives the background needed to understand the design of Veritas: the type-system machinery used to express safety properties, the related verification systems that informed the design, and the engineering decisions that fix the project's trust boundary. It establishes the theory and design context needed for the implementation that follows.
+This chapter gives the background needed to understand the design of Veritas, the type-system machinery used to express safety properties, the related verification systems that informed the design, and the engineering decisions that fix the project's trust boundary. It establishes the theory and design context needed for the implementation that follows.
 
 \section{Background}\label{sec:background}
 
@@ -31,7 +31,7 @@ Type systems exist on a spectrum of expressiveness. At one end, simply typed lan
 
 \subsection{Dependent types and refinement types}\label{sec:dependent-types}
 
-In a dependently typed language, types may depend on values. In general,  a dependent type is a function with codomain \textsf{Set}, the collection of all ordinary types [TODO: cite]. The canonical example is the type of vectors indexed by their length:
+In a dependently typed language, types may depend on values. In general, a dependent type is a function with codomain \textsf{Set}, the collection of all ordinary types \cite{bove2009dependent}. The canonical example is the type of vectors indexed by their length:
 
 \[
   \begin{aligned}
@@ -263,13 +263,13 @@ The branch \texttt{bgte r5, finish} refines the type state: on the fall-through 
 \section{Related work and design influences}
 \label{sec:related-work}
 
-The design of Veritas makes use of several established approaches to software verification: it synthesises techniques from functional verification, systems programming, and proof-carrying code.
+The design of Veritas synthesises several established approaches to software verification: automated refinement checking, systems-language design, and proof-carrying code.
 
 \subsection{Refinement Types and Automated Verification}
-Liquid Haskell~\cite{Vazou2014Refinement} and Liquid Types~\cite{Rondon2008Liquid} provide the main precedent for SMT-backed refinement checking. Dafny~\cite{Leino2010Dafny} similarly uses SMT solving for imperative contracts and loop invariants. Veritas borrows this style of automatic proof discharge, but preserves the resulting constraints down to assembly rather than erasing them after source-level verification.
+Liquid Haskell~\cite{Vazou2014Refinement} and Liquid Types~\cite{Rondon2008Liquid} provide the main precedent for SMT-backed refinement checking. Dafny~\cite{Leino2010Dafny} similarly uses SMT solving for imperative contracts and loop invariants. Veritas adapts this style of automatic proof discharge, but preserves the resulting constraints into assembly rather than erasing them after source-level verification.
 
 \subsection{Foundational and Dependent Verification}
-At the more expressive end of the spectrum are systems such as F*~\cite{Swamy2016Dependent}, which supports full dependent types, and RefinedC~\cite{Sammler2021RefinedC}, which applies refinement and ownership types to C code to enable the construction of machine-checked proofs in Coq. Veritas deliberately accepts a weaker foundation---SMT-backed checking rather than foundational proof---to keep proof obligations automatic once specifications are supplied.
+At the more expressive end of the spectrum are systems such as F*~\cite{Swamy2016Dependent}, which supports full dependent types, and RefinedC~\cite{Sammler2021RefinedC}, which applies refinement and ownership types to C code to enable the construction of machine-checked proofs in Coq. Veritas chooses an automated SMT-backed foundation rather than foundational proof, trading proof-assistant generality for automatic checking in the compiled artifact once specifications are supplied.
 
 \subsection{Verifiable Systems Languages}
 The most direct predecessor to Veritas's goals is ATS (Applied Type System)~\cite{Xi2003Applied}. It targets systems programming using dependent types with zero runtime overhead. The key difference is architectural. ATS proves properties at compile time and then emits C, leaving the ATS and C compilers in the TCB. Veritas instead preserves types into DTAL so that the low-level target can be checked independently.
@@ -581,9 +581,9 @@ The requirements of the project were categorised using the MoSCoW method to prio
 
 \paragraph{Development process.} Initial planning resembled a waterfall model for defining compiler pipeline modules, source and target language features and specifications. Software development then followed a spiral approach: the pipeline was built end-to-end to support integer arithmetic, then extended with arrays, mutable variables, refinement types, function contracts, and quantifiers. Work items were planned for two-week sprints managed using Jira. Each feature was accompanied by positive tests that should compile and negative tests that should be rejected with a specific error.
 
-\paragraph{Version control.} Version control was managed using Git, following a trunk-based development strategy with short-lived feature branches merged into the main branch. A GitHub Actions CI pipeline ran on each push to ensure continuous correctness.
+\paragraph{Version control.} Version control was managed using Git, following a trunk-based development strategy with short-lived feature branches merged into the main branch. CI was done using GitHub Actions.
 
-\paragraph{Code quality and testing.} To maintain clean code, the CI pipeline enforced formatting and linting standards using the \texttt{cargo fmt} and \texttt{cargo clippy} tools. It also validated the suite of example programs, and executed the test suite across both Ubuntu Linux and macOS environments; this gave coverage across the main systems development platforms and different Z3/libc environments. The test suite features unit tests for each significant module and integration tests between the components of the pipeline.
+\paragraph{Code quality and testing.} To maintain clean code, the CI pipeline enforced formatting and linting standards using \texttt{cargo fmt} and \texttt{cargo clippy}. It validated the suite of example programs, and executed the test suite across both Ubuntu Linux and macOS environments; this gave coverage across the main systems development platforms and different Z3/libc environments. The test suite features unit tests for each significant module and integration tests between the components of the pipeline.
 % TODO: unit/integration test coverage (stats)
 
 \paragraph{Documentation.} I wrote module-level Rust doc comments and generated crate documentation using \texttt{cargo doc --open}.
