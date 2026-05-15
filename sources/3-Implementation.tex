@@ -57,8 +57,6 @@ veritas/
 %                        qemu-system-x86_64 -kernel <binary> -serial stdio
 %
 % Verification:
-%   --verify             Verify DTAL before code generation
-%   --verify-only        Verify DTAL and exit (no codegen)
 %   --verify-dtal        Verify a standalone .dtal file
 %
 % Optimisation:
@@ -501,7 +499,6 @@ $$
 $$
 
 \noindent where $e_i$ is the index expression extracted from the type of $r_i$. The verifier derives the result type from the array base rather than trusting the annotation, and records a constraint equating $r_d$ with the corresponding versioned array selection. Stores are symmetric, with one addition: the verifier maintains \textit{array versions}, so each store creates a fresh logical array name. It then adds explicit write and frame axioms over versioned $\textsf{select}$ expressions, avoiding conflation between values written at different program points.
-% TODO: select not defined
 
 \paragraph{Conditional Branching}
 A comparison instruction updates the verifier's comparison state. We write $\mathcal{F}(\textsf{last})$ for the live symbolic operand pair recorded by the most recent comparison; this field is undefined after any instruction that clobbers machine flags. The auxiliary function $\textsf{idx}(\tau)$ extracts the index expression associated with an integer-like DTAL type, such as a singleton, refined, or existential integer type:
@@ -670,33 +667,7 @@ A TIR function stores its parameters, pre/postconditions, and basic-block map. E
 \label{fig:tir-syntax}
 \end{figure}
 
-The grammar abstracts over the Rust data structures used in the implementation. Table~\ref{tab:tir-implementation-correspondence} gives the correspondence between the grammar and constructors in the implementation.
-
-% \begin{table}[H]
-% \centering
-% \footnotesize
-% \begin{tabular}{p{0.25\textwidth} p{0.7\textwidth}}
-% \hline
-% \textbf{Abstract TIR form} & \textbf{Implementation form} \\
-% \hline
-% $\rho := n : \tau$ & \texttt{LoadImm \{ dst, value, ty \}} \\
-% $\rho := \rho' : \tau$ & \texttt{Copy \{ dst, src, ty \}} \\
-% $\rho := \rho_1\;\textsf{op}\;\rho_2 : \tau$ & \texttt{BinOp \{ dst, op, lhs, rhs, ty \}} \\
-% $\rho := \textsf{unop}\;\rho' : \tau$ & \texttt{UnaryOp \{ dst, op, operand, ty \}} \\
-% $\rho := \textsf{load}\;\rho_b[\rho_i] : \tau\;\textsf{where } C$ & \texttt{ArrayLoad \{ dst, base, index, element\_ty, bounds\_constraint \}} \\
-% $\textsf{store}\;\rho_b[\rho_i] := \rho_s\;\textsf{where } C$ & \texttt{ArrayStore \{ base, index, value, bounds\_constraint \}} \\
-% $\optclause{\rho :=}\;\textsf{call}\;f(\overrightarrow{\rho}) : \tau$ & \texttt{Call \{ dst?, func, args, arg\_types, result\_ty \}} \\
-% $\textsf{assume } C$ & \texttt{AssumeConstraint \{ constraint \}} \\
-% $\textsf{assert } C$ & \texttt{AssertConstraint \{ constraint \}} \\
-% $\rho := \textsf{phi}\; \overrightarrow{(L,\rho)} : \tau$ & \texttt{PhiNode \{ dst, ty, incoming, existential\_constraint \}} \\
-% $\textsf{jump } L$ & \texttt{Jump \{ target \}} \\
-% $\textsf{branch } \rho\;L_t\;L_f$ & \texttt{Branch \{ cond, true\_target, false\_target, true\_constraint, false\_constraint \}} \\
-% $\textsf{return}\;\optclause{\rho}$ & \texttt{Return \{ value? \}} \\
-% \hline
-% \end{tabular}
-% \caption{Correspondence between the abstract TIR syntax and the implementation representation.}
-% \label{tab:tir-implementation-correspondence}
-% \end{table}
+The grammar abstracts over the Rust data structures used in the implementation. The implementation follows the same decomposition directly: function and block structs contain typed parameters, phi nodes, instruction lists, terminators, and entry states, while enum variants represent the individual instruction and terminator forms in Figure~\ref{fig:tir-syntax}.
 
 \subsection{Lowering from TAST to TIR}
 
@@ -990,7 +961,6 @@ The first three intrinsics use Linux syscalls and are Linux-target only. The por
 All intrinsics follow the System~V AMD64 calling convention (first argument in \texttt{rdi}, return value in \texttt{rax}), so compiled Veritas code calls them without marshalling. The hand-assembled runtime is part of the TCB, so the design keeps it compact, inspectable, and tested.
 
 \section{Bare-metal target}\label{sec:unikernel}
-% TODO: elaborate more on implementation; highlight as extension and purpose to support I/O functionality
 
 The Veritas CLI's \texttt{--target-bare-metal} flag produces a Multiboot-compliant ELF32 that can boot directly on x86-64 hardware or QEMU\footnote{QEMU is an open-source machine emulator and virtualiser: \url{https://www.qemu.org/}.} without an operating system. This shows the same checked pipeline producing OS-independent executable artifacts. The host kernel is removed from the normal execution path and replaced by a compact trusted bootstrap and runtime. The bootstrap, runtime intrinsics, hardware model, and QEMU behaviour remain outside the DTAL verifier's guarantee.
 

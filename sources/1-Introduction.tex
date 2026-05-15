@@ -1,17 +1,9 @@
-% 1. Safety, talk about Lamport, Hartbleed, Therac-25, and guarantee.
-% 2. The two extremes, explain Rust and verified compilers.
-% 3. The third way, explain proof-carrying code and the model of DTAL.
-% 4. Veritas, its model of untrusted compiler, and some the technical overview (Section 1.2).
-
-% TODO: do i need to define 'lifetimes'
-
 \chapter{Introduction}\label{ch:intro}
 
 \section{Motivation}
 
 In his 1977 paper, Leslie Lamport defined \emph{safety} as a property ensuring that ``something bad never happens'' \cite{Lamport1977Proving}. In systems programming, \emph{memory safety} means no out-of-bounds reads, null-pointer dereferences, or other memory-related \emph{undefined behaviour} (UB). C and C++ leave these guarantees to the \emph{programmer}; failures can be severe: Heartbleed (2014) \cite{CVE-2014-0160} was ultimately an unchecked bounds error that leaked sensitive memory. Given human infallibility, what strategies can mitigate, or even eliminate, memory safety bugs in systems programming?
 
-% TODO: improvement on C/C++
 One approach, exemplified by Rust, enforces \emph{source-level safety properties} using mechanisms such as the borrow checker. This combines performance and safety, but trusts a large, evolving compiler to preserve frontend guarantees. If a compiler bug miscompiles safe source, the executable may no longer preserve those guarantees.
 
 A second approach is \emph{verified compilers}: compilers whose correctness is proved using formal methods. CompCert \cite{compcert}, written in Rocq for a subset of C \cite{RocqRefman}, guarantees \emph{semantic preservation} and reduces the \emph{Trusted Computing Base} (TCB) from the entire compiler to Rocq's kernel. Since CompCert compiles C, memory safety remains the programmer's responsibility.
@@ -30,7 +22,7 @@ This dissertation presents \textbf{Veritas}, an executable systems-language tool
 In the supported fragment, Veritas checks: fixed-size array bounds, function preconditions and postconditions, block-entry type-state compatibility, selected arithmetic side conditions, and ownership/borrow-state consistency.
 % Claims that are \emph{out-of-scope} are: full source-to-target semantic preservation, full memory safety for arbitrary heap and pointer behaviour, correctness of Z3, correctness of the final encoder/runtime, or full Rust-like borrow checking.
 Unless qualified otherwise, claims about independent verification, low-level safety, verifier acceptance, and the untrusted compiler refer to these safety properties.
-The central claim is that Veritas emits executable low-level output carrying sufficient type and constraint information for a small, trusted, independent verifier to check the low-level safety policy before execution, without proving compiler correctness. The same facts give the backend an optimisation surface: bounds, singleton values, and refinement constraints survive lowering rather than disappearing after frontend checking.
+The central claim is that Veritas emits executable low-level output carrying sufficient type and constraint information for a small, trusted, independent verifier to check the low-level safety policy before execution, without proving compiler correctness. The same preserved facts also define an optimisation surface: bounds, singleton values, and refinement constraints survive lowering rather than disappearing after frontend checking.
 
 % The trust argument that motivates this project suggests two axes for comparing toolchains. Figure~\ref{fig:safety-sem-taxonomy} separates two guarantees made at the \emph{executable level}: semantic preservation and executable-level memory safety.
 Figure~\ref{fig:safety-sem-taxonomy} illustrates the motivating gap.
@@ -86,7 +78,6 @@ These components support the core question: whether a systems-language toolchain
 \end{itemize}
 The Evaluation chapter tests whether this architecture is empirically borne out: whether the implementation accepts real programs, rejects invalid and tampered artifacts, keeps the trusted path small, and remains practically competitive.
 
-% TODO: move to requirements analysis?
 % \begin{itemize}
 %   \item Memory-safety and control-flow safety properties that are covered by verification include: array bounds checking, control-flow/state consistency at joins and branches, function contract checking and loop-invariant preservation. Arithmetic safety properties such as division/modulo safety and integer overflow checking are also supported.
 %   \item Formally proving the correctness of the verifier is beyond the scope. Confidence in the verifier is supported through extensive testing over both unit tests and end-to-end program suites, which provide comprehensive coverage of the features of the small source language.

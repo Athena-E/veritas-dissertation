@@ -1,7 +1,3 @@
-% TODO: trust model of the project
-% TODO: move Veritas def to impl? Replace with more pre-testing, using and eval of other systems that inspired/guided design of Veritas
-% TODO: PCC
-
 \chapter{Preparation}\label{ch:prep}
 
 This chapter gives the background needed to understand Veritas: the type-system machinery used to express safety properties, related verification systems, and engineering decisions fixing the trust boundary. It establishes the theory and design context for the implementation.
@@ -31,7 +27,7 @@ Type systems exist on an expressiveness spectrum. At one end, simply typed langu
 
 \subsection{Dependent types and refinement types}\label{sec:dependent-types}
 
-In a dependently typed language, types may depend on values. In general,  a dependent type is a function with codomain \textsf{Set}, the collection of all ordinary types [TODO: cite]. The canonical example is the type of vectors indexed by their length:
+In a dependently typed language, types may depend on values. The canonical example is the type of vectors indexed by their length:
 
 \[
   \begin{aligned}
@@ -48,7 +44,6 @@ In a dependently typed language, types may depend on values. In general,  a depe
 
 Full dependent type systems, such as Rocq and Agda~\cite{Bove2009Agda}, can express arbitrary higher-order propositions as types (via Curry--Howard), but this generality is costly: type checking is expensive and may require explicit proof terms.
 
-% TODO: practical restriction
 Refinement types~\cite{Rondon2008Liquid} are a decidable subset of dependent pairs:
 \[
   \{v : \mathtt{int} \mid P(v)\} \simeq (v : \mathtt{int}) \times P(v)
@@ -69,8 +64,6 @@ A useful special case is the singleton type, written $\mathtt{int}(n)$, inhabite
   \end{array}
 \]
 This enables compile-time verification of array bounds when indices are statically known.
-
-% TODO: [because of advantages] Veritas' type system extends a simple base type system (integers, booleans, arrays) with refinement types to encode value-dependent invariants.
 
 \subsection{Bidirectional type checking}
 
@@ -98,7 +91,6 @@ $$
 
 \noindent For refinement types, the bidirectional structure is particularly well-suited. Synthesis produces the most precise type available from an expression's immediate structure---for integer literals, a singleton type; for arithmetic, a refinement capturing the exact relationship between result and operands. Checking then verifies subtyping against the expected type. The programmer annotates only function boundaries and mutable variable declarations; the type checker infers intermediate refinement types automatically. Bidirectional type-checking sits between Hindley-Milner full inference and complete expression annotations.
 
-% TODO: move to design decisions/impl?
 % In Veritas, the bidirectional structure also threads the typing context through the judgements. Both synthesis and checking accept a context and return an updated context, reflecting changes from mutable variable assignments and newly learned refinement propositions.
 
 \subsection{SMT-based verification}
@@ -224,13 +216,9 @@ This makes proof-obligation \textit{discharge} fully automatic: the programmer n
 \end{figure}
 
 
-% \subsection{Proof-carrying code and type-preserving compilation}\label{sec:pcc-background}
+\subsection{Proof-carrying code and typed low-level targets}\label{sec:pcc-background}
 
-% Type-preserving compilation can be seen as a particular instance of PCC where the `proof' takes the form of type annotations, which are rich enough to carry safety-relevant information. Conventional compilers erase types after type checking, discarding the safety guarantees established by the type system.
-
-% The generated machine code is subsequently trusted on the basis that the compiler is correct, an assumption that is difficult to verify for large, complex compilers. 
-
-% Type-preserving compilation~\cite{Morrisett1999SystemF} retains type information through every intermediate representation in the pipeline. This enables the property that the compiled output can be independently verified without trusting the compiler. If a bug in the compiler produces type-incorrect code, the type annotations on the output will be inconsistent, and the verifier will reject it.
+Proof-carrying code~\cite{Necula1997PCC} and typed assembly languages~\cite{Morrisett1999SystemF} establish the low-level trust argument used by Veritas. Instead of treating compilation as the point where types disappear, a producer emits code with enough evidence for a consumer-side checker to validate a safety policy. In a type-preserving compiler, that evidence is a low-level program annotated with types rich enough for an independent checker to reconstruct the safety argument. Veritas adopts this route: the compiler emits evidence, but the verifier trusts it only after re-deriving the relevant low-level facts.
 
 
 \subsection{Dependently Typed Assembly}\label{sec:dtal-background}
@@ -274,11 +262,10 @@ At the more expressive end are systems such as F*~\cite{Swamy2016Dependent}, whi
 \subsection{Verifiable Systems Languages}
 The most direct predecessor to Veritas's goals is ATS (Applied Type System)~\cite{Xi2003Applied}. It targets systems programming using dependent types with zero runtime overhead. The key difference is architectural. ATS proves properties at compile time and emits C, leaving the ATS and C compilers in the TCB. Veritas instead preserves types into DTAL so the low-level target can be checked independently.
 
-Together, these systems leave a specific gap. Liquid Haskell and Dafny show usable SMT-backed specifications, but their guarantees are principally source-level. F*, RefinedC, Coq, and Agda show stronger foundational assurance with heavier proof burden. ATS shows dependent types supporting systems programming, but leaves the C backend in the trust boundary. Veritas targets the remaining point: automatic refinement checking in a systems-language fragment whose safety evidence is preserved into an independently checkable low-level artifact.
+Together, these systems leave a specific gap. Liquid Haskell and Dafny show usable SMT-backed specifications, but their guarantees are principally source-level. F*, RefinedC, Coq, and Agda show stronger foundational assurance with heavier proof burden. TAL, PCC, and DTAL show how low-level artifacts can carry checkable evidence, but not the executable refinement-oriented source toolchain evaluated here. ATS shows dependent types supporting systems programming, but leaves the C backend in the trust boundary. Veritas targets the remaining point: automatic refinement checking in a systems-language fragment whose safety evidence is preserved into an independently checkable low-level artifact.
 
 Figure~\ref{fig:verification-landscape} summarises the trade-off between expressiveness and automation across the systems discussed above.
 
-% TODO: add DML, Xanadu
 \begin{figure}[H]
   \centering
   \begin{tikzpicture}[
@@ -312,8 +299,8 @@ Figure~\ref{fig:verification-landscape} summarises the trade-off between express
     % Dafny: good expressiveness, moderate automation (requires contracts/invariants)
     \node[hollow, label={[font=\footnotesize]above right:Dafny}] at (6,4.5) {};
 
-    % Veritas: similar expressiveness to Dafny, slightly less automated, proofs preserved
-    % \node[filled, label={[font=\small\bfseries]below left:Veritas}] at (5.5,4) {};
+    % Veritas: SMT-backed source checking with evidence preserved into low-level output
+    \node[filled, label={[font=\small\bfseries]below left:Veritas}] at (6.2,4.9) {};
 
     % ATS: high expressiveness, lower automation (manual proofs sometimes needed), proofs preserved at compile time
     \node[filled, label={[font=\footnotesize]above right:ATS}] at (7,3) {};
@@ -456,7 +443,6 @@ A key expressiveness choice was bounded quantification. Scalar refinements can p
 Supporting mutation also required care: refinements about a variable may become invalid after assignment. Veritas gives mutable bindings both a fixed master type and a current refinable type, so reassignment is checked against the master declaration while path-sensitive facts remain locally usable.
 
 \subsection{V-DTAL design}
-% TODO: define V-DTAL
 The target V-DTAL is a variant of Xi and Harper's DTAL~\cite{Xi2001DTAL}, extended for Veritas' refinement type system and targeting a RISC-like x86-64 subset. Simple instructions are easier to type and verify, and map naturally from the compiler’s SSA-style intermediate representation. V-DTAL is augmented with register type annotations, embedded constraint assertions, and declared type states at basic block entries.
 
 I also defined a V-DTAL \textit{physical register model} that maps directly to x86-64 registers. This allows verification \textit{after} register allocation: the allocator is untrusted and its output verified before final x86-64 encoding.
@@ -586,8 +572,6 @@ The project requirements used the MoSCoW method to make the central technical be
 \paragraph{Version control.} Version control used Git with trunk-based development and short-lived feature branches merged into main. A GitHub Actions CI pipeline ran on each push to maintain continuous correctness.
 
 \paragraph{Code quality and testing.} The CI pipeline enforced formatting and linting with \texttt{cargo fmt} and \texttt{cargo clippy}. It also validated example programs and ran the test suite on Ubuntu Linux and macOS, covering the main systems development platforms and different Z3/libc environments. The test suite has unit tests for each significant module and integration tests between pipeline components.
-% TODO: unit/integration test coverage (stats)
-
 \paragraph{Documentation.} I wrote module-level Rust doc comments and generated crate documentation using \texttt{cargo doc --open}.
 
 \subsection{Tools and Technologies}
